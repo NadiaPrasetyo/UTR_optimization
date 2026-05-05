@@ -31,3 +31,9 @@ Use the [A7S paper](https://www.nature.com/articles/s41587-025-02891-7) as a bas
 
     World Health Organization (WHO) (September 2020). "Messenger RNA encoding the full-length SARS-CoV-2 spike glycoprotein" (DOC). WHO MedNet. Archived from the original on 5 January 2021. Retrieved from https://web.archive.org/web/20210105162941/https://mednet-communities.net/inn/db/media/docs/11889.doc
 
+**xrRNA Covariance Model: data/class2_xrrna.cm:**
+
+Preprocessed and Curated by Jay
+
+    Langeberg, C.J., Szucs, M.J., Sherlock, M.E. et al. Tick-borne flavivirus exoribonuclease-resistant RNAs contain a double loop structure. Nat Commun 16, 4515 (2025). https://doi.org/10.1038/s41467-025-59657-7
+
