@@ -4,11 +4,12 @@ from Bio import SeqIO
 import logging
 import os
 import sys
+import subprocess
 
-
-def setup_logging(verbose, output_dir):
+def setup_logging(verbose=False, output_dir='data/infernal_results'):
     log_level = logging.DEBUG if verbose else logging.INFO
     log_file = os.path.join(output_dir, "alifilter.log")
+    os.makedirs(output_dir, exist_ok=True)  # <-- add this line
     logging.basicConfig(
         level=log_level,
         format="%(asctime)s [%(levelname)s] %(message)s",
@@ -20,7 +21,7 @@ def setup_logging(verbose, output_dir):
     if verbose:
         logging.info("Logging initialized. Log file: %s", log_file)
 
-def reformat_fasta_to_sto(tool_root, input_file, output):
+def reformat_fasta_to_sto(tool_root, input_file, output, verbose):
     reformat_path = os.path.join(tool_root, "easel", "miniapps", "esl-reformat")
     if not os.path.exists(reformat_path):
         raise FileNotFoundError(f"reformat_path not found: {reformat_path}")
@@ -30,7 +31,7 @@ def reformat_fasta_to_sto(tool_root, input_file, output):
     tmp_sto = os.path.join(output, "temp", "tmp.sto")
 
     if verbose:
-        logging.info(f"Converting {msafile} to Stockholm...")
+        logging.info(f"Converting {input_file} to Stockholm...")
 
     with open(tmp_sto, "w") as out:
         subprocess.run(
@@ -44,14 +45,19 @@ def reformat_fasta_to_sto(tool_root, input_file, output):
     return tmp_sto
 
 
-def main(input_file, output, tool_root, genome):
-    if input_file.endswith(".sto"):
-        tmp_sto = reformat_fasta_to_sto(tool_root, input_file, output)
-        input_file = tmp_sto
+def main(input_file, output, tool_root, genome, verbose):
 
-    # run infernal commands
+    if not input_file.endswith(".sto"):
+        tmp_sto = reformat_fasta_to_sto(tool_root, input_file, output, verbose)
+        input_file = tmp_sto
+    # Derive a clean stem from just the filename, not the full path
+    input_stem = os.path.splitext(os.path.basename(input_file))[0]
+
+    temp_dir = os.path.join(output, "temp")
+    os.makedirs(temp_dir, exist_ok=True)  # ensure temp/ exists for .fasta input too
+
     cmbuild_path = os.path.join(tool_root, "infernal-1.1.5", "src", "cmbuild")
-    cm_path = os.path.join(output, "temp", f"{input_file.replace('.sto', '').replace('.fasta', '')}.cm")
+    cm_path = os.path.join(temp_dir, f"{input_stem}.cm")
 
     # check that the CM path has not already been built
     if os.path.exists(cm_path):
@@ -62,7 +68,7 @@ def main(input_file, output, tool_root, genome):
             logging.info(f"Building covariance model for {input_file}...")
 
         subprocess.run(
-            [cmbuild_path, cm_path, input_file],
+            [cmbuild_path, cm_path, os.path.abspath(input_file)],
             check=True
         )
 
@@ -83,7 +89,10 @@ def main(input_file, output, tool_root, genome):
     
     # run cmscan to output a table and a text file
     subprocess.run(
-        [cmsearch_path, cm_path, genome, "--tblout", os.path.join(output, f"{input_file.replace('.sto', '').replace('.fasta', '')}_cm_scan_table"), "-o", os.path.join(output, f"{input_file.replace('.sto', '').replace('.fasta', '')}_cm_scan")],
+        [cmsearch_path,
+         "--tblout", os.path.join(output, f"{input_stem}_cm_scan_table"),
+         "-o",       os.path.join(output, f"{input_stem}_cm_scan"),
+         cm_path, genome],
         check=True
     )
     
@@ -96,7 +105,7 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output", type=str, default="data/infernal_results", help="Output file")
     parser.add_argument("--tool_root", type=str, required=True, help="Path to Infernal tools")
     parser.add_argument("--genome", type=str, help="Path to genome")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
     setup_logging(verbose=args.verbose, output_dir=args.output)
-    main(args.input_file, args.output, args.tool_root, args.genome)
+    main(args.input_file, args.output, args.tool_root, args.genome, args.verbose)
