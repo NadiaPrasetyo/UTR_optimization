@@ -1,0 +1,61 @@
+# cmsearch :: search CM(s) against a sequence database
+# INFERNAL 1.1.5 (Sep 2023)
+# Copyright (C) 2023 Howard Hughes Medical Institute.
+# Freely distributed under the BSD open source license.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query CM file:                         data/class2_xrrna.cm
+# target sequence database:              data/hg38.fa
+# output directed to file:               data/infernal_results/xrRNA_cm_scan
+# tabular output of hits:                data/infernal_results/xrRNA_cm_scan_table
+# number of worker threads:              4
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       class2_xrrna_alignment  [CLEN=92]
+Hit scores:
+ rank     E-value  score  bias  sequence     start       end   mdl trunc   gc  description
+ ----   --------- ------ -----  -------- --------- ---------   --- ----- ----  -----------
+ ------ inclusion threshold ------
+  (1) ?       7.5   25.5   0.0  chr7     113800988 113801078 +  cm    no 0.32  -
+
+
+Hit alignments:
+>> chr7  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (1) ?       7.5   25.5   0.0  cm        1       92 []   113800988   113801078 + .. 0.89    no 0.32
+
+                                         v    v  v  v        v         v                        v  v  v    v   NC
+                                   :::::((((((((((((((,,,,,,<<<<____.>>>>,<<<<____________>>>>,)))))))))))))): CS
+  class2_xrrna_alignment         1 aacaccggggggugcugcGGCAgCaCgccguuA.ggcGACGGGaAaauGGUCGcuCCCGACgcagcaccccccgg 74       
+                                   AA+ C: :::: U: :G : CA CA  CC UUA GG  A:G G+A A   U GC C C:A: C: :A :::: :+
+                    chr7 113800988 AAUUCUCUAAAUUAUAGCA-CAACAUUCCUUUAgGGUGAUGGGGAGAAACUUGCCCUCAAUUCUUUAUUUUAUAA 113801061
+                                   *****99999999999877.77888888888889**************************99**99999999994 PP
+
+                                                      NC
+                                   :::::::::::::::::: CS
+  class2_xrrna_alignment        75 aaAAaAaUUuGUGAGACC 92       
+                                    A AA AUUU UGAGACC
+                    chr7 113801062 -AGAAUAUUUUUGAGACC 113801078
+                                   .56666677779****** PP
+
+
+
+Internal CM pipeline statistics summary:
+----------------------------------------
+Query model(s):                                                  1  (92 consensus positions)
+Target sequences:                                              455  (6418572210 residues searched)
+Target sequences re-searched for truncated hits:               455  (222040 residues re-searched)
+Windows   passing  local HMM SSV           filter:         4953277  (0.1138); expected (0.15)
+Windows   passing  local HMM Viterbi       filter:         3314701  (0.07735); expected (0.15)
+Windows   passing  local HMM Viterbi  bias filter:         3118722  (0.07278); expected (0.15)
+Windows   passing  local HMM Forward       filter:            3432  (9.192e-05); expected (0.0002)
+Windows   passing  local HMM Forward  bias filter:            2112  (5.546e-05); expected (0.0002)
+Windows   passing glocal HMM Forward       filter:            1186  (3.212e-05); expected (0.0002)
+Windows   passing glocal HMM Forward  bias filter:            1094  (2.871e-05); expected (0.0002)
+Envelopes passing glocal HMM envelope defn filter:            1094  (1.744e-05); expected (0.0002)
+Envelopes passing  local CM  CYK           filter:             199  (2.398e-06); expected (0.0001)
+Total CM hits reported:                                          1  (1.418e-08); includes 0 truncated hit(s)
+
+# CPU time: 182.66u 0.60s 00:03:03.26 Elapsed: 00:03:04.54
+//
+[ok]
