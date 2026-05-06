@@ -30,6 +30,55 @@ def parse_fasta_ids(fasta_file):
     return ids
 
 def decode_preds(h5, seq_ids, out_dir):
+    """
+    Decode model predictions from HDF5 into a tabular CSV.
+
+    OUTPUT COLUMNS:
+
+    seq_id:
+        Input sequence identifier from FASTA header.
+
+    target:
+        Index of model output head.
+        (0 = primary half-life prediction in most setups)
+
+    pred_half_life_mean:
+        Mean prediction across ensemble models.
+        NOTE: This is often in transformed space (e.g. log-scale or normalized),
+        NOT raw physical half-life unless explicitly calibrated.
+
+    pred_half_life_std:
+        Standard deviation across ensemble models.
+        Measures epistemic uncertainty:
+        - low (~0.0–0.2): high confidence
+        - moderate (~0.2–0.8): partial disagreement
+        - high (>1.0): unstable prediction
+
+    pred_half_life_min / max:
+        Range of ensemble predictions (best/worst model).
+
+    pred_half_life_ci_lower / ci_upper:
+        Approximate 95% confidence interval assuming Gaussian ensemble spread:
+            mean ± 1.96 * std
+
+    ensemble_agreement:
+        Heuristic confidence score derived from coefficient of variation:
+            cv = std / (|mean| + 1e-8)
+            agreement = 1 / (1 + cv)
+
+        Higher = more consistent ensemble predictions.
+        WARNING: depends on magnitude of mean; interpret carefully if mean ~ 0.
+
+    stability_class:
+        Heuristic binning of mean prediction:
+            mean < 2   → very_unstable
+            mean < 5   → unstable
+            mean < 10  → moderate
+            else       → stable
+
+        NOTE: thresholds apply in MODEL SPACE, not necessarily real time units.
+    """
+
     preds = safe_get(h5, 'preds')
     preds_mean = safe_get(h5, 'preds_mean')
 
@@ -71,13 +120,13 @@ def decode_preds(h5, seq_ids, out_dir):
             if not np.isnan(std):
                 ci_lower = mean - 1.96 * std
                 ci_upper = mean + 1.96 * std
-                cv = std / (mean + 1e-8)
+                cv = std / (np.abs(mean) + 1e-8)
                 agreement = 1 / (1 + cv)
             else:
                 ci_lower = ci_upper = np.nan
                 agreement = np.nan
 
-            # biological label
+            # biological label (in model space)
             if mean < 2:
                 stability_class = "very_unstable"
             elif mean < 5:
@@ -90,12 +139,12 @@ def decode_preds(h5, seq_ids, out_dir):
             rows.append({
                 "seq_id": seq_id,
                 "target": t,
-                "pred_half_life_mean": mean,
-                "pred_half_life_std": std,
-                "pred_half_life_min": min_v,
-                "pred_half_life_max": max_v,
-                "pred_half_life_ci_lower": ci_lower,
-                "pred_half_life_ci_upper": ci_upper,
+                "pred_log10_half_life_mean": mean,
+                "pred_log10_half_life_std": std,
+                "pred_log10_half_life_min": min_v,
+                "pred_log10_half_life_max": max_v,
+                "pred_log10_half_life_ci_lower": ci_lower,
+                "pred_log10_half_life_ci_upper": ci_upper,
                 "ensemble_agreement": agreement,
                 "stability_class": stability_class
             })
