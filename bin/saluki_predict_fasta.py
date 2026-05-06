@@ -117,15 +117,12 @@ def main():
   print('Gradient scores shape:', scores.shape)
   scores = np.transpose(scores, [1,2,3,0])
 
-  # preds: list of lists -> np.array shape (num_models, num_seqs, batch, num_targets)
-  # drop batch dim carefully then transpose to (num_seqs, num_targets, num_models)
-  preds = np.array(preds)
-  print('Raw predictions shape:', preds.shape)
-  if preds.ndim == 4:
-    preds = preds[:, :, 0, :]  # drop batch dim -> (num_models, num_seqs, num_targets)
-  # preds is now (num_models, num_seqs, num_targets)
+  # preds shape: (num_folds*num_crosses, num_seqs, num_targets)
+  # -> transpose to (num_seqs, num_targets, num_folds*num_crosses)
+  preds = np.array(preds)  # (num_models, num_seqs, 1, num_targets) or similar
+  preds = np.squeeze(preds, axis=2)  # remove batch dim -> (num_models, num_seqs, num_targets)
   print('Predictions shape:', preds.shape)
-  preds = np.transpose(preds, [1, 2, 0])  # (num_seqs, num_targets, num_models)
+  preds = np.transpose(preds, [1,2,0])  # (num_seqs, num_targets, num_models)
 
   # compute mean predicted half-life across ensemble
   preds_mean = preds.mean(axis=-1)  # (num_seqs, num_targets)
@@ -138,7 +135,7 @@ def main():
     scores_h5.attrs['preds_info'] = 'Predicted half-life per model: shape (num_seqs, num_targets, num_models)'
     scores_h5.create_dataset('preds_mean', data=preds_mean, compression='gzip')
     scores_h5.attrs['preds_mean_info'] = 'Mean predicted half-life across ensemble: shape (num_seqs, num_targets)'
-
+ 
   print('Saved gradients and predictions to %s/scores.h5' % options.out_dir)
 
 
