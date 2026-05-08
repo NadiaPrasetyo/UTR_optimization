@@ -161,6 +161,77 @@ def plot_scatter_with_trendline(df, output_dir):
         print(f"Scatter plot saved: {out_path}")
 
 
+
+def plot_gc_content_outliers(df, output_dir, outlier_zscore=2.0):
+    """
+    Scatter plot of 5' UTR GC content (x) vs 3' UTR GC content (y).
+    Points that are outliers in EITHER axis (|z-score| > outlier_zscore)
+    are highlighted and labelled with their UniProt accession.
+    Uses adjustText to avoid label overlaps where possible.
+    Output: scatter_utr_gc_content.png
+    """
+    sub = df[['uniprot_accession', 'utr5_gc', 'utr3_gc']].dropna()
+    x = sub['utr5_gc'].values
+    y = sub['utr3_gc'].values
+    labels = sub['uniprot_accession'].values
+
+    # Identify positive outliers: points > outlier_zscore SDs above the mean
+    # in EITHER 5' or 3' UTR GC content (high in at least one axis)
+    zx = stats.zscore(x)
+    zy = stats.zscore(y)
+    is_outlier = (zx > outlier_zscore) | (zy > outlier_zscore)
+
+    fig, ax = plt.subplots(figsize=(9, 7))
+
+    # Background points
+    ax.scatter(x[~is_outlier], y[~is_outlier],
+               alpha=0.4, s=20, color='#60A5FA', edgecolors='#1D4ED8',
+               linewidths=0.3, rasterized=True, label='Normal')
+
+    # Outlier points
+    ax.scatter(x[is_outlier], y[is_outlier],
+               alpha=0.85, s=55, color='#FCA5A5', edgecolors='#DC2626',
+               linewidths=0.8, zorder=5, label=f'Outlier (z > {outlier_zscore} in either)')
+
+    # Labels placed directly beside each point, no arrows
+    texts = []
+    for xi, yi, lbl in zip(x[is_outlier], y[is_outlier], labels[is_outlier]):
+        texts.append(ax.text(
+            xi, yi, f'  {lbl}',
+            fontsize=7, color='#7F1D1D', va='center',
+        ))
+
+    try:
+        from adjustText import adjust_text
+        adjust_text(texts, x=x[is_outlier], y=y[is_outlier], ax=ax)
+    except ImportError:
+        pass  # adjustText optional; labels still appear without it
+
+    ax.set_xlabel("5' UTR GC Content (%)", fontsize=12)
+    ax.set_ylabel("3' UTR GC Content (%)", fontsize=12)
+    ax.set_title("5' UTR vs 3' UTR GC Content", fontsize=13, fontweight='bold')
+    ax.legend(fontsize=9, framealpha=0.85)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    n_outliers = is_outlier.sum()
+    ax.text(0.02, 0.98, f"n = {len(sub)}  |  outliers = {n_outliers}",
+            transform=ax.transAxes, fontsize=8, va='top', color='grey')
+
+    plt.tight_layout()
+    out_path = os.path.join(output_dir, 'scatter_utr_gc_content.png')
+    fig.savefig(out_path, dpi=180, bbox_inches='tight')
+    plt.close(fig)
+    print(f"GC content outlier plot saved: {out_path}")
+
+    # Also save the outlier list as CSV
+    outlier_df = sub[is_outlier].copy()
+    outlier_df['zscore_utr5_gc'] = zx[is_outlier].round(3)
+    outlier_df['zscore_utr3_gc'] = zy[is_outlier].round(3)
+    outlier_csv = os.path.join(output_dir, 'gc_outliers.csv')
+    outlier_df.to_csv(outlier_csv, index=False)
+    print(f"GC outlier list saved: {outlier_csv}")
+
 def main(input_file, output_file, sort):
     # open and read the input file
     # uniprot_accession,cds,utr5,utr3,hl_human,hl_mouse,te_human,te_mouse,
@@ -207,6 +278,9 @@ def main(input_file, output_file, sort):
 
     # ── Scatter plots ──────────────────────────────────────────────────────
     plot_scatter_with_trendline(df, output_dir)
+
+    # ── GC content outlier plot ────────────────────────────────────────────
+    plot_gc_content_outliers(df, output_dir)
 
 
 if __name__ == '__main__':
