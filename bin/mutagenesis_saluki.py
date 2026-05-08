@@ -62,6 +62,7 @@ def run_saluki_predict(fasta_path, out_dir, models_dir=MODELS_DIR):
     cmd = [
         sys.executable, SALUKI_PREDICT,
         '-o', out_dir,
+        '-d', '0',
         models_dir,
         fasta_path          # all candidates in one shot
     ]
