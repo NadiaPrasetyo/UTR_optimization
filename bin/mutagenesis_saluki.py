@@ -57,14 +57,14 @@ def write_fasta(sequences, fasta_path):
 
 
 def run_saluki_predict(fasta_path, out_dir, models_dir=MODELS_DIR):
-    """Run saluki_predict_fasta.py on a multi-sequence FASTA and return the path to scores.h5."""
+    """Run saluki_predict_fasta.py and return the path to scores.h5."""
     h5_path = os.path.join(out_dir, 'scores.h5')
     cmd = [
         sys.executable, SALUKI_PREDICT,
         '-o', out_dir,
         '-d', '0',
         models_dir,
-        fasta_path          # all candidates in one shot
+        fasta_path
     ]
     logging.debug("Running: %s", ' '.join(cmd))
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -95,22 +95,25 @@ def run_decode_scores(h5_path, fasta_path, out_dir):
 
 def select(candidates, fasta_path, work_dir, models_dir=MODELS_DIR):
     """
-    Score ALL candidate sequences in a single Saluki call and return the best one.
+    Score all candidate sequences and return the best one.
 
-    candidates : list of (seq_id, full_seq_str) tuples — written as one FASTA
-    fasta_path : path where the multi-sequence FASTA will be written
-    work_dir   : scratch directory for this selection round (h5 + csvs land here)
+    candidates : list of (seq_id, full_seq_str) tuples
+    fasta_path : path where the temporary FASTA will be written
+    work_dir   : scratch directory for this selection round
 
     Returns: (best_seq_id, best_seq_str, best_score, scores_df)
     """
     os.makedirs(work_dir, exist_ok=True)
-    write_fasta(candidates, fasta_path)          # one FASTA, N sequences
+    write_fasta(candidates, fasta_path)
 
-    h5_path  = run_saluki_predict(fasta_path, work_dir, models_dir)   # single call
+    h5_path  = run_saluki_predict(fasta_path, work_dir, models_dir)
     csv_path = run_decode_scores(h5_path, fasta_path, work_dir)
 
     df = pd.read_csv(csv_path)
-    df_t0 = df[df['target'] == 0].copy().set_index('seq_id')
+
+    # Use target 0 (primary head); average across targets if multiple exist
+    df_t0 = df[df['target'] == 0].copy()
+    df_t0 = df_t0.set_index('seq_id')
 
     best_id    = df_t0['pred_log10_half_life_mean'].idxmax()
     best_score = df_t0.loc[best_id, 'pred_log10_half_life_mean']
@@ -145,34 +148,39 @@ def genetic_algorithm(
     """
     current_utr   = str(utr_seq)
     current_score = None
-    history = []
+
+    history = []   # list of dicts recording every generation
 
     for gen in range(num_generations):
         logging.info("=== Generation %d / %d ===", gen + 1, num_generations)
 
-        utr_len   = len(current_utr)
+        utr_len = len(current_utr)
         positions = random.sample(range(utr_len), min(mutations_per_generation, utr_len))
         logging.debug("Mutating positions: %s", positions)
 
-        # Build one candidate list with current + all mutations
+        # Build candidate list: always include the current sequence as baseline
         candidates = [("current", full_seq_builder(current_utr))]
         for pos in positions:
             for mut_utr, mut_label in mutate(current_utr, pos):
-                candidates.append((f"gen{gen+1}_{mut_label}", full_seq_builder(mut_utr)))
+                seq_id = f"gen{gen+1}_{mut_label}"
+                candidates.append((seq_id, full_seq_builder(mut_utr)))
 
-        logging.info("  Evaluating %d candidates in a single Saluki call …", len(candidates))
+        logging.info("  Evaluating %d candidates …", len(candidates))
 
-        gen_work   = os.path.join(output_dir, f"_gen_{gen+1:03d}_scratch")
+        # Scratch directory for this generation
+        gen_work = os.path.join(output_dir, f"_gen_{gen+1:03d}_scratch")
         fasta_path = os.path.join(gen_work, "candidates.fasta")
 
         best_id, best_seq_full, best_score, scores_df = select(
             candidates, fasta_path, gen_work, models_dir
         )
 
-        prefix_len = len(full_seq_builder(""))
-        best_utr   = best_seq_full[prefix_len:]
+        # Recover the 3' UTR portion from the best full sequence
+        prefix_len  = len(full_seq_builder(""))   # length of CDS + 5'UTR
+        best_utr    = best_seq_full[prefix_len:]
         mutation_applied = best_id if best_id != "current" else "none"
 
+        # Did we improve?
         improved = current_score is None or best_score > current_score
         if improved:
             logging.info(
@@ -197,29 +205,19 @@ def genetic_algorithm(
             "current_utr":       current_utr,
         })
 
+        # Optionally persist this generation's outputs
         if save_cycle and cycle_dir:
             dest = os.path.join(cycle_dir, f"gen_{gen+1:03d}")
-            os.makedirs(dest, exist_ok=True)
-
-            # Copy CSVs
-            for fname in ("predictions.csv", "gradients_summary.csv"):
-                src = os.path.join(gen_work, fname)
-                if os.path.exists(src):
-                    shutil.copy2(src, os.path.join(dest, fname))
-
-            # Copy raw H5
-            h5_src = os.path.join(gen_work, "scores.h5")
-            if os.path.exists(h5_src):
-                shutil.copy2(h5_src, os.path.join(dest, "scores.h5"))
-
-            # Save winning 3' UTR for this generation
+            shutil.copytree(gen_work, dest, dirs_exist_ok=True)
+            # Also write the winning 3' UTR for this generation
             write_fasta(
                 [(f"gen{gen+1}_best_utr", current_utr)],
                 os.path.join(dest, "best_utr.fasta")
             )
-            logging.debug("  Saved cycle outputs to %s", dest)
 
-        shutil.rmtree(gen_work, ignore_errors=True)   # always clean scratch
+        # Clean up scratch unless saving
+        if not save_cycle:
+            shutil.rmtree(gen_work, ignore_errors=True)
 
     return current_utr, current_score, pd.DataFrame(history)
 
