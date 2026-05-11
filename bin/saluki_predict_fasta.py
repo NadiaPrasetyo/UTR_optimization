@@ -60,6 +60,7 @@ def main():
   else:
     models_dir = args[0]
     fasta_file = args[1]
+    fasta_stem = os.path.splitext(fasta_file)[0]
 
   os.makedirs(options.out_dir, exist_ok=True)
 
@@ -128,7 +129,7 @@ def main():
   preds_mean = preds.mean(axis=-1)  # (num_seqs, num_targets)
   print('Mean predictions shape:', preds_mean.shape)
 
-  with h5py.File('%s/scores.h5' % options.out_dir, 'w') as scores_h5:
+  with h5py.File(f'{options.out_dir}/{fasta_stem}_scores.h5', 'w') as scores_h5:
     scores_h5.create_dataset('seqs', data=seqs_1hot, compression='gzip')
     scores_h5.create_dataset('grads', data=scores, compression='gzip')
     scores_h5.create_dataset('preds', data=preds, compression='gzip')
@@ -136,7 +137,7 @@ def main():
     scores_h5.create_dataset('preds_mean', data=preds_mean, compression='gzip')
     scores_h5.attrs['preds_mean_info'] = 'Mean predicted half-life across ensemble: shape (num_seqs, num_targets)'
  
-  print('Saved gradients and predictions to %s/scores.h5' % options.out_dir)
+  print('Saved gradients and predictions to %s' % (f'{options.out_dir}/{fasta_stem}_scores.h5'))
 
 
 def parse_fasta(fasta_file, seq_len):

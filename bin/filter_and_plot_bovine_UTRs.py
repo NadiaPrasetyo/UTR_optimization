@@ -245,7 +245,7 @@ def main(input_file, output_file, sort):
     df = df[df['utr5_length'] <= 100]
     df = df[df['utr5_length'] >= 10]
     df = df[df['utr3_length'] <= 600]
-    df = df[df['utr3_length'] >= 10]
+    df = df[df['utr3_length'] >= 50]
 
     # also filter any lines where the HL and TE are all negative
     df = df[(df['hl_human'] >= 0) | (df['hl_mouse'] >= 0) | (df['te_human'] >= 0) | (df['te_mouse'] >= 0)]

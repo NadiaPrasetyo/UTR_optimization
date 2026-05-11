@@ -29,7 +29,7 @@ def parse_fasta_ids(fasta_file):
                 ids.append(line[1:].strip().split()[0])
     return ids
 
-def decode_preds(h5, seq_ids, out_dir):
+def decode_preds(h5, seq_ids, out_dir, file_stem):
     """
     Decode model predictions from HDF5 into a tabular CSV.
 
@@ -150,10 +150,10 @@ def decode_preds(h5, seq_ids, out_dir):
             })
 
     df = pd.DataFrame(rows)
-    df.to_csv(os.path.join(out_dir, "predictions.csv"), index=False)
+    df.to_csv(os.path.join(out_dir, f"{file_stem}_predictions.csv"), index=False)
 
 
-def decode_grads(h5, seq_ids, out_dir, write_raw=False):
+def decode_grads(h5, seq_ids, out_dir, write_raw=False, file_stem=None):
     seqs = safe_get(h5, 'seqs')
     def get_annotation(seq_i, pos):
         # CDS mask from channel 4
@@ -267,12 +267,12 @@ def decode_grads(h5, seq_ids, out_dir, write_raw=False):
                     })
 
     pd.DataFrame(summary_rows).to_csv(
-        os.path.join(out_dir, "gradients_summary.csv"), index=False
+        os.path.join(out_dir, f"{file_stem}_gradients_summary.csv"), index=False
     )
 
     if write_raw:
         pd.DataFrame(raw_rows).to_csv(
-            os.path.join(out_dir, "gradients_raw.csv"), index=False
+            os.path.join(out_dir, f"{file_stem}_gradients_raw.csv"), index=False
         )
 
 
@@ -299,13 +299,14 @@ def main():
     os.makedirs(args.out_dir, exist_ok=True)
 
     seq_ids = parse_fasta_ids(args.fasta_file)
+    file_stem = os.path.splitext(os.path.basename(args.h5_file))[0]
 
     with h5py.File(args.h5_file, "r") as h5:
         print("Decoding predictions...")
-        decode_preds(h5, seq_ids, args.out_dir)
+        decode_preds(h5, seq_ids, args.out_dir, file_stem)
 
         print("Decoding gradients...")
-        decode_grads(h5, seq_ids, args.out_dir, args.raw_grads)
+        decode_grads(h5, seq_ids, args.out_dir, args.raw_grads, file_stem)
 
     print(f"Done. Output written to {args.out_dir}/")
 
