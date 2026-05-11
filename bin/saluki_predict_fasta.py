@@ -60,7 +60,7 @@ def main():
   else:
     models_dir = args[0]
     fasta_file = args[1]
-    fasta_stem = os.path.splitext(fasta_file)[0]
+    fasta_stem = os.path.splitext(os.path.basename(fasta_file))[0]
 
   os.makedirs(options.out_dir, exist_ok=True)
 
