@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<svg height="550" width="700" xmlns="http://www.w3.org/2000/svg">
+	<script height="550" type="text/ecmascript" width="700"><![CDATA[
+      var shown = 1;
+      function click() {
+        var seq = document.getElementById("seq");
+        if (shown==1) {
+          seq.setAttribute("style", "visibility: hidden");
+          shown = 0;
+        } else {
+          seq.setAttribute("style", "visibility: visible");
+          shown = 1;
+        }
+      }
+]]></script>
+	<style type="text/css"><![CDATA[
+      .nucleotide {
+        font-family: SansSerif;
+      }
+      .backbone {
+        stroke: grey;
+        fill:   none;
+        stroke-width: 1.5;
+      }
+      .basepairs {
+        stroke: red;
+        fill:   none;
+        stroke-width: 2.5;
+      }
+]]></style>
+	<rect height="452" onclick="click(evt)" style="fill: white; stroke: white" width="452" x="0" y="0" />
+	<g id="legendElements" transform="translate(25,500)">
+<text id="legendTitle" style="fill: dimgrey; font-family: Arial,Helvetica; font-size: 14px; text-anchor: middle" x="71" y="27">Sequence Conservation</text>
+<text id="leftLegendNumber" style="fill: dimgrey; font-family: Arial,Helvetica; font-size: 14px; text-anchor: left" x="0" y="-2">0.00</text>
+<text id="rightLegendNumber" style="fill: dimgrey; font-family: Arial,Helvetica; font-size: 14px; text-ancor: left" x="122" y="-2">1.00</text>
+<g id="legendBoxElements" x="0" y="0">
+	<rect height="15" style="fill: rgb(255,0,255)" width="4" x="0" y="0" />
+	<rect height="15" style="fill: rgb(219,0,255)" width="4" x="4" y="0" />
+	<rect height="15" style="fill: rgb(184,0,255)" width="4" x="8" y="0" />
+	<rect height="15" style="fill: rgb(148,0,255)" width="4" x="12" y="0" />
+	<rect height="15" style="fill: rgb(113,0,255)" width="4" x="16" y="0" />
+	<rect height="15" style="fill: rgb(77,0,255)" width="4" x="20" y="0" />
+	<rect height="15" style="fill: rgb(42,0,255)" width="4" x="24" y="0" />
+	<rect height="15" style="fill: rgb(7,0,255)" width="4" x="28" y="0" />
+	<rect height="15" style="fill: rgb(0,28,255)" width="4" x="32" y="0" />
+	<rect height="15" style="fill: rgb(0,63,255)" width="4" x="36" y="0" />
+	<rect height="15" style="fill: rgb(0,99,255)" width="4" x="40" y="0" />
+	<rect height="15" style="fill: rgb(0,134,255)" width="4" x="44" y="0" />
+	<rect height="15" style="fill: rgb(0,169,255)" width="4" x="48" y="0" />
+	<rect height="15" style="fill: rgb(0,205,255)" width="4" x="52" y="0" />
+	<rect height="15" style="fill: rgb(0,240,255)" width="4" x="56" y="0" />
+	<rect height="15" style="fill: rgb(0,255,240)" width="4" x="60" y="0" />
+	<rect height="15" style="fill: rgb(0,255,198)" width="4" x="64" y="0" />
+	<rect height="15" style="fill: rgb(0,255,162)" width="4" x="68" y="0" />
+	<rect height="15" style="fill: rgb(0,255,127)" width="4" x="72" y="0" />
+	<rect height="15" style="fill: rgb(0,255,92)" width="4" x="76" y="0" />
+	<rect height="15" style="fill: rgb(0,255,56)" width="4" x="80" y="0" />
+	<rect height="15" style="fill: rgb(0,255,21)" width="4" x="84" y="0" />
+	<rect height="15" style="fill: rgb(0,255,0)" width="4" x="88" y="0" />
+	<rect height="15" style="fill: rgb(14,255,0)" width="4" x="92" y="0" />
+	<rect height="15" style="fill: rgb(49,255,0)" width="4" x="96" y="0" />
+	<rect height="15" style="fill: rgb(84,255,0)" width="4" x="100" y="0" />
+	<rect height="15" style="fill: rgb(120,255,0)" width="4" x="104" y="0" />
+	<rect height="15" style="fill: rgb(155,255,0)" width="4" x="108" y="0" />
+	<rect height="15" style="fill: rgb(191,255,0)" width="4" x="112" y="0" />
+	<rect height="15" style="fill: rgb(226,255,0)" width="4" x="116" y="0" />
+	<rect height="15" style="fill: rgb(255,247,0)" width="4" x="120" y="0" />
+	<rect height="15" style="fill: rgb(255,212,0)" width="4" x="124" y="0" />
+	<rect height="15" style="fill: rgb(255,177,0)" width="4" x="128" y="0" />
+	<rect height="15" style="fill: rgb(255,141,0)" width="4" x="132" y="0" />
+	<rect height="15" style="fill: rgb(255,105,0)" width="4" x="136" y="0" />
+	<rect height="15" style="fill: rgb(255,70,0)" width="4" x="140" y="0" />
+	<rect height="15" style="fill: rgb(255,0,0)" width="4" x="144" y="0" />
+</g>
+	</g>
+	<g transform="scale(1.725191,1.725191) translate(114,37.5)">
+		<g id="circleElements">
+<circle cx="157.63" cy="51.623" r="7" style="fill: rgb(0,240,255); fill-opacity: 1" />
+<circle cx="147.838" cy="62.986" r="7" style="fill: rgb(155,255,0); fill-opacity: 1" />
+<circle cx="138.046" cy="74.348" r="7" style="fill: rgb(0,240,255); fill-opacity: 1" />
+<circle cx="128.253" cy="85.711" r="7" style="fill: rgb(0,255,162); fill-opacity: 1" />
+<circle cx="117.445" cy="85.626" r="7" style="fill: rgb(0,240,255); fill-opacity: 1" />
+<circle cx="108.34" cy="91.859" r="7" style="fill: rgb(255,0,0); fill-opacity: 1" />
+<circle cx="104.348" cy="102.387" r="7" style="fill: rgb(255,105,0); fill-opacity: 1" />
+<circle cx="107.141" cy="113.527" r="7" style="fill: rgb(255,0,0); fill-opacity: 1" />
+<circle cx="98.761" cy="125.968" r="7" style="fill: rgb(255,141,0); fill-opacity: 1" />
+<circle cx="91.669" cy="130.634" r="7" style="fill: rgb(0,255,127); fill-opacity: 1" />
+<circle cx="90.279" cy="139.404" r="7" style="fill: rgb(0,255,162); fill-opacity: 1" />
+<circle cx="81.899" cy="151.845" r="7" style="fill: rgb(0,255,162); fill-opacity: 1" />
+<circle cx="72.797" cy="163.768" r="7" style="fill: rgb(0,255,92); fill-opacity: 1" />
+<circle cx="58.229" cy="159.51" r="7" style="fill: rgb(226,255,0); fill-opacity: 1" />
+<circle cx="43.107" cy="160.806" r="7" style="fill: rgb(0,240,255); fill-opacity: 1" />
+<circle cx="29.476" cy="167.481" r="7" style="fill: rgb(0,255,56); fill-opacity: 1" />
+<circle cx="19.179" cy="178.632" r="7" style="fill: rgb(0,255,92); fill-opacity: 1" />
+<circle cx="13.609" cy="192.751" r="7" style="fill: rgb(0,240,255); fill-opacity: 1" />
+<circle cx="13.52" cy="207.928" r="7" style="fill: rgb(0,240,255); fill-opacity: 1" />
+<circle cx="18.924" cy="222.112" r="7" style="fill: rgb(0,134,255); fill-opacity: 1" />
+<circle cx="29.089" cy="233.383" r="7" style="fill: rgb(0,255,21); fill-opacity: 1" />
+<circle cx="42.64" cy="240.217" r="7" style="fill: rgb(255,0,0); fill-opacity: 1" />
+<circle cx="57.746" cy="241.691" r="7" style="fill: rgb(255,70,0); fill-opacity: 1" />
+<circle cx="72.364" cy="237.604" r="7" style="fill: rgb(255,0,0); fill-opacity: 1" />
+<circle cx="84.515" cy="228.51" r="7" style="fill: rgb(255,0,0); fill-opacity: 1" />
+<circle cx="92.558" cy="215.638" r="7" style="fill: rgb(255,70,0); fill-opacity: 1" />
+<circle cx="95.404" cy="200.73" r="7" style="fill: rgb(255,141,0); fill-opacity: 1" />
+<circle cx="92.668" cy="185.801" r="7" style="fill: rgb(255,0,0); fill-opacity: 1" />
+<circle cx="84.72" cy="172.87" r="7" style="fill: rgb(0,255,92); fill-opacity: 1" />
+<circle cx="93.822" cy="160.947" r="7" style="fill: rgb(0,255,162); fill-opacity: 1" />
+<circle cx="98.827" cy="159.421" r="7" style="fill: rgb(0,255,92); fill-opacity: 1" />
+<circle cx="102.698" cy="154.434" r="7" style="fill: rgb(0,255,198); fill-opacity: 1" />
+<circle cx="103.195" cy="147.032" r="7" style="fill: rgb(0,255,127); fill-opacity: 1" />
+<circle cx="111.202" cy="134.348" r="7" style="fill: rgb(255,141,0); fill-opacity: 1" />
+<circle cx="119.582" cy="121.907" r="7" style="fill: rgb(255,0,0); fill-opacity: 1" />
+<circle cx="137.946" cy="114.46" r="7" style="fill: rgb(255,177,0); fill-opacity: 1" />
+<circle cx="139.616" cy="95.503" r="7" style="fill: rgb(0,169,255); fill-opacity: 1" />
+<circle cx="149.408" cy="84.141" r="7" style="fill: rgb(0,255,127); fill-opacity: 1" />
+<circle cx="159.201" cy="72.778" r="7" style="fill: rgb(0,255,240); fill-opacity: 1" />
+<circle cx="168.993" cy="61.415" r="7" style="fill: rgb(155,255,0); fill-opacity: 1" />
+<circle cx="183.563" cy="65.846" r="7" style="fill: rgb(0,169,255); fill-opacity: 1" />
+<circle cx="198.675" cy="63.961" r="7" style="fill: rgb(0,134,255); fill-opacity: 1" />
+<circle cx="211.71" cy="56.086" r="7" style="fill: rgb(255,0,0); fill-opacity: 1" />
+<circle cx="220.41" cy="43.587" r="7" style="fill: rgb(255,70,0); fill-opacity: 1" />
+<circle cx="223.268" cy="28.629" r="7" style="fill: rgb(155,255,0); fill-opacity: 1" />
+<circle cx="219.788" cy="13.803" r="7" style="fill: rgb(255,0,0); fill-opacity: 1" />
+<circle cx="210.574" cy="1.678" r="7" style="fill: rgb(0,255,21); fill-opacity: 1" />
+<circle cx="197.221" cy="-5.645" r="7" style="fill: rgb(0,134,255); fill-opacity: 1" />
+<circle cx="182.044" cy="-6.898" r="7" style="fill: rgb(0,240,255); fill-opacity: 1" />
+<circle cx="167.671" cy="-1.863" r="7" style="fill: rgb(0,255,198); fill-opacity: 1" />
+<circle cx="156.594" cy="8.587" r="7" style="fill: rgb(0,255,198); fill-opacity: 1" />
+<circle cx="150.73" cy="22.642" r="7" style="fill: rgb(84,255,0); fill-opacity: 1" />
+		</g>
+		<polyline class="backbone" id="outline" points="       156.630,52.623       146.838,63.986       137.046,75.348       127.253,86.711       116.445,86.626       107.340,92.859       103.348,103.387       106.141,114.527       97.761,126.968       90.669,131.634       89.279,140.404       80.899,152.845       71.797,164.768       57.229,160.510       42.107,161.806       28.476,168.481       18.179,179.632       12.609,193.751       12.520,208.928       17.924,223.112       28.089,234.383       41.640,241.217       56.746,242.691       71.364,238.604       83.515,229.510       91.558,216.638       94.404,201.730       91.668,186.801       83.720,173.870       92.822,161.947       97.827,160.421       101.698,155.434       102.195,148.032       110.202,135.348       118.582,122.907       136.946,115.460       138.616,96.503       148.408,85.141       158.201,73.778       167.993,62.415       182.563,66.846       197.675,64.961       210.710,57.086       219.410,44.587       222.268,29.629       218.788,14.803       209.574,2.678       196.221,-4.645       181.044,-5.898       166.671,-0.863       155.594,9.587       149.730,23.642     " style="fill: none; stroke: black; stroke-width: 0.75" />
+		<g id="pairs" style="fill: none; stroke: black; stroke-width: 0.75">
+			<line class="basepairs" id="1,40" x1="156.63019" x2="167.99286" y1="52.62289" y2="62.41522" />
+			<line class="basepairs" id="2,39" x1="146.83786" x2="158.20053" y1="63.98557" y2="73.77789" />
+			<line class="basepairs" id="3,38" x1="137.04553" x2="148.40820" y1="75.34824" y2="85.14056" />
+			<line class="basepairs" id="4,37" x1="127.25320" x2="138.61586" y1="86.71091" y2="96.50323" />
+			<line class="basepairs" id="8,35" x1="106.14079" x2="118.58188" y1="114.52737" y2="122.90707" />
+			<line class="basepairs" id="9,34" x1="97.76109" x2="110.20217" y1="126.96844" y2="135.34814" />
+			<line class="basepairs" id="11,33" x1="89.27917" x2="102.19482" y1="140.40411" y2="148.03209" />
+			<line class="basepairs" id="12,30" x1="80.89947" x2="92.82228" y1="152.84521" y2="161.94720" />
+			<line class="basepairs" id="13,29" x1="71.79746" x2="83.72028" y1="164.76804" y2="173.87003" />
+		</g>
+		<g id="seq" style="font-family: Arial,Helvetica" transform="translate(-4.6, 4)">
+			<text class="nucleotide" x="156.630" y="52.623">
+H</text>
+			<text class="nucleotide" x="146.838" y="63.986">
+A</text>
+			<text class="nucleotide" x="137.046" y="75.348">
+V</text>
+			<text class="nucleotide" x="127.253" y="86.711">
+Y</text>
+			<text class="nucleotide" x="116.445" y="86.626">
+Y</text>
+			<text class="nucleotide" x="107.340" y="92.859">
+A</text>
+			<text class="nucleotide" x="103.348" y="103.387">
+G</text>
+			<text class="nucleotide" x="106.141" y="114.527">
+C</text>
+			<text class="nucleotide" x="97.761" y="126.968">
+C</text>
+			<text class="nucleotide" x="90.669" y="131.634">
+R</text>
+			<text class="nucleotide" x="89.279" y="140.404">
+R</text>
+			<text class="nucleotide" x="80.899" y="152.845">
+S</text>
+			<text class="nucleotide" x="71.797" y="164.768">
+C</text>
+			<text class="nucleotide" x="57.229" y="160.510">
+A</text>
+			<text class="nucleotide" x="42.107" y="161.806">
+U</text>
+			<text class="nucleotide" x="28.476" y="168.481">
+A</text>
+			<text class="nucleotide" x="18.179" y="179.632">
+C</text>
+			<text class="nucleotide" x="12.609" y="193.751">
+R</text>
+			<text class="nucleotide" x="12.520" y="208.928">
+Y</text>
+			<text class="nucleotide" x="17.924" y="223.112">
+K</text>
+			<text class="nucleotide" x="28.089" y="234.383">
+A</text>
+			<text class="nucleotide" x="41.640" y="241.217">
+G</text>
+			<text class="nucleotide" x="56.746" y="242.691">
+U</text>
+			<text class="nucleotide" x="71.364" y="238.604">
+U</text>
+			<text class="nucleotide" x="83.515" y="229.510">
+G</text>
+			<text class="nucleotide" x="91.558" y="216.638">
+C</text>
+			<text class="nucleotide" x="94.404" y="201.730">
+A</text>
+			<text class="nucleotide" x="91.668" y="186.801">
+A</text>
+			<text class="nucleotide" x="83.720" y="173.870">
+G</text>
+			<text class="nucleotide" x="92.822" y="161.947">
+Y</text>
+			<text class="nucleotide" x="97.827" y="160.421">
+R</text>
+			<text class="nucleotide" x="101.698" y="155.434">
+Y</text>
+			<text class="nucleotide" x="102.195" y="148.032">
+Y</text>
+			<text class="nucleotide" x="110.202" y="135.348">
+G</text>
+			<text class="nucleotide" x="118.582" y="122.907">
+G</text>
+			<text class="nucleotide" x="136.946" y="115.460">
+A</text>
+			<text class="nucleotide" x="138.616" y="96.503">
+R</text>
+			<text class="nucleotide" x="148.408" y="85.141">
+G</text>
+			<text class="nucleotide" x="158.201" y="73.778">
+B</text>
+			<text class="nucleotide" x="167.993" y="62.415">
+U</text>
+			<text class="nucleotide" x="182.563" y="66.846">
+H</text>
+			<text class="nucleotide" x="197.675" y="64.961">
+W</text>
+			<text class="nucleotide" x="210.710" y="57.086">
+A</text>
+			<text class="nucleotide" x="219.410" y="44.587">
+G</text>
+			<text class="nucleotide" x="222.268" y="29.629">
+U</text>
+			<text class="nucleotide" x="218.788" y="14.803">
+C</text>
+			<text class="nucleotide" x="209.574" y="2.678">
+U</text>
+			<text class="nucleotide" x="196.221" y="-4.645">
+Y</text>
+			<text class="nucleotide" x="181.044" y="-5.898">
+R</text>
+			<text class="nucleotide" x="166.671" y="-0.863">
+U</text>
+			<text class="nucleotide" x="155.594" y="9.587">
+Y</text>
+			<text class="nucleotide" x="149.730" y="23.642">
+A</text>
+			<text id="fivePrime" style="fill: dimgrey; font-family: Arial,Helvetica; font-size: 10px; text-ancor: middle" x="161.63" y="36.623">5&apos;</text>
+			<text id="threePrime" style="fill: dimgrey; font-family: Arial,Helvetica; font-size: 10px; text-ancor: middle" x="154.73" y="7.642">3&apos;</text>
+		</g>
+	</g>
+	<script><![CDATA[
+        var shown = 1;
+        function click() {
+             var seq = document.getElementById("seq");
+             var lines = document.getElementById("outline");
+             var pairs = document.getElementById("pairs");
+
+             if (shown==1) {
+               seq.setAttribute("style", "font-family: Arial,Helvetica; visibility: hidden");
+               lines.setAttribute("style", "fill: none; stroke: black; stroke-width: 0.75; visibility: visible");
+               pairs.setAttribute("style", "fill: none; stroke: black; stroke-width: 0.75; visibility: visible");
+
+               shown = 2;
+             } else if (shown==2) {
+               seq.setAttribute("style", "font-family: Arial,Helvetica; visibility: visible");
+               pairs.setAttribute("style", "fill: none; stroke: black; stroke-width: 0.75; visibility: hidden");
+               lines.setAttribute("style", "fill: none; stroke: black; stroke-width: 0.75; visibility: hidden");
+
+               shown = 3;
+             } else if (shown==3) {
+               seq.setAttribute("style", "font-family: Arial,Helvetica; visibility: visible");
+               lines.setAttribute("style", "fill: none; stroke: black; stroke-width: 0.75; visibility: visible");
+               pairs.setAttribute("style", "fill: none; stroke: black; stroke-width: 0.75; visibility: visible");
+               shown = 1;
+             }
+         }
+  ]]></script>
+	<!--
+	Generated using the Perl SVG Module V2.87
+	by Ronan Oger
+
+	-->
+</svg>
