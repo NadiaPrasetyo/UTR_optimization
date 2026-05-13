@@ -37,3 +37,16 @@ Preprocessed and Curated by Jay
 
     Langeberg, C.J., Szucs, M.J., Sherlock, M.E. et al. Tick-borne flavivirus exoribonuclease-resistant RNAs contain a double loop structure. Nat Commun 16, 4515 (2025). https://doi.org/10.1038/s41467-025-59657-7
 
+**UCSC Bovine EST data + RefGene data: data/bovine/bovine_EST/all_est.txt.gz (Last Updated: 2019-06-16 03:21 58M) and data/bovine/bovine_EST/refGene.txt.gz (Last Updated: 2019-06-07 10:46 1.4M):**
+
+    Benson DA, Cavanaugh M, Clark K, Karsch-Mizrachi I, Lipman DJ, Ostell J, Sayers EW. GenBank. Nucleic Acids Res. 2013 Jan;41(Database issue):D36-42. PMID: 23193287; PMC: PMC3531190
+
+    Benson DA, Karsch-Mizrachi I, Lipman DJ, Ostell J, Wheeler DL. GenBank: update. Nucleic Acids Res. 2004 Jan 1;32(Database issue):D23-6. PMID: 14681350; PMC: PMC308779
+
+    Kent WJ. BLAT - the BLAST-like alignment tool. Genome Res. 2002 Apr;12(4):656-64. PMID: 11932250; PMC: PMC187518 
+
+    Pruitt KD, Brown GR, Hiatt SM, Thibaud-Nissen F, Astashyn A, Ermolaeva O, Farrell CM, Hart J, Landrum MJ, McGarvey KM et al. RefSeq: an update on mammalian reference sequences. Nucleic Acids Res. 2014 Jan;42(Database issue):D756-63. PMID: 24259432; PMC: PMC3965018
+
+    Pruitt KD, Tatusova T, Maglott DR. NCBI Reference Sequence (RefSeq): a curated non-redundant sequence database of genomes, transcripts and proteins. Nucleic Acids Res. 2005 Jan 1;33(Database issue):D501-4. PMID: 15608248; PMC: PMC539979
+
+Available from: https://hgdownload.soe.ucsc.edu/goldenPath/bosTau9/database/
