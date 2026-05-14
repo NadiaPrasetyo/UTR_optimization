@@ -50,3 +50,23 @@ Preprocessed and Curated by Jay
     Pruitt KD, Tatusova T, Maglott DR. NCBI Reference Sequence (RefSeq): a curated non-redundant sequence database of genomes, transcripts and proteins. Nucleic Acids Res. 2005 Jan 1;33(Database issue):D501-4. PMID: 15608248; PMC: PMC539979
 
 Available from: https://hgdownload.soe.ucsc.edu/goldenPath/bosTau9/database/
+
+**MANE.GRCh38.v##.summary.txt.gz**
+
+    A summary file with the following tab-delimited fields:
+    [  1] NCBI_GeneID
+    [  2] Ensembl_Gene
+    [  3] HGNC_ID
+    [  4] symbol
+    [  5] name
+    [  6] RefSeq_nuc
+    [  7] RefSeq_prot
+    [  8] Ensembl_nuc
+    [  9] Ensembl_prot
+    [ 10] MANE_status
+    [ 11] GRCh38_chr
+    [ 12] chr_start
+    [ 13] chr_end
+    [ 14] chr_strand
+
+Available from: https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/release_1.5/
