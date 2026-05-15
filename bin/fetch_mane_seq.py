@@ -36,9 +36,11 @@ def fetch_transcript(ensembl_nuc: str, ensembl_gene: str) -> dict | None:
     """
     # Strip version suffix for the query (API accepts bare stable_id)
     stable_id = ensembl_nuc.split(".")[0]
+    version = ensembl_nuc.split(".")[-1]
 
     params = {
         "stable_id": stable_id,
+        "stable_id_version": version,
         "expand": "sequence,genes",
         "assembly_name": "GRCh38",
     }
