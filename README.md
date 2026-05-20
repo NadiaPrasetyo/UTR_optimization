@@ -70,3 +70,16 @@ Available from: https://hgdownload.soe.ucsc.edu/goldenPath/bosTau9/database/
     [ 14] chr_strand
 
 Available from: https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/release_1.5/
+
+
+## RiboScanner:
+
+    Decoding the Sequence Requirements for Translation Initiation
+    Bram MP Verhagen, David Liedtke, Lucia Barbadilla-Martinez, Carlos Alverado, Valentyn Petrychenko, Michal Swirski, Micha Muller, Eivind Valen, Joseph Puglisi, Jeroen de Ridder, Niels Fischer, Marvin E Tanenbaum
+    bioRxiv 2026.05.12.723742; doi: https://doi.org/10.64898/2026.05.12.723742 
+
+eTIS Strength:
+
+    eTIS strength = 100 − (predicted leaky scanning / maximum predicted leaky scanning) × 100
+    In our dataset, the maximum predicted leaky scanning value corresponded to a value of
+    16.010647.
