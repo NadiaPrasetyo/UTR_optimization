@@ -10,7 +10,7 @@ def main(input_file, output_file):
     df = df.replace(np.nan, '', regex=True)
 
     # get the accession, accession,ensembl_gene_id,ensembl_transcript_id, sequence = utr5
-    df = df[['accession', 'ensembl_gene_id', 'ensembl_transcript_id', 'utr5']]
+    df = df[['accession', 'ensembl_gene_id', 'ensembl_transcript_id', 'utr5', 'half_life', 'mean_te']]
     df.to_csv(output_file, sep='\t', index=False)
 
 

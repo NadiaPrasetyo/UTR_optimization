@@ -3,6 +3,30 @@ import numpy as np
 import sys
 import os
 import argparse
+import matplotlib.pyplot as plt
+
+def plot_etis_strength(df, output_file):
+    plt.scatter(df['eTIS_strength'], df['half_life'], color='r')
+    # color red
+    plt.xlabel('eTIS strength')
+    plt.ylabel('Half-life')
+    plt.title('eTIS strength vs. Half-life')
+
+    plot_file = os.path.splitext(output_file)[0] + '_hl.png'
+    plt.savefig(plot_file)
+    print(f"Saved Half life plot to {plot_file}")
+
+    # Clear the plot for the next plot
+    plt.clf()
+    plt.scatter(df['eTIS_strength'], df['mean_te'], color='b')
+    plt.xlabel('eTIS strength')
+    plt.ylabel('Mean TE')
+    plt.title('eTIS strength vs. Mean TE')
+
+    plot_file = os.path.splitext(output_file)[0] + '_te.png'
+    plt.savefig(plot_file)
+    print(f"Saved Translation efficiency plot to {plot_file}")
+    
 
 def main(input_file, output_file):
     df = pd.read_csv(input_file, sep='\t')
@@ -12,6 +36,8 @@ def main(input_file, output_file):
     df.to_csv(output_file, sep='\t', index=False)
 
     print(f"Done! Calculated the eTIS strength on {len(df)} rows based on maximum predicted leaky scanning: {max_leaky_scanning}")
+
+    plot_etis_strength(df, output_file)
 
 
 if __name__ == '__main__':
