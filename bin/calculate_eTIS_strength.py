@@ -4,28 +4,67 @@ import sys
 import os
 import argparse
 import matplotlib.pyplot as plt
+from scipy import stats
+PALETTE = {
+    'half_life': ('#2563EB', '#BFDBFE'),   # blue  (accent, light)
+    'mean_te':   ('#DC2626', '#FEE2E2'),   # red
+}
 
 def plot_etis_strength(df, output_file):
-    plt.scatter(df['eTIS_strength'], df['half_life'], color='r')
-    # color red
-    plt.xlabel('eTIS strength')
-    plt.ylabel('Half-life')
-    plt.title('eTIS strength vs. Half-life')
+    def make_scatter(ax, x, y, xlabel, ylabel, title, accent, light):
+        ax.scatter(
+            x, y,
+            marker='o', s=18, alpha=0.35,
+            color=light, edgecolors=accent,
+            linewidths=0.4, rasterized=True,
+        )
 
-    plot_file = os.path.splitext(output_file)[0] + '_hl.png'
-    plt.savefig(plot_file)
-    print(f"Saved Half life plot to {plot_file}")
+        mask = np.isfinite(x) & np.isfinite(y)
+        if mask.sum() > 2:
+            slope, intercept, r_val, p_val, _ = stats.linregress(x[mask], y[mask])
+            xs = np.linspace(x[mask].min(), x[mask].max(), 300)
+            ax.plot(xs, slope * xs + intercept, color=accent, linewidth=2)
 
-    # Clear the plot for the next plot
-    plt.clf()
-    plt.scatter(df['eTIS_strength'], df['mean_te'], color='b')
-    plt.xlabel('eTIS strength')
-    plt.ylabel('Mean TE')
-    plt.title('eTIS strength vs. Mean TE')
+            r2  = r_val ** 2
+            sig = ('***' if p_val < 0.001 else
+                   '**'  if p_val < 0.01  else
+                   '*'   if p_val < 0.05  else 'ns')
+            ax.text(0.05, 0.95,
+                    f"R² = {r2:.3f}\np = {p_val:.2e} {sig}",
+                    transform=ax.transAxes, fontsize=8.5, verticalalignment='top',
+                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
+                              edgecolor=accent, alpha=0.85))
 
-    plot_file = os.path.splitext(output_file)[0] + '_te.png'
-    plt.savefig(plot_file)
-    print(f"Saved Translation efficiency plot to {plot_file}")
+        ax.set_xlabel(xlabel, fontsize=10)
+        ax.set_ylabel(ylabel, fontsize=10)
+        ax.set_title(title, fontsize=11, fontweight='semibold')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.tick_params(labelsize=8)
+
+    base = os.path.splitext(output_file)[0]
+
+    for y_col, ylabel, suffix in [
+        ('half_life', 'Half-Life (z-score)',               '_hl'),
+        ('mean_te',   'Translation Efficiency (z-score)',  '_te'),
+    ]:
+        accent, light = PALETTE[y_col]
+        fig, ax = plt.subplots(figsize=(6, 5))
+        make_scatter(
+            ax,
+            x=df['eTIS_strength'].values,
+            y=df[y_col].values,
+            xlabel='eTIS Strength',
+            ylabel=ylabel,
+            title=f'eTIS Strength vs. {ylabel}',
+            accent=accent,
+            light=light,
+        )
+        fig.tight_layout()
+        out_path = f"{base}{suffix}.png"
+        fig.savefig(out_path, dpi=180, bbox_inches='tight')
+        plt.close(fig)
+        print(f"Saved plot to {out_path}")
     
 
 def main(input_file, output_file):
