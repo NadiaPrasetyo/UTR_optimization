@@ -1,0 +1,31 @@
+annotation_gff: data/human/MANE.GRCh38.v1.5.ensembl_genomic.gff
+codon_flank_length: 30
+dataset_name: human
+dataset_yaml: /projects/health_sciences/bms/biochemistry/gardner_group/nadia/mRNA_stability/configs/datasets/human.yaml
+filter_short_utrs: false
+gene_list: data/human/assembly_gene_ids.txt
+genome_fasta: data/human/GRCh38.primary_assembly.genome.fa
+isoform_priority_tags:
+- appris_principal_1
+- appris_principal_2
+- appris_principal_3
+- Ensembl_canonical
+- MANE_Select
+min_utr_length: 30
+n_requested_genes: 7700
+output_mode: multifasta
+python_executable: /home/prana47p/miniconda3/bin/python3
+regions_to_extract:
+- mRNA
+- CDS
+- 5UTR
+- 3UTR
+- start_codon_region
+- stop_codon_region
+- tail_region
+- UTR_pair
+run_timestamp: '2026-05-27T11:07:44.460431'
+tail_length: 100
+utr_pair_constraint_style: cross_pair
+utr_pair_linker_char: N
+utr_pair_linker_length: 7
