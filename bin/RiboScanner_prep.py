@@ -11,6 +11,12 @@ def main(input_file, output_file):
 
     # get the accession, accession,ensembl_gene_id,ensembl_transcript_id, sequence = utr5
     df = df[['accession', 'ensembl_gene_id', 'ensembl_transcript_id', 'utr5', 'half_life', 'mean_te']]
+
+    # add a human baseline:
+    hbb_5utr_sequence = 'ACATTTGCTTCTGACACAACTGTGTTCACTAGCAACCTCAAACAGACACC'
+    df = df.append({
+        'accession': 'HBB-201',
+        'ensembl_gene_id': 'ENSG00000139618',
     df.to_csv(output_file, sep='\t', index=False)
 
 
