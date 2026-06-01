@@ -157,7 +157,8 @@ def run_mafft_alignment(sequences, output_file):
 
 
 def align_UTRs(merged_df, output_dir):
-    os.makedirs(output_dir, exist_ok=True)
+    aln_fasta_dir = os.path.join(output_dir, 'aln_fasta')
+    os.makedirs(aln_fasta_dir, exist_ok=True)   # ← creates output_dir/aln_fasta/
     results = []
     for _, row in merged_df.iterrows():
         bovine_id = row['bovine_ensembl_gene_id']
@@ -165,14 +166,14 @@ def align_UTRs(merged_df, output_dir):
         mouse_id  = row['mouse_return_gene']
         row_tag   = f"{bovine_id}__{human_id}__{mouse_id}"
 
-        aln3_file = os.path.join(output_dir, f'aln_fasta/{row_tag}.3UTR.aln.fa')
+        aln3_file = os.path.join(aln_fasta_dir, f'{row_tag}.3UTR.aln.fa')   # ← use aln_fasta_dir
         pid3, cov3, pdiff3 = run_mafft_alignment({
             f'bovine|{bovine_id}': row['bovine_3UTR'],
             f'human|{human_id}':   row['human_3UTR'],
             f'mouse|{mouse_id}':   row['mouse_3UTR'],
         }, aln3_file)
 
-        aln5_file = os.path.join(output_dir, f'aln_fasta/{row_tag}.5UTR.aln.fa')
+        aln5_file = os.path.join(aln_fasta_dir, f'{row_tag}.5UTR.aln.fa')   # ← use aln_fasta_dir
         pid5, cov5, pdiff5 = run_mafft_alignment({
             f'bovine|{bovine_id}': row['bovine_5UTR'],
             f'human|{human_id}':   row['human_5UTR'],
