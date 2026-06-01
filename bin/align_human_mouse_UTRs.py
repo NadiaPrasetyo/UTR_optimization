@@ -112,15 +112,31 @@ def compute_pairwise_pid(alignment):
     seqs = [str(rec.seq) for rec in alignment]
     n = len(seqs)
     if n < 2:
-        return 0.0
-    pids = []
+        return 0.0, 0.0, 0.0
+
+    pids, coverages, pct_diffs = [], [], []
+
     for i in range(n):
         for j in range(i + 1, n):
             a, b = seqs[i], seqs[j]
-            matches = sum(ca == cb for ca, cb in zip(a, b) if not (ca == '-' and cb == '-'))
+            aln_len = len(a)
+
+            matches  = sum(ca == cb for ca, cb in zip(a, b) if not (ca == '-' and cb == '-'))
             compared = sum(1 for ca, cb in zip(a, b) if not (ca == '-' and cb == '-'))
-            pids.append((matches / compared * 100) if compared > 0 else 0.0)
-    return sum(pids) / len(pids)
+
+            pid      = (matches / compared * 100) if compared > 0 else 0.0
+            coverage = (compared / aln_len * 100) if aln_len > 0 else 0.0
+            pct_diff = 100.0 - pid
+
+            pids.append(pid)
+            coverages.append(coverage)
+            pct_diffs.append(pct_diff)
+
+    return (
+        sum(pids)      / len(pids),
+        sum(coverages) / len(coverages),
+        sum(pct_diffs) / len(pct_diffs),
+    )
 
 
 def run_mafft_alignment(sequences, output_file):
@@ -131,7 +147,7 @@ def run_mafft_alignment(sequences, output_file):
     try:
         with open(output_file, 'w') as out_f:
             subprocess.run(
-                ['mafft', '--auto', '--quiet', tmp_in_path],
+                ['mafft', '--auto', tmp_in_path],
                 stdout=out_f, stderr=subprocess.PIPE, check=True
             )
         alignment = AlignIO.read(output_file, 'fasta')
@@ -150,22 +166,26 @@ def align_UTRs(merged_df, output_dir):
         row_tag   = f"{bovine_id}__{human_id}__{mouse_id}"
 
         aln3_file = os.path.join(output_dir, f'aln_fasta/{row_tag}.3UTR.aln.fa')
-        pid3 = run_mafft_alignment({
+        pid3, cov3, pdiff3 = run_mafft_alignment({
             f'bovine|{bovine_id}': row['bovine_3UTR'],
             f'human|{human_id}':   row['human_3UTR'],
             f'mouse|{mouse_id}':   row['mouse_3UTR'],
         }, aln3_file)
 
         aln5_file = os.path.join(output_dir, f'aln_fasta/{row_tag}.5UTR.aln.fa')
-        pid5 = run_mafft_alignment({
+        pid5, cov5, pdiff5 = run_mafft_alignment({
             f'bovine|{bovine_id}': row['bovine_5UTR'],
             f'human|{human_id}':   row['human_5UTR'],
             f'mouse|{mouse_id}':   row['mouse_5UTR'],
         }, aln5_file)
 
         results.append({
-            '3utr_pid_mean':       round(pid3, 4),
-            '5utr_pid_mean':       round(pid5, 4),
+            '3utr_pid_mean':       round(pid3,   4),
+            '3utr_coverage_mean':  round(cov3,   4),
+            '3utr_pctdiff_mean':   round(pdiff3, 4),
+            '5utr_pid_mean':       round(pid5,   4),
+            '5utr_coverage_mean':  round(cov5,   4),
+            '5utr_pctdiff_mean':   round(pdiff5, 4),
             'alignment_file_3utr': aln3_file,
             'alignment_file_5utr': aln5_file,
         })
@@ -227,6 +247,9 @@ def main():
 
     print('Running MAFFT alignments...')
     results_df = align_UTRs(merged, args.output_dir)
+
+    # trim results df from the sequence
+    results_df = results_df.drop(columns=['bovine_3UTR', 'bovine_5UTR', 'human_3UTR', 'human_5UTR', 'mouse_3UTR', 'mouse_5UTR'])
 
     out_tsv = os.path.join(args.output_dir, 'utr_alignment_results.tsv')
     results_df.to_csv(out_tsv, sep='\t', index=False)
