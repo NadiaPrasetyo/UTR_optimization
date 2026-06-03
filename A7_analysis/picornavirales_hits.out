@@ -1,0 +1,685 @@
+# cmsearch :: search CM(s) against a sequence database
+# INFERNAL 1.1.5 (Sep 2023)
+# Copyright (C) 2023 Howard Hughes Medical Institute.
+# Freely distributed under the BSD open source license.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query CM file:                         A7_analysis/a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2.cm
+# target sequence database:              A7_analysis/picornavirales_genbank_refseq.fna
+# CM configuration:                      glocal
+# output directed to file:               A7_analysis/picornavirales_hits.out
+# MSA of significant hits saved to file: A7_analysis/picornavirales_hits.stk
+# tabular output of hits:                A7_analysis/picornavirales_hits.tbl
+# HMM MSV and Viterbi filters:           off
+# number of worker threads:              4
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  [CLEN=83]
+Hit scores:
+ rank     E-value  score  bias  sequence     start    end   mdl trunc   gc  description
+ ----   --------- ------ -----  ----------- ------ ------   --- ----- ----  -----------
+  (1) !     3e-16   93.3   0.0  NC_024120.1   9558   9640 +  cm    no 0.53  Megrivirus A2 strain LY, complete genome
+  (2) !     3e-16   93.3   0.0  KC663628.1    9558   9640 +  cm    no 0.53  Megrivirus A2 strain LY, complete genome
+  (3) !   4.3e-16   92.6   0.0  PP346853.1    9955  10037 +  cm    no 0.52  Goose megrivirus strain MWG01, complete genome
+  (4) !   4.6e-16   92.5   0.0  NC_033793.1   9959  10041 +  cm    no 0.53  Megrivirus B3CP-APO isolate HN56, complete genome
+  (5) !   4.6e-16   92.5   0.0  KY369300.1    9959  10041 +  cm    no 0.53  Megrivirus B3CP-APO isolate HN56, complete genome
+  (6) !   5.4e-16   92.2   0.0  KY369299.1    9697   9779 +  cm    no 0.53  Megrivirus A3 isolate W18, complete genome
+  (7) !   6.9e-16   91.7   0.0  PQ368551.1    9858   9940 +  cm    no 0.55  Goose megrivirus isolate SC02/China/2023, complete genome
+  (8) !   1.3e-14   85.8   0.0  PP228890.1    9415   9499 +  cm    no 0.51  MAG: Megrivirus C2 isolate B12_2W3_SA_22, complete genome
+  (9) !   1.3e-14   85.8   0.0  PP228891.1    9316   9400 +  cm    no 0.51  MAG: Megrivirus C2 isolate B11_2W2_SA_22, complete genome
+ (10) !   1.3e-14   85.8   0.0  PP228897.1    9433   9517 +  cm    no 0.51  MAG: Megrivirus C1 isolate C3_7W5_SA_22, complete genome
+ (11) !   1.3e-14   85.8   0.0  KF961187.1    9434   9518 +  cm    no 0.51  Chicken megrivirus strain chicken/CHK-IV-CHV/2013/HUN, complete ge
+ (12) !   4.3e-14   83.4   0.0  NC_024768.1   9432   9516 +  cm    no 0.52  Chicken picornavirus 4 isolate 5C, complete genome
+ (13) !   4.3e-14   83.4   0.0  KF979335.1    9432   9516 +  cm    no 0.52  Chicken picornavirus 4 isolate 5C, complete genome
+ (14) !     1e-13   81.7   0.0  NC_024769.1   9459   9543 +  cm    no 0.53  Megrivirus C2 isolate 27C, complete genome
+ (15) !     1e-13   81.7   0.0  KF979336.1    9459   9543 +  cm    no 0.53  Megrivirus C2 isolate 27C, complete genome
+ (16) !   1.4e-13   81.1   0.0  NC_023858.1   9607   9691 +  cm    no 0.52  Melegrivirus A, complete genome
+ (17) !   1.4e-13   81.1   0.0  KF961188.1    9607   9691 +  cm    no 0.52  Melegrivirus A, complete genome
+ (18) !     1e-12   77.2   0.0  OP169446.1    9072   9153 +  cm    no 0.59  MAG: Megrivirus sp. isolate NC-BM-233, complete genome
+ (19) !     1e-12   77.1   0.0  OR364988.1    9035   9116 +  cm    no 0.61  Megrivirus sp. strain MeV-B-CHN001, complete genome
+ (20) !     1e-12   77.1   0.0  NC_038957.1   8957   9038 +  cm    no 0.61  Picornavirus HK21 polyprotein gene, complete cds
+ (21) !   1.4e-12   76.6   0.0  KC811837.1    9077   9158 +  cm    no 0.61  Pigeon mesivirus 2 strain pigeon/GALII5-PiMeV/2011/HUN, complete g
+ (22) !   1.5e-11   71.7   0.0  PQ368550.1    9872   9945 +  cm    3' 0.57  Goose megrivirus isolate SC01/China/2023, complete genome
+ (23) !   4.6e-11   69.5   0.0  NC_039235.1   9432   9515 +  cm    no 0.48  Chicken megrivirus strain chicken/B21-CHV/2012/HUN, complete genom
+ (24) !   4.6e-11   69.5   0.0  KF961186.1    9432   9515 +  cm    no 0.48  Chicken megrivirus strain chicken/B21-CHV/2012/HUN, complete genom
+ ------ inclusion threshold ------
+ (25) ?       3.7   19.5   0.0  NC_076242.1   3621   3559 -  cm    no 0.54  Pingu picornavirus isolate 991, complete genome
+ (26) ?       3.7   19.5   0.0  MH255796.1    3621   3559 -  cm    no 0.54  Pygoscepivirus A1 isolate 991, complete genome
+ (27) ?       5.4   18.7   0.0  FJ445172.1     243    172 -  cm    no 0.51  Human rhinovirus 97 strain ATCC VR-1297, complete genome
+ (28) ?       6.7   18.2   0.0  MN306025.1     109     32 -  cm    no 0.54  Rhinovirus B83 strain SC0340, complete genome
+ (29) ?       6.7   18.2   0.0  FJ445161.1     251    174 -  cm    no 0.54  Human rhinovirus 83 strain ATCC VR-1193, complete genome
+ (30) ?       7.8   18.0   0.0  NC_023016.1   3069   3146 +  cm    no 0.49  Lamium mild mosaic virus isolate DSMZ PV-0454 segment RNA1, comple
+ (31) ?       7.8   18.0   0.0  KC595304.1    3069   3146 +  cm    no 0.49  Lamium mild mosaic virus isolate DSMZ PV-0454 segment RNA1, comple
+ (32) ?       8.6   17.8   0.0  KY369883.1     213    140 -  cm    no 0.54  Rhinovirus B97 strain SC1079, complete genome
+
+
+Hit alignments:
+>> NC_024120.1  Megrivirus A2 strain LY, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (1) !     3e-16   93.3   0.0  cm        1       83 []        9558        9640 + .. 1.00    no 0.53
+
+                                                                                                                    NC
+                                                              ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccC 53  
+                                                              G+U:CU++A:CACA:G:GACAAA:UC:::CUU G+:::GA:AG++CC+CCCCC
+                                             NC_024120.1 9558 GGUGCUUUAUCACAAGUGACAAAGUCGAUCUUCGGAUUGAUAGACCCUCCCCC 9610
+                                                              ***************************************************** PP
+
+                                                                                             NC
+                                                              <_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   54 CGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              CGGGGCAAUAGGGGGG:C:UGUG:AG:AGU
+                                             NC_024120.1 9611 CGGGGCAAUAGGGGGGCCUUGUGAAGUAGU 9640
+                                                              ****************************** PP
+
+>> KC663628.1  Megrivirus A2 strain LY, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (2) !     3e-16   93.3   0.0  cm        1       83 []        9558        9640 + .. 1.00    no 0.53
+
+                                                                                                                    NC
+                                                              ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccC 53  
+                                                              G+U:CU++A:CACA:G:GACAAA:UC:::CUU G+:::GA:AG++CC+CCCCC
+                                              KC663628.1 9558 GGUGCUUUAUCACAAGUGACAAAGUCGAUCUUCGGAUUGAUAGACCCUCCCCC 9610
+                                                              ***************************************************** PP
+
+                                                                                             NC
+                                                              <_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   54 CGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              CGGGGCAAUAGGGGGG:C:UGUG:AG:AGU
+                                              KC663628.1 9611 CGGGGCAAUAGGGGGGCCUUGUGAAGUAGU 9640
+                                                              ****************************** PP
+
+>> PP346853.1  Goose megrivirus strain MWG01, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (3) !   4.3e-16   92.6   0.0  cm        1       83 []        9955       10037 + .. 1.00    no 0.52
+
+                                                                                                                   NC
+                                                               ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2     1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccc 51   
+                                                               G+U:CU++A:CACA:G:GACAAA:UC:G:CUU+++:C:GA:AG++CC+CCC
+                                              PP346853.1  9955 GGUGCUUUAUCACAAGUGACAAAGUCGGUCUUUUGACUGAUAGACCCUCCC 10005
+                                                               *************************************************** PP
+
+                                                                                                NC
+                                                               <<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    52 cCCGGGGCAAUAGGggggCcgUgUggaguagu 83   
+                                                               CCCGGGG+AAUAGGGGGG:C:UGUG:AG:AGU
+                                              PP346853.1 10006 CCCGGGGUAAUAGGGGGGCCUUGUGAAGUAGU 10037
+                                                               ******************************** PP
+
+>> NC_033793.1  Megrivirus B3CP-APO isolate HN56, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (4) !   4.6e-16   92.5   0.0  cm        1       83 []        9959       10041 + .. 1.00    no 0.53
+
+                                                                                                                   NC
+                                                               ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2     1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccc 51   
+                                                               G+U:CU+AA:CACA:G:GACAAAGU::G:CUUA++:C::ACAG++CC+CCC
+                                             NC_033793.1  9959 GGUGCUUAAUCACAAGUGACAAAGUUGGUCUUAUGACUGACAGACCCUCCC 10009
+                                                               *************************************************** PP
+
+                                                                                                NC
+                                                               <<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    52 cCCGGGGCAAUAGGggggCcgUgUggaguagu 83   
+                                                               CCCGGGGCAAUAGGGGGG:C:UGUG:AG:AGU
+                                             NC_033793.1 10010 CCCGGGGCAAUAGGGGGGCCUUGUGAAGUAGU 10041
+                                                               ******************************** PP
+
+>> KY369300.1  Megrivirus B3CP-APO isolate HN56, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (5) !   4.6e-16   92.5   0.0  cm        1       83 []        9959       10041 + .. 1.00    no 0.53
+
+                                                                                                                   NC
+                                                               ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2     1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccc 51   
+                                                               G+U:CU+AA:CACA:G:GACAAAGU::G:CUUA++:C::ACAG++CC+CCC
+                                              KY369300.1  9959 GGUGCUUAAUCACAAGUGACAAAGUUGGUCUUAUGACUGACAGACCCUCCC 10009
+                                                               *************************************************** PP
+
+                                                                                                NC
+                                                               <<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    52 cCCGGGGCAAUAGGggggCcgUgUggaguagu 83   
+                                                               CCCGGGGCAAUAGGGGGG:C:UGUG:AG:AGU
+                                              KY369300.1 10010 CCCGGGGCAAUAGGGGGGCCUUGUGAAGUAGU 10041
+                                                               ******************************** PP
+
+>> KY369299.1  Megrivirus A3 isolate W18, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (6) !   5.4e-16   92.2   0.0  cm        1       83 []        9697        9779 + .. 1.00    no 0.53
+
+                                                                                                                    NC
+                                                              ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccC 53  
+                                                              G+U:CU++A:CACA:G:GACAAA:UC:G:CUU ++:C:GA:AG++CC+CCCCC
+                                              KY369299.1 9697 GGUGCUUUAUCACAAGUGACAAAGUCGGUCUUCUGACUGAUAGACCCUCCCCC 9749
+                                                              ***************************************************** PP
+
+                                                                                             NC
+                                                              <_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   54 CGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              CGGGG+AAUAGGGGGG:C:UGUG:AG:AGU
+                                              KY369299.1 9750 CGGGGUAAUAGGGGGGCCUUGUGAAGUAGU 9779
+                                                              ****************************** PP
+
+>> PQ368551.1  Goose megrivirus isolate SC02/China/2023, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (7) !   6.9e-16   91.7   0.0  cm        1       83 []        9858        9940 + .. 1.00    no 0.55
+
+                                                                                                                    NC
+                                                              ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccC 53  
+                                                              G+U:CU++A:CACA:G:GACAAA:UC:G:C U ++:C:GA:AG++CC+CCCCC
+                                              PQ368551.1 9858 GGUGCUUUAUCACAAGUGACAAAGUCGGUCCUCUGACUGAUAGACCCUCCCCC 9910
+                                                              ***************************************************** PP
+
+                                                                                             NC
+                                                              <_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   54 CGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              CGGGGCAAUAGGGGGG:C:UGUG:AG:AGU
+                                              PQ368551.1 9911 CGGGGCAAUAGGGGGGCCUUGUGAAGUAGU 9940
+                                                              ****************************** PP
+
+>> PP228890.1  MAG: Megrivirus C2 isolate B12_2W3_SA_22, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (8) !   1.3e-14   85.8   0.0  cm        1       83 []        9415        9499 + .. 1.00    no 0.51
+
+                                                                                                                    NC
+                                                              ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccc 51  
+                                                              +U:A::GAAC:A:A::GGAC  A++:UCC::CUUAGA::GGA: +GACCC:::
+                                              PP228890.1 9415 UUAAGCGAACGAAAUGGGACgcAUGAUCCAUCUUAGAGUGGAUCAGACCCUGG 9467
+                                                              ***************************************************** PP
+
+                                                                                               NC
+                                                              <<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   52 cCCGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              :CCGGGGCAAUAGG::::C::U:U:G::U:++
+                                              PP228890.1 9468 UCCGGGGCAAUAGGACCACUGUUUCGCGUUUA 9499
+                                                              ******************************** PP
+
+>> PP228891.1  MAG: Megrivirus C2 isolate B11_2W2_SA_22, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (9) !   1.3e-14   85.8   0.0  cm        1       83 []        9316        9400 + .. 1.00    no 0.51
+
+                                                                                                                    NC
+                                                              ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccc 51  
+                                                              +U:A::GAAC:A:A::GGAC  A++:UCC::CUUAGA::GGA: +GACCC:::
+                                              PP228891.1 9316 UUAAGCGAACGAAAUGGGACgcAUGAUCCAUCUUAGAGUGGAUCAGACCCUGG 9368
+                                                              ***************************************************** PP
+
+                                                                                               NC
+                                                              <<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   52 cCCGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              :CCGGGGCAAUAGG::::C::U:U:G::U:++
+                                              PP228891.1 9369 UCCGGGGCAAUAGGACCACUGUUUCGCGUUUA 9400
+                                                              ******************************** PP
+
+>> PP228897.1  MAG: Megrivirus C1 isolate C3_7W5_SA_22, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (10) !   1.3e-14   85.8   0.0  cm        1       83 []        9433        9517 + .. 1.00    no 0.51
+
+                                                                                                                    NC
+                                                              ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccc 51  
+                                                              +U:A::GAAC:A:A::GGAC  A++:UCC::CUUAGA::GGA: +GACCC:::
+                                              PP228897.1 9433 UUAAGCGAACGAAAUGGGACgcAUGAUCCAUCUUAGAGUGGAUCAGACCCUGG 9485
+                                                              ***************************************************** PP
+
+                                                                                               NC
+                                                              <<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   52 cCCGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              :CCGGGGCAAUAGG::::C::U:U:G::U:++
+                                              PP228897.1 9486 UCCGGGGCAAUAGGACCACUGUUUCGCGUUUA 9517
+                                                              ******************************** PP
+
+>> KF961187.1  Chicken megrivirus strain chicken/CHK-IV-CHV/2013/HUN, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (11) !   1.3e-14   85.8   0.0  cm        1       83 []        9434        9518 + .. 1.00    no 0.51
+
+                                                                                                                    NC
+                                                              ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccc 51  
+                                                              +U:A::GAAC:A:A::GGAC  A++:UCC::CUUAGA::GGA: +GACCC:::
+                                              KF961187.1 9434 UUAAGCGAACGAAAUGGGACgcAUGAUCCAUCUUAGAGUGGAUCAGACCCUGG 9486
+                                                              ***************************************************** PP
+
+                                                                                               NC
+                                                              <<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   52 cCCGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              :CCGGGGCAAUAGG::::C::U:U:G::U:++
+                                              KF961187.1 9487 UCCGGGGCAAUAGGACCACUGUUUCGCGUUUA 9518
+                                                              ******************************** PP
+
+>> NC_024768.1  Chicken picornavirus 4 isolate 5C, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (12) !   4.3e-14   83.4   0.0  cm        1       83 []        9432        9516 + .. 1.00    no 0.52
+
+                                                                                                                    NC
+                                                              ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccc 51  
+                                                              +U:A::GAAC:A:A::GGAC  A++::CC::CUU GA::GG:: +GACCC:::
+                                             NC_024768.1 9432 UUAAGCGAACGAAAUGGGACguAUGAUCCAUCUUGGAGUGGGUCAGACCCUGG 9484
+                                                              ***************************************************** PP
+
+                                                                                               NC
+                                                              <<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   52 cCCGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              :CCGGGGCAAUAGG::::C::U:U:G::U:++
+                                             NC_024768.1 9485 UCCGGGGCAAUAGGACCACUGUUUCGCGUUUA 9516
+                                                              ******************************** PP
+
+>> KF979335.1  Chicken picornavirus 4 isolate 5C, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (13) !   4.3e-14   83.4   0.0  cm        1       83 []        9432        9516 + .. 1.00    no 0.52
+
+                                                                                                                    NC
+                                                              ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccc 51  
+                                                              +U:A::GAAC:A:A::GGAC  A++::CC::CUU GA::GG:: +GACCC:::
+                                              KF979335.1 9432 UUAAGCGAACGAAAUGGGACguAUGAUCCAUCUUGGAGUGGGUCAGACCCUGG 9484
+                                                              ***************************************************** PP
+
+                                                                                               NC
+                                                              <<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   52 cCCGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              :CCGGGGCAAUAGG::::C::U:U:G::U:++
+                                              KF979335.1 9485 UCCGGGGCAAUAGGACCACUGUUUCGCGUUUA 9516
+                                                              ******************************** PP
+
+>> NC_024769.1  Megrivirus C2 isolate 27C, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (14) !     1e-13   81.7   0.0  cm        1       83 []        9459        9543 + .. 1.00    no 0.53
+
+                                                                                                                    NC
+                                                              ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccc 51  
+                                                              +U:A::GAAC:A:A::GGAC  A++::CC::CUU GA::GG:: +GACCC:::
+                                             NC_024769.1 9459 UUAAGCGAACGAAAUGGGACguAUGAUCCAUCUUGGAGUGGGUCAGACCCUGG 9511
+                                                              ***************************************************** PP
+
+                                                                                               NC
+                                                              <<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   52 cCCGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              :CCGGGGCAAUAGG::::C::U:U:G::U:++
+                                             NC_024769.1 9512 UCCGGGGCAAUAGGGCCACUGUUUCGCGUUUA 9543
+                                                              ******************************** PP
+
+>> KF979336.1  Megrivirus C2 isolate 27C, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (15) !     1e-13   81.7   0.0  cm        1       83 []        9459        9543 + .. 1.00    no 0.53
+
+                                                                                                                    NC
+                                                              ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccc 51  
+                                                              +U:A::GAAC:A:A::GGAC  A++::CC::CUU GA::GG:: +GACCC:::
+                                              KF979336.1 9459 UUAAGCGAACGAAAUGGGACguAUGAUCCAUCUUGGAGUGGGUCAGACCCUGG 9511
+                                                              ***************************************************** PP
+
+                                                                                               NC
+                                                              <<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   52 cCCGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              :CCGGGGCAAUAGG::::C::U:U:G::U:++
+                                              KF979336.1 9512 UCCGGGGCAAUAGGGCCACUGUUUCGCGUUUA 9543
+                                                              ******************************** PP
+
+>> NC_023858.1  Melegrivirus A, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (16) !   1.4e-13   81.1   0.0  cm        1       83 []        9607        9691 + .. 1.00    no 0.52
+
+                                                                                                                    NC
+                                                              ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccc 51  
+                                                              +U:A::GAAC:A:A::GGAC  A +::CC::CUUAGA::GG:: +GACCC:::
+                                             NC_023858.1 9607 UUAAGCGAACGAAAUGGGACauACGAUCCAUCUUAGAGUGGGUCAGACCCUGG 9659
+                                                              ********************9999***************************** PP
+
+                                                                                               NC
+                                                              <<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   52 cCCGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              :CCGGGGCAAU GG::::C::U:U:G::U:++
+                                             NC_023858.1 9660 UCCGGGGCAAUGGGACCACUGUUUCGCGUUUA 9691
+                                                              ******************************** PP
+
+>> KF961188.1  Melegrivirus A, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (17) !   1.4e-13   81.1   0.0  cm        1       83 []        9607        9691 + .. 1.00    no 0.52
+
+                                                                                                                    NC
+                                                              ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccc 51  
+                                                              +U:A::GAAC:A:A::GGAC  A +::CC::CUUAGA::GG:: +GACCC:::
+                                              KF961188.1 9607 UUAAGCGAACGAAAUGGGACauACGAUCCAUCUUAGAGUGGGUCAGACCCUGG 9659
+                                                              ********************9999***************************** PP
+
+                                                                                               NC
+                                                              <<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   52 cCCGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              :CCGGGGCAAU GG::::C::U:U:G::U:++
+                                              KF961188.1 9660 UCCGGGGCAAUGGGACCACUGUUUCGCGUUUA 9691
+                                                              ******************************** PP
+
+>> OP169446.1  MAG: Megrivirus sp. isolate NC-BM-233, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (18) !     1e-12   77.2   0.0  cm        1       83 []        9072        9153 + .. 1.00    no 0.59
+
+                                                                vv                                                  NC
+                                                              ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccC 53  
+                                                              G+  :UGAA:CA::C:GG+CAAAG:C:GCCU AG GC:G:CA GACCC:CC:C
+                                              OP169446.1 9072 GAGUGUGAAGCAAGCAGGGCAAAGCCGGCCUGAGUGCUGGCA-GACCCUCCAC 9123
+                                                              ******************************************.999******* PP
+
+                                                                                        vv   NC
+                                                              <_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   54 CGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              CGGGG+AAU GG:GG:C:G::UG:A:  G 
+                                              OP169446.1 9124 CGGGGUAAUUGGUGGACUGUUUGCAUUAGG 9153
+                                                              ****************************** PP
+
+>> OR364988.1  Megrivirus sp. strain MeV-B-CHN001, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (19) !     1e-12   77.1   0.0  cm        1       83 []        9035        9116 + .. 1.00    no 0.61
+
+                                                                vv                                                  NC
+                                                              ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccC 53  
+                                                              G+  :UGAA:CA::C:GG+CAAAG:C:GCC  AG GC:G:CA GACCC:CC:C
+                                              OR364988.1 9035 GAGUGUGAAGCAAGCAGGGCAAAGCCUGCCGGAGUGCGGGCA-GACCCUCCAC 9086
+                                                              ******************************************.999******* PP
+
+                                                                                        vv   NC
+                                                              <_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   54 CGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              CGGGGCAAUAGG:GG:C:G::UG:A:  G 
+                                              OR364988.1 9087 CGGGGCAAUAGGUGGACUGUUUGCAUUAGG 9116
+                                                              ****************************** PP
+
+>> NC_038957.1  Picornavirus HK21 polyprotein gene, complete cds
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (20) !     1e-12   77.1   0.0  cm        1       83 []        8957        9038 + .. 1.00    no 0.61
+
+                                                                vv                                                  NC
+                                                              ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccC 53  
+                                                              G+  :UGAA:CA::C:GG+CAAAG:C:GCC  AG GC:G:CA GACCC:CC:C
+                                             NC_038957.1 8957 GAGUGUGAAGCAAGCAGGGCAAAGCCUGCCGGAGUGCGGGCA-GACCCUCCAC 9008
+                                                              ******************************************.999******* PP
+
+                                                                                        vv   NC
+                                                              <_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   54 CGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              CGGGGCAAUAGG:GG:C:G::UG:A:  G 
+                                             NC_038957.1 9009 CGGGGCAAUAGGUGGACUGUUUGCAUUAGG 9038
+                                                              ****************************** PP
+
+>> KC811837.1  Pigeon mesivirus 2 strain pigeon/GALII5-PiMeV/2011/HUN, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (21) !   1.4e-12   76.6   0.0  cm        1       83 []        9077        9158 + .. 1.00    no 0.61
+
+                                                                vv                                                  NC
+                                                              ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccC 53  
+                                                              G+  :UGAA:C::AC:GG+CAAAG:C:GCC  AG GC:G:CA GACCC:CC:C
+                                              KC811837.1 9077 GAGUGUGAAGCGAACAGGGCAAAGCCUGCCGGAGUGCGGGCA-GACCCUCCAC 9128
+                                                              ******************************************.999******* PP
+
+                                                                                        vv   NC
+                                                              <_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   54 CGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              CGGGGCAAUAGG:GG:C:GU::G:A:  G 
+                                              KC811837.1 9129 CGGGGCAAUAGGUGGACUGUUUGCAUUAGG 9158
+                                                              ****************************** PP
+
+>> PQ368550.1  Goose megrivirus isolate SC01/China/2023, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (22) !   1.5e-11   71.7   0.0  cm        1       74 [~        9872        9945 + .~ 1.00    3' 0.57
+
+                                                                ????   ???                                          NC
+                                                              ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccC 53  
+                                                              G+U CU++A CACA:G:GACAAA:UC:G:C U ++:C:GA:AG++CC+CCCCC
+                                              PQ368550.1 9872 GGUGCUUUAUCACAAGUGACAAAGUCGGUCCUCUGACUGAUAGACCCUCCCCC 9924
+                                                              ***************************************************** PP
+
+                                                                                         NC
+                                                              <_________>>>>>>)))))~~~~~ CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   54 CGGGGCAAUAGGggggCcgUg*[9]> 83  
+                                                              CGGGG+AAUAGGGGGG:C:UG     
+                                              PQ368550.1 9925 CGGGGUAAUAGGGGGGCCUUG*[0]> 9945
+                                                              *********************..... PP
+
+>> NC_039235.1  Chicken megrivirus strain chicken/B21-CHV/2012/HUN, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (23) !   4.6e-11   69.5   0.0  cm        1       83 []        9432        9515 + .. 1.00    no 0.48
+
+                                                                                            v      v             v  NC
+                                                              ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccc 51  
+                                                              +U:A::GAAC:A:A::GGAC  A++:UCC: CUUAGA :GGA: +GACCC:+:
+                                             NC_039235.1 9432 UUAAGCGAACGAAAUGGGACguAUGAUCCAUCUUAGAUUGGAUCAGACCCUGG 9484
+                                                              ***************************************************** PP
+
+                                                                              v                NC
+                                                              <<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   52 cCCGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              :CC GGGCAAU GG:: :C::U:U:G::U:++
+                                             NC_039235.1 9485 UCCCGGGCAAUUGGAC-ACUGUUUCGCGUUUA 9515
+                                                              ***************9.*************** PP
+
+>> KF961186.1  Chicken megrivirus strain chicken/B21-CHV/2012/HUN, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (24) !   4.6e-11   69.5   0.0  cm        1       83 []        9432        9515 + .. 1.00    no 0.48
+
+                                                                                            v      v             v  NC
+                                                              ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccc 51  
+                                                              +U:A::GAAC:A:A::GGAC  A++:UCC: CUUAGA :GGA: +GACCC:+:
+                                              KF961186.1 9432 UUAAGCGAACGAAAUGGGACguAUGAUCCAUCUUAGAUUGGAUCAGACCCUGG 9484
+                                                              ***************************************************** PP
+
+                                                                              v                NC
+                                                              <<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   52 cCCGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              :CC GGGCAAU GG:: :C::U:U:G::U:++
+                                              KF961186.1 9485 UCCCGGGCAAUUGGAC-ACUGUUUCGCGUUUA 9515
+                                                              ***************9.*************** PP
+
+>> NC_076242.1  Pingu picornavirus isolate 991, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (25) ?       3.7   19.5   0.0  cm        1       83 []        3621        3559 - .. 0.88    no 0.54
+
+                                                                   v    v                                           NC
+                                                              ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccC 53  
+                                                              G+:A: G A: ACA:GGGACA+ ::C::CC  +GAG::G:: GG         
+                                             NC_076242.1 3621 GACAACGGAGAACAUGGGACAU-GGCGUCCCAUGAGAUGCUGGG--------- 3579
+                                                              ********************99.68999********99987633......... PP
+
+                                                                                    v v      NC
+                                                              <_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   54 CGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                                   CA U       CC:UGU : :U:GU
+                                             NC_076242.1 3578 ----CCAUUU------CCAUGUGCAUUGGU 3559
+                                                              ....334555......************** PP
+
+>> MH255796.1  Pygoscepivirus A1 isolate 991, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (26) ?       3.7   19.5   0.0  cm        1       83 []        3621        3559 - .. 0.88    no 0.54
+
+                                                                   v    v                                           NC
+                                                              ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccC 53  
+                                                              G+:A: G A: ACA:GGGACA+ ::C::CC  +GAG::G:: GG         
+                                              MH255796.1 3621 GACAACGGAGAACAUGGGACAU-GGCGUCCCAUGAGAUGCUGGG--------- 3579
+                                                              ********************99.68999********99987633......... PP
+
+                                                                                    v v      NC
+                                                              <_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   54 CGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                                   CA U       CC:UGU : :U:GU
+                                              MH255796.1 3578 ----CCAUUU------CCAUGUGCAUUGGU 3559
+                                                              ....334555......************** PP
+
+>> FJ445172.1  Human rhinovirus 97 strain ATCC VR-1297, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (27) ?       5.4   18.7   0.0  cm        1       83 []         243         172 - .. 0.91    no 0.51
+
+                                                                      v   vv           v          v                  NC
+                                                             ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_ CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccCCG 55 
+                                                              +:::U+AA      :GG   + G:: G:    G :C ::C + ACC+C C:CCG
+                                              FJ445172.1 243 AACGGUUAA------AGGCUUUCGGUCGU--GGGUACAACCUAUACCUCGCUCCG 197
+                                                             ******997......67777999999998..56779******************* PP
+
+                                                                             vv   v       NC
+                                                             ________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  56 GGGCAAUAGGggggCcgUgUggaguagu 83 
+                                                             GGG AA AGG:G GC:+    +A::: +
+                                              FJ445172.1 196 GGGAAACAGGAGUGCUUG---UACUGAA 172
+                                                             **************9865...6****** PP
+
+>> MN306025.1  Rhinovirus B83 strain SC0340, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (28) ?       6.7   18.2   0.0  cm        1       83 []         109          32 - .. 0.97    no 0.54
+
+                                                                 v     vvvv             v          v              v  NC
+                                                             ::((((---((((((((,,,.,,,<<<<<<______>>>>>>,,,,,,,<<<<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   1 guuacugaAccAcAcgGGaC.AaaguCcgcCUUagagcgGacaggaCCcccccCC 54 
+                                                             G+:: :+AAC  ++::GG+C  + G:C G:    G :C G:C + ACCCC C: C
+                                              MN306025.1 109 GGCGGAUAACGGUUAAGGGCuUUUGACAGU--GGGUACCGUCUAUACCCCGCUCC 57 
+                                                             ********************9999*****9..6778******************* PP
+
+                                                                       v       vvvv  v     NC
+                                                             _________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  55 GGGGCAAUAGGggggCcgUgUggaguagu 83 
+                                                             GGGG AA AG :G GC::    G: :: +
+                                              MN306025.1  56 GGGGAAACAGAAGUGCUU----GUACGAA 32 
+                                                             ****************97....9****** PP
+
+>> FJ445161.1  Human rhinovirus 83 strain ATCC VR-1193, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (29) ?       6.7   18.2   0.0  cm        1       83 []         251         174 - .. 0.97    no 0.54
+
+                                                                 v     vvvv             v          v              v  NC
+                                                             ::((((---((((((((,,,.,,,<<<<<<______>>>>>>,,,,,,,<<<<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   1 guuacugaAccAcAcgGGaC.AaaguCcgcCUUagagcgGacaggaCCcccccCC 54 
+                                                             G+:: :+AAC  ++::GG+C  + G:C G:    G :C G:C + ACCCC C: C
+                                              FJ445161.1 251 GGCGGAUAACGGUUAAGGGCuUUUGACAGU--GGGUACCGUCUAUACCCCGCUCC 199
+                                                             ********************9999*****9..6778******************* PP
+
+                                                                       v       vvvv  v     NC
+                                                             _________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  55 GGGGCAAUAGGggggCcgUgUggaguagu 83 
+                                                             GGGG AA AG :G GC::    G: :: +
+                                              FJ445161.1 198 GGGGAAACAGAAGUGCUU----GUACGAA 174
+                                                             ****************97....9****** PP
+
+>> NC_023016.1  Lamium mild mosaic virus isolate DSMZ PV-0454 segment RNA1, complete sequence
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (30) ?       7.8   18.0   0.0  cm        1       83 []        3069        3146 + .. 0.98    no 0.49
+
+                                                                        vv    v         v          v           v    NC
+                                                              ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccC 53  
+                                                              G+::::+ A   :::  G+    G:: ::C U+G :: ::CA   C C: ::C
+                                             NC_023016.1 3069 GGAGACUCAUAUAGUUGGGU--CGCUGAUCGUUGCAUGGGCA---CUCUAGUC 3116
+                                                              ****************9995..5******************9...99****** PP
+
+                                                                            v v    vv        NC
+                                                              <_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   54 CGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              :GGGGCAAUA:G:: :  :::   ::::GU
+                                             NC_023016.1 3117 UGGGGCAAUAAGACAAAAGUUCAGGUCUGU 3146
+                                                              ****************************** PP
+
+>> KC595304.1  Lamium mild mosaic virus isolate DSMZ PV-0454 segment RNA1, complete sequence
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (31) ?       7.8   18.0   0.0  cm        1       83 []        3069        3146 + .. 0.98    no 0.49
+
+                                                                        vv    v         v          v           v    NC
+                                                              ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2    1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccC 53  
+                                                              G+::::+ A   :::  G+    G:: ::C U+G :: ::CA   C C: ::C
+                                              KC595304.1 3069 GGAGACUCAUAUAGUUGGGU--CGCUGAUCGUUGCAUGGGCA---CUCUAGUC 3116
+                                                              ****************9995..5******************9...99****** PP
+
+                                                                            v v    vv        NC
+                                                              <_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   54 CGGGGCAAUAGGggggCcgUgUggaguagu 83  
+                                                              :GGGGCAAUA:G:: :  :::   ::::GU
+                                              KC595304.1 3117 UGGGGCAAUAAGACAAAAGUUCAGGUCUGU 3146
+                                                              ****************************** PP
+
+>> KY369883.1  Rhinovirus B97 strain SC1079, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (32) ?       8.6   17.8   0.0  cm        1       83 []         213         140 - .. 0.93    no 0.54
+
+                                                                      vvvvvvvv          v          v                 NC
+                                                             ::((((---((((((((,,,.,,,<<<<<<______>>>>>>,,,,,,,<<<<<< CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2   1 guuacugaAccAcAcgGGaC.AaaguCcgcCUUagagcgGacaggaCCcccccCC 54 
+                                                             G+::::+AAC  +++++G+C  + G:: G:    G :C ::C + ACC+C C:CC
+                                              KY369883.1 213 GGCGGGUAACGGUUAAAGGCuUUUGGUCGU--GGGUACAACCUAUACCUCGCUCC 161
+                                                             ***********9999999998888888887..56669999*************** PP
+
+                                                                            vvvvvvvv       NC
+                                                             _________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  55 GGGGCAAUAGGggggCcgUgUggaguagu 83 
+                                                             GGGG AA AGG:G G        ::::++
+                                              KY369883.1 160 GGGGAAACAGGAGUG--------CUUGUA 140
+                                                             ***************........****** PP
+
+
+
+Internal CM pipeline statistics summary:
+----------------------------------------
+Query model(s):                                                  1  (83 consensus positions)
+Target sequences:                                            17265  (257741420 residues searched)
+Target sequences re-searched for truncated hits:             17265  (7113180 residues re-searched)
+Windows   passing  local HMM SSV           filter:                  (off)
+Windows   passing  local HMM Viterbi       filter:                  (off)
+Windows   passing  local HMM Viterbi  bias filter:                  (off)
+Windows   passing  local HMM Forward       filter:           48456  (0.03031); expected (0.02)
+Windows   passing  local HMM Forward  bias filter:           46445  (0.02908); expected (0.02)
+Windows   passing glocal HMM Forward       filter:            9332  (0.009379); expected (0.02)
+Windows   passing glocal HMM Forward  bias filter:            9161  (0.009207); expected (0.02)
+Envelopes passing glocal HMM envelope defn filter:            8669  (0.003267); expected (0.02)
+Envelopes passing glocal CM  CYK           filter:             182  (5.708e-05); expected (0.0001)
+Total CM hits reported:                                         32  (1.004e-05); includes 1 truncated hit(s)
+
+# CPU time: 109.28u 0.07s 00:01:49.35 Elapsed: 00:01:49.96
+# Alignment of 24 hits satisfying inclusion thresholds saved to: A7_analysis/picornavirales_hits.stk
+//
+[ok]
