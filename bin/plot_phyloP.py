@@ -178,8 +178,8 @@ def plot_scatter_grid(df, pcol, features, mask, gene_col, outdir):
         accent, light = PALETTE.get(feat, ("#2563EB", "#BFDBFE"))
 
         sub = df[[pcol, feat]].dropna()
-        x   = sub[feat].values
-        y   = sub[pcol].values
+        x   = sub[pcol].values   # phylop on x
+        y   = sub[feat].values   # feature on y
 
         # scatter
         ax.scatter(x, y, color=light, edgecolors=accent, linewidths=0.4,
@@ -202,30 +202,30 @@ def plot_scatter_grid(df, pcol, features, mask, gene_col, outdir):
 
         # highlighted genes
         if mask is not None:
-            hi = df.loc[mask, [feat, pcol]].dropna()
-            ax.scatter(hi[feat], hi[pcol],
+            hi = df.loc[mask, [pcol, feat]].dropna()
+            ax.scatter(hi[pcol], hi[feat],
                        color=HIGHLIGHT_LIGHT, edgecolors=HIGHLIGHT_ACCENT,
                        linewidths=0.8, s=55, zorder=4)
             if gene_col:
                 for idx in hi.index:
                     ax.annotate(
                         str(df.at[idx, gene_col]),
-                        (df.at[idx, feat], df.at[idx, pcol]),
+                        (df.at[idx, pcol], df.at[idx, feat]),
                         textcoords="offset points", xytext=(5, 4),
                         fontsize=7, color=HIGHLIGHT_ACCENT,
                         fontweight="semibold", zorder=5,
                     )
 
-        # give the y-axis a bit of headroom so the dense top cluster
-        # isn't clipped — add 15 % padding above the data max
-        ymin, ymax_auto = ax.get_ylim()
-        data_ymax = sub[pcol].max()
-        padded_ymax = data_ymax + 0.15 * (data_ymax - sub[pcol].min())
-        ax.set_ylim(ymin, max(ymax_auto, padded_ymax))
+        # give the x-axis headroom so the dense right cluster
+        # isn't clipped — add 15% padding to the right of data max
+        xmin, xmax_auto = ax.get_xlim()
+        data_xmax = sub[pcol].max()
+        padded_xmax = data_xmax + 0.15 * (data_xmax - sub[pcol].min())
+        ax.set_xlim(xmin, max(xmax_auto, padded_xmax))
 
         _style_ax(ax)
-        ax.set_xlabel(flabel, fontsize=10)
-        ax.set_ylabel(nice, fontsize=10)
+        ax.set_xlabel(nice, fontsize=10)
+        ax.set_ylabel(flabel, fontsize=10)
         ax.set_title(flabel.replace("\n", " "),
                      fontsize=11, fontweight="semibold")
 
