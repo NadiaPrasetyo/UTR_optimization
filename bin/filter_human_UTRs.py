@@ -17,17 +17,15 @@ def run_ks_tests(df, output_dir):
     Splits data into high/low groups by median of the target variable and compares
     the feature distributions between groups.
     """
-    features = ['utr5_length', 'utr3_length', 'cds_length',
-                'utr5_gc',    'utr3_gc',    'cds_gc']
+    features = ['utr5_length', 'utr3_length',
+                'utr5_gc',    'utr3_gc',]
     targets  = ['half_life', 'mean_te']
 
     feature_labels = {
         'utr5_length': "5' UTR Length",
         'utr3_length': "3' UTR Length",
-        'cds_length':  "CDS Length",
         'utr5_gc':     "5' UTR GC Content",
         'utr3_gc':     "3' UTR GC Content",
-        'cds_gc':      "CDS GC Content",
     }
     target_labels = {
         'half_life': 'Half-Life',

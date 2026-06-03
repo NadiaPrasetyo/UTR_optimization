@@ -1,0 +1,381 @@
+# cmsearch :: search CM(s) against a sequence database
+# INFERNAL 1.1.5 (Sep 2023)
+# Copyright (C) 2023 Howard Hughes Medical Institute.
+# Freely distributed under the BSD open source license.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query CM file:                         A7_analysis/minimal-a7-motif.cm
+# target sequence database:              A7_analysis/picornavirales_genbank_refseq.fna
+# output directed to file:               A7_analysis/minimal_picornavirales_hits.out
+# MSA of significant hits saved to file: A7_analysis/minimal_picornavirales_hits.stk
+# tabular output of hits:                A7_analysis/minimal_picornavirales_hits.tbl
+# number of worker threads:              4
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       minimal-a7-motif  [CLEN=30]
+Hit scores:
+ rank     E-value  score  bias  sequence     start    end   mdl trunc   gc  description
+ ----   --------- ------ -----  ----------- ------ ------   --- ----- ----  -----------
+  (1) !   2.8e-10   50.7   0.0  PP228890.1    9462   9491 +  cm    no 0.60  MAG: Megrivirus C2 isolate B12_2W3_SA_22, complete genome
+  (2) !   2.8e-10   50.7   0.0  PP228891.1    9363   9392 +  cm    no 0.60  MAG: Megrivirus C2 isolate B11_2W2_SA_22, complete genome
+  (3) !   2.8e-10   50.7   0.0  PP228897.1    9480   9509 +  cm    no 0.60  MAG: Megrivirus C1 isolate C3_7W5_SA_22, complete genome
+  (4) !   2.8e-10   50.7   0.0  NC_024768.1   9479   9508 +  cm    no 0.60  Chicken picornavirus 4 isolate 5C, complete genome
+  (5) !   2.8e-10   50.7   0.0  KF961187.1    9481   9510 +  cm    no 0.60  Chicken megrivirus strain chicken/CHK-IV-CHV/2013/HUN, complete ge
+  (6) !   2.8e-10   50.7   0.0  KF979335.1    9479   9508 +  cm    no 0.60  Chicken picornavirus 4 isolate 5C, complete genome
+  (7) !   4.3e-10   50.2   0.0  OR364988.1    9079   9108 +  cm    no 0.60  Megrivirus sp. strain MeV-B-CHN001, complete genome
+  (8) !   4.3e-10   50.2   0.0  NC_038957.1   9001   9030 +  cm    no 0.60  Picornavirus HK21 polyprotein gene, complete cds
+  (9) !   4.3e-10   50.2   0.0  KC811837.1    9121   9150 +  cm    no 0.60  Pigeon mesivirus 2 strain pigeon/GALII5-PiMeV/2011/HUN, complete g
+ (10) !   1.2e-09   48.7   0.0  NC_024769.1   9506   9535 +  cm    no 0.63  Megrivirus C2 isolate 27C, complete genome
+ (11) !   1.2e-09   48.7   0.0  KF979336.1    9506   9535 +  cm    no 0.63  Megrivirus C2 isolate 27C, complete genome
+ (12) !   2.1e-09   48.0   0.0  PQ368551.1    9903   9932 +  cm    no 0.73  Goose megrivirus isolate SC02/China/2023, complete genome
+ (13) !   2.1e-09   48.0   0.0  NC_033793.1  10004  10033 +  cm    no 0.73  Megrivirus B3CP-APO isolate HN56, complete genome
+ (14) !   2.1e-09   48.0   0.0  NC_024120.1   9603   9632 +  cm    no 0.73  Megrivirus A2 strain LY, complete genome
+ (15) !   2.1e-09   48.0   0.0  KY369300.1   10004  10033 +  cm    no 0.73  Megrivirus B3CP-APO isolate HN56, complete genome
+ (16) !   2.1e-09   48.0   0.0  KC663628.1    9603   9632 +  cm    no 0.73  Megrivirus A2 strain LY, complete genome
+ (17) !   2.3e-09   47.9   0.0  NC_023858.1   9654   9683 +  cm    no 0.63  Melegrivirus A, complete genome
+ (18) !   2.3e-09   47.9   0.0  KF961188.1    9654   9683 +  cm    no 0.63  Melegrivirus A, complete genome
+ (19) !   6.6e-09   46.4   0.0  PP346853.1   10000  10029 +  cm    no 0.70  Goose megrivirus strain MWG01, complete genome
+ (20) !   6.6e-09   46.4   0.0  KY369299.1    9742   9771 +  cm    no 0.70  Megrivirus A3 isolate W18, complete genome
+ (21) !   9.2e-09   46.0   0.0  OP169446.1    9116   9145 +  cm    no 0.57  MAG: Megrivirus sp. isolate NC-BM-233, complete genome
+ (22) !     1e-06   39.5   0.0  PQ368550.1    9917   9945 +  cm    3' 0.72  Goose megrivirus isolate SC01/China/2023, complete genome
+ (23) !   2.6e-06   38.3   0.0  NC_039235.1   9479   9507 +  cm    no 0.59  Chicken megrivirus strain chicken/B21-CHV/2012/HUN, complete genom
+ (24) !   2.6e-06   38.3   0.0  KF961186.1    9479   9507 +  cm    no 0.59  Chicken megrivirus strain chicken/B21-CHV/2012/HUN, complete genom
+ ------ inclusion threshold ------
+ (25) ?       5.8   18.3   0.0  KY369883.1     169    141 -  cm    no 0.62  Rhinovirus B97 strain SC1079, complete genome
+ (26) ?       5.8   18.3   0.0  FJ445172.1     206    178 -  cm    no 0.62  Human rhinovirus 97 strain ATCC VR-1297, complete genome
+
+
+Hit alignments:
+>> PP228890.1  MAG: Megrivirus C2 isolate B12_2W3_SA_22, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (1) !   2.8e-10   50.7   0.0  cm        1       30 []        9462        9491 + .. 1.00    no 0.60
+
+                                                       NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CCCU:::CCGGGGCAAUAGG:::ACUGUUU
+        PP228890.1 9462 CCCUGGUCCGGGGCAAUAGGACCACUGUUU 9491
+                        ****************************** PP
+
+>> PP228891.1  MAG: Megrivirus C2 isolate B11_2W2_SA_22, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (2) !   2.8e-10   50.7   0.0  cm        1       30 []        9363        9392 + .. 1.00    no 0.60
+
+                                                       NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CCCU:::CCGGGGCAAUAGG:::ACUGUUU
+        PP228891.1 9363 CCCUGGUCCGGGGCAAUAGGACCACUGUUU 9392
+                        ****************************** PP
+
+>> PP228897.1  MAG: Megrivirus C1 isolate C3_7W5_SA_22, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (3) !   2.8e-10   50.7   0.0  cm        1       30 []        9480        9509 + .. 1.00    no 0.60
+
+                                                       NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CCCU:::CCGGGGCAAUAGG:::ACUGUUU
+        PP228897.1 9480 CCCUGGUCCGGGGCAAUAGGACCACUGUUU 9509
+                        ****************************** PP
+
+>> NC_024768.1  Chicken picornavirus 4 isolate 5C, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (4) !   2.8e-10   50.7   0.0  cm        1       30 []        9479        9508 + .. 1.00    no 0.60
+
+                                                       NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CCCU:::CCGGGGCAAUAGG:::ACUGUUU
+       NC_024768.1 9479 CCCUGGUCCGGGGCAAUAGGACCACUGUUU 9508
+                        ****************************** PP
+
+>> KF961187.1  Chicken megrivirus strain chicken/CHK-IV-CHV/2013/HUN, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (5) !   2.8e-10   50.7   0.0  cm        1       30 []        9481        9510 + .. 1.00    no 0.60
+
+                                                       NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CCCU:::CCGGGGCAAUAGG:::ACUGUUU
+        KF961187.1 9481 CCCUGGUCCGGGGCAAUAGGACCACUGUUU 9510
+                        ****************************** PP
+
+>> KF979335.1  Chicken picornavirus 4 isolate 5C, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (6) !   2.8e-10   50.7   0.0  cm        1       30 []        9479        9508 + .. 1.00    no 0.60
+
+                                                       NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CCCU:::CCGGGGCAAUAGG:::ACUGUUU
+        KF979335.1 9479 CCCUGGUCCGGGGCAAUAGGACCACUGUUU 9508
+                        ****************************** PP
+
+>> OR364988.1  Megrivirus sp. strain MeV-B-CHN001, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (7) !   4.3e-10   50.2   0.0  cm        1       30 []        9079        9108 + .. 1.00    no 0.60
+
+                                                       NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CCCUCC:CCGGGGCAAUAGG:GGACUGUUU
+        OR364988.1 9079 CCCUCCACCGGGGCAAUAGGUGGACUGUUU 9108
+                        ****************************** PP
+
+>> NC_038957.1  Picornavirus HK21 polyprotein gene, complete cds
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (8) !   4.3e-10   50.2   0.0  cm        1       30 []        9001        9030 + .. 1.00    no 0.60
+
+                                                       NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CCCUCC:CCGGGGCAAUAGG:GGACUGUUU
+       NC_038957.1 9001 CCCUCCACCGGGGCAAUAGGUGGACUGUUU 9030
+                        ****************************** PP
+
+>> KC811837.1  Pigeon mesivirus 2 strain pigeon/GALII5-PiMeV/2011/HUN, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (9) !   4.3e-10   50.2   0.0  cm        1       30 []        9121        9150 + .. 1.00    no 0.60
+
+                                                       NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CCCUCC:CCGGGGCAAUAGG:GGACUGUUU
+        KC811837.1 9121 CCCUCCACCGGGGCAAUAGGUGGACUGUUU 9150
+                        ****************************** PP
+
+>> NC_024769.1  Megrivirus C2 isolate 27C, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (10) !   1.2e-09   48.7   0.0  cm        1       30 []        9506        9535 + .. 1.00    no 0.63
+
+                                                       NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CCCU:::CCGGGGCAAUAGG:::ACUGUUU
+       NC_024769.1 9506 CCCUGGUCCGGGGCAAUAGGGCCACUGUUU 9535
+                        ****************************** PP
+
+>> KF979336.1  Megrivirus C2 isolate 27C, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (11) !   1.2e-09   48.7   0.0  cm        1       30 []        9506        9535 + .. 1.00    no 0.63
+
+                                                       NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CCCU:::CCGGGGCAAUAGG:::ACUGUUU
+        KF979336.1 9506 CCCUGGUCCGGGGCAAUAGGGCCACUGUUU 9535
+                        ****************************** PP
+
+>> PQ368551.1  Goose megrivirus isolate SC02/China/2023, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (12) !   2.1e-09   48.0   0.0  cm        1       30 []        9903        9932 + .. 1.00    no 0.73
+
+                                                       NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CC+:CCCCCGGGGCAAUAGGGGG:C++U+U
+        PQ368551.1 9903 CCUCCCCCCGGGGCAAUAGGGGGGCCUUGU 9932
+                        ****************************** PP
+
+>> NC_033793.1  Megrivirus B3CP-APO isolate HN56, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (13) !   2.1e-09   48.0   0.0  cm        1       30 []       10004       10033 + .. 1.00    no 0.73
+
+                                                        NC
+                         :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif     1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30   
+                         CC+:CCCCCGGGGCAAUAGGGGG:C++U+U
+       NC_033793.1 10004 CCUCCCCCCGGGGCAAUAGGGGGGCCUUGU 10033
+                         ****************************** PP
+
+>> NC_024120.1  Megrivirus A2 strain LY, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (14) !   2.1e-09   48.0   0.0  cm        1       30 []        9603        9632 + .. 1.00    no 0.73
+
+                                                       NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CC+:CCCCCGGGGCAAUAGGGGG:C++U+U
+       NC_024120.1 9603 CCUCCCCCCGGGGCAAUAGGGGGGCCUUGU 9632
+                        ****************************** PP
+
+>> KY369300.1  Megrivirus B3CP-APO isolate HN56, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (15) !   2.1e-09   48.0   0.0  cm        1       30 []       10004       10033 + .. 1.00    no 0.73
+
+                                                        NC
+                         :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif     1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30   
+                         CC+:CCCCCGGGGCAAUAGGGGG:C++U+U
+        KY369300.1 10004 CCUCCCCCCGGGGCAAUAGGGGGGCCUUGU 10033
+                         ****************************** PP
+
+>> KC663628.1  Megrivirus A2 strain LY, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (16) !   2.1e-09   48.0   0.0  cm        1       30 []        9603        9632 + .. 1.00    no 0.73
+
+                                                       NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CC+:CCCCCGGGGCAAUAGGGGG:C++U+U
+        KC663628.1 9603 CCUCCCCCCGGGGCAAUAGGGGGGCCUUGU 9632
+                        ****************************** PP
+
+>> NC_023858.1  Melegrivirus A, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (17) !   2.3e-09   47.9   0.0  cm        1       30 []        9654        9683 + .. 1.00    no 0.63
+
+                                                       NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CCCU:::CCGGGGCAAU GG:::ACUGUUU
+       NC_023858.1 9654 CCCUGGUCCGGGGCAAUGGGACCACUGUUU 9683
+                        ****************************** PP
+
+>> KF961188.1  Melegrivirus A, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (18) !   2.3e-09   47.9   0.0  cm        1       30 []        9654        9683 + .. 1.00    no 0.63
+
+                                                       NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CCCU:::CCGGGGCAAU GG:::ACUGUUU
+        KF961188.1 9654 CCCUGGUCCGGGGCAAUGGGACCACUGUUU 9683
+                        ****************************** PP
+
+>> PP346853.1  Goose megrivirus strain MWG01, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (19) !   6.6e-09   46.4   0.0  cm        1       30 []       10000       10029 + .. 1.00    no 0.70
+
+                                                        NC
+                         :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif     1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30   
+                         CC+:CCCCCGGGG AAUAGGGGG:C++U+U
+        PP346853.1 10000 CCUCCCCCCGGGGUAAUAGGGGGGCCUUGU 10029
+                         ****************************** PP
+
+>> KY369299.1  Megrivirus A3 isolate W18, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (20) !   6.6e-09   46.4   0.0  cm        1       30 []        9742        9771 + .. 1.00    no 0.70
+
+                                                       NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CC+:CCCCCGGGG AAUAGGGGG:C++U+U
+        KY369299.1 9742 CCUCCCCCCGGGGUAAUAGGGGGGCCUUGU 9771
+                        ****************************** PP
+
+>> OP169446.1  MAG: Megrivirus sp. isolate NC-BM-233, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (21) !   9.2e-09   46.0   0.0  cm        1       30 []        9116        9145 + .. 1.00    no 0.57
+
+                                                       NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CCCUCC:CCGGGG AAU GG:GGACUGUUU
+        OP169446.1 9116 CCCUCCACCGGGGUAAUUGGUGGACUGUUU 9145
+                        ****************************** PP
+
+>> PQ368550.1  Goose megrivirus isolate SC01/China/2023, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (22) !     1e-06   39.5   0.0  cm        1       29 [~        9917        9945 + .~ 1.00    3' 0.72
+
+                                                           NC
+                        :::<<<<<<_________>>>>>>:::::~~~~~ CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUU*[1]> 30  
+                        CC+:CCCCCGGGG AAUAGGGGG:C++U+     
+        PQ368550.1 9917 CCUCCCCCCGGGGUAAUAGGGGGGCCUUG*[0]> 9945
+                        *****************************..... PP
+
+>> NC_039235.1  Chicken megrivirus strain chicken/B21-CHV/2012/HUN, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (23) !   2.6e-06   38.3   0.0  cm        1       30 []        9479        9507 + .. 1.00    no 0.59
+
+                            v                 v        NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CCCU+::CC GGGCAAU GG:: ACUGUUU
+       NC_039235.1 9479 CCCUGGUCCCGGGCAAUUGGAC-ACUGUUU 9507
+                        **********************.******* PP
+
+>> KF961186.1  Chicken megrivirus strain chicken/B21-CHV/2012/HUN, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (24) !   2.6e-06   38.3   0.0  cm        1       30 []        9479        9507 + .. 1.00    no 0.59
+
+                            v                 v        NC
+                        :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif    1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30  
+                        CCCU+::CC GGGCAAU GG:: ACUGUUU
+        KF961186.1 9479 CCCUGGUCCCGGGCAAUUGGAC-ACUGUUU 9507
+                        **********************.******* PP
+
+>> KY369883.1  Rhinovirus B97 strain SC1079, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (25) ?       5.8   18.3   0.0  cm        1       30 []         169         141 - .. 0.96    no 0.62
+
+                                                      NC
+                       :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif   1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30 
+                       CC+: C:CCGGGG AA AGG:G :CU U+U
+        KY369883.1 169 CCUCGCUCCGGGGAAACAGGAGUGCU-UGU 141
+                       ****************99******85.9** PP
+
+>> FJ445172.1  Human rhinovirus 97 strain ATCC VR-1297, complete genome
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (26) ?       5.8   18.3   0.0  cm        1       30 []         206         178 - .. 0.96    no 0.62
+
+                                                      NC
+                       :::<<<<<<_________>>>>>>:::::: CS
+  minimal-a7-motif   1 CCCUCCcCCGGGGCAAUAGGgGGACUGUUU 30 
+                       CC+: C:CCGGGG AA AGG:G :CU U+U
+        FJ445172.1 206 CCUCGCUCCGGGGAAACAGGAGUGCU-UGU 178
+                       ****************99******85.9** PP
+
+
+
+Internal CM pipeline statistics summary:
+----------------------------------------
+Query model(s):                                                  1  (30 consensus positions)
+Target sequences:                                            17265  (257741420 residues searched)
+Target sequences re-searched for truncated hits:             17265  (2900520 residues re-searched)
+Windows   passing  local HMM SSV           filter:          724859  (0.1463); expected (0.15)
+Windows   passing  local HMM Viterbi       filter:          706048  (0.1429); expected (0.15)
+Windows   passing  local HMM Viterbi  bias filter:          677230  (0.1372); expected (0.15)
+Windows   passing  local HMM Forward       filter:            3731  (0.0007559); expected (0.0008)
+Windows   passing  local HMM Forward  bias filter:            3292  (0.0006691); expected (0.0008)
+Windows   passing glocal HMM Forward       filter:            1506  (0.0003081); expected (0.0008)
+Windows   passing glocal HMM Forward  bias filter:            1488  (0.0003039); expected (0.0008)
+Envelopes passing glocal HMM envelope defn filter:            1479  (0.0001747); expected (0.0008)
+Envelopes passing  local CM  CYK           filter:             112  (1.017e-05); expected (0.0001)
+Total CM hits reported:                                         26  (3.085e-06); includes 1 truncated hit(s)
+
+# CPU time: 6.52u 0.04s 00:00:06.56 Elapsed: 00:00:06.62
+# Alignment of 24 hits satisfying inclusion thresholds saved to: A7_analysis/minimal_picornavirales_hits.stk
+//
+[ok]
