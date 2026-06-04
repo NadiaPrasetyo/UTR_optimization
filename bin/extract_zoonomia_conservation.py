@@ -5,60 +5,34 @@ fetch_phylop_scores.py
 For each Ensembl transcript ID in an input CSV, this script:
   1. Fetches genomic coordinates (chrom, start, end, strand) via the
      Ensembl REST API (GRCh38 / hg38).
-  2. BLATs the UTR sequences (utr5, utr3 columns) against hg38 using a
-     LOCAL blat binary + hg38.2bit file.
-  3. Queries the Zoonomia 241-mammalian PhyloP bigWig for scores over
-     the full transcript AND each UTR region.
-  4. Writes results to an output CSV, adding:
-       utr5_coords, utr3_coords          — chr:start-end (0-based half-open)
-       utr5_blat_status, utr3_blat_status
-       utr5_max_phylop, utr5_med_phylop
-       utr3_max_phylop, utr3_med_phylop
-       max_phylop, median_phylop         — whole-transcript scores (unchanged)
+  2. Queries the Zoonomia 241-mammalian PhyloP bigWig for scores over
+     those coordinates.
+  3. Records max_phylop and median_phylop per transcript and writes
+     results to an output CSV.
 
 Usage
 -----
-    python fetch_phylop_scores.py --input transcripts.csv \\
-                                  --id_col transcript_id \\
-                                  --output results.csv \\
-                                  --bigwig 241-mammalian-2020v2.bigWig \\
-                                  --blat_bin ./blat \\
-                                  --twobit hg38.2bit
+    python fetch_phylop_scores.py --input transcripts.csv \
+                                  --id_col transcript_id \
+                                  --output results.csv
 
 Input CSV
 ---------
-Must contain:
-  • A column with Ensembl transcript IDs (default: transcript_id).
-  • A column named  utr5  with the 5′ UTR nucleotide sequence string.
-  • A column named  utr3  with the 3′ UTR nucleotide sequence string.
+Must contain at least one column with Ensembl transcript IDs
+(e.g. ENST00000310256 or ENST00000310256.7 — version suffixes are stripped).
 All other columns are preserved in the output.
 
-Local BLAT
-----------
-Requires:
-  • A blat binary (download from https://hgdownload.gi.ucsc.edu/admin/exe/).
-  • The hg38.2bit genome file
-    (https://hgdownload.gi.ucsc.edu/goldenPath/hg38/bigZips/hg38.2bit).
+Ensembl REST API
+----------------
+Coordinates are fetched from:
+    https://rest.ensembl.org/lookup/id/{ENST_ID}?content-type=application/json
 
-For each UTR sequence the script:
-  1. Writes the sequence to a temporary FASTA file.
-  2. Runs: blat <hg38.2bit> <query.fa> <output.psl> -noHead
-  3. Parses the PSL output to pick the best-scoring hit, preferring hits
-     on the expected chromosome from the Ensembl lookup.
-
-PSL column indices used (0-based):
-  0  matches          8  qNumInsert
-  9  tName (chrom)   15  tStart        16  tEnd
-
-Hit selection strategy:
-  1. Parse all PSL rows.
-  2. Prefer hits on the expected chromosome (from Ensembl lookup).
-  3. Among remaining hits, pick the one with the highest score
-     (matches − misMatches − qNumInsert).
-  4. If no on-chrom hit exists, fall back to the global top hit and flag
-     with blat_status="blat_off_chrom".
-  5. Very short sequences (<20 nt) are flagged as "blat_seq_too_short"
-     and skipped (BLAT is unreliable below this length).
+Key fields used from the response:
+    seq_region_name  → chromosome (e.g. "1" → normalised to "chr1")
+    start            → 1-based inclusive start (converted to 0-based for pyBigWig)
+    end              → 1-based inclusive end
+    strand           → 1 or -1
+    display_name     → e.g. "ARV1-201"
 
 PhyloP bigWig (Zoonomia 241-mammalian, hg38)
 --------------------------------------------
@@ -76,13 +50,9 @@ Dependencies
 
 import argparse
 import logging
-import shutil
-import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
-from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -95,32 +65,31 @@ from tqdm import tqdm
 # Configuration
 # ---------------------------------------------------------------------------
 
+BIGWIG_URL = (
+    "https://cgl.gi.ucsc.edu/data/cactus/241-mammalian-2020v2-hub/"
+    "Homo_sapiens/241-mammalian-2020v2.bigWig"
+)
+
 ENSEMBL_REST_BASE = "https://rest.ensembl.org"
-ENSEMBL_LOOKUP_URL = ENSEMBL_REST_BASE + "/lookup/id/{transcript_id}"
+ENSEMBL_LOOKUP_URL = (
+    ENSEMBL_REST_BASE
+    + "/lookup/id/{transcript_id}?expand=1"
+)
 ENSEMBL_HEADERS = {
     "Content-Type": "application/json",
     "Accept": "application/json",
 }
 
-# Rate-limiting / retry settings for Ensembl
-ENSEMBL_SLEEP_S = 0.1
-ENSEMBL_RETRY_MAX = 3
-ENSEMBL_RETRY_SLEEP_S = 5
+# Rate-limiting / retry settings
+ENSEMBL_SLEEP_S = 0.1        # polite pause between every request
+ENSEMBL_RETRY_MAX = 3        # retries on transient errors
+ENSEMBL_RETRY_SLEEP_S = 5    # wait before each retry
 
-BLAT_MIN_SEQ_LEN = 20       # BLAT unreliable below this length
-
+# Canonical autosomes + sex chromosomes present in this bigWig
 BIGWIG_VALID_CHROMS = {f"chr{i}" for i in range(1, 23)} | {"chrX", "chrY"}
 
-# PSL column indices (0-based) used during hit parsing
-PSL_MATCHES     = 0
-PSL_MISMATCHES  = 1
-PSL_Q_NUM_INS   = 8
-PSL_T_NAME      = 13
-PSL_T_START     = 15
-PSL_T_END       = 16
-
 # ---------------------------------------------------------------------------
-# Logging
+# Logging — module-level so all functions share the same logger
 # ---------------------------------------------------------------------------
 
 logging.basicConfig(
@@ -132,40 +101,45 @@ log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# General helpers
+# Helpers
 # ---------------------------------------------------------------------------
 
 def strip_version(transcript_id: str) -> str:
-    """Remove Ensembl version suffix (ENST00000310256.7 → ENST00000310256)."""
+    """Remove Ensembl version suffix  (ENST00000310256.7 → ENST00000310256)."""
     return transcript_id.split(".")[0]
 
 
 def ensembl_chrom_to_ucsc(seq_region_name: str) -> str:
-    """Convert Ensembl seq_region_name to UCSC-style chromosome name."""
+    """
+    Convert Ensembl seq_region_name to UCSC-style chromosome name.
+
+    Ensembl uses bare numbers and letters ("1", "X", "MT").
+    UCSC / this bigWig uses "chr" prefixes ("chr1", "chrX").
+    Mitochondrial DNA is "MT" in Ensembl and "chrM" in UCSC — mapped explicitly.
+    Unplaced scaffolds are passed through with a "chr" prefix; they will be
+    absent from the bigWig and handled gracefully downstream.
+    """
     if seq_region_name == "MT":
         return "chrM"
     if seq_region_name.startswith("chr"):
-        return seq_region_name
+        return seq_region_name          # already UCSC-style
     return f"chr{seq_region_name}"
-
-
-def fmt_coords(chrom: Optional[str], start: Optional[int], end: Optional[int]) -> Optional[str]:
-    """Format a coordinate triple as 'chr:start-end' (0-based half-open), or None."""
-    if chrom is None or start is None or end is None:
-        return None
-    return f"{chrom}:{start}-{end}"
 
 
 # ---------------------------------------------------------------------------
 # Ensembl coordinate lookup
 # ---------------------------------------------------------------------------
 
-def fetch_transcript_coords(transcript_id: str, session: requests.Session) -> Optional[dict]:
+def fetch_transcript_coords(transcript_id: str, session: requests.Session) -> dict | None:
     """
-    Query the Ensembl REST API and return a dict with keys:
-        chrom, start (0-based), end (half-open), strand, display_name, ensembl_biotype
+    Query the Ensembl REST API and return a dict:
+        {chrom, start, end, strand, display_name, ensembl_biotype}
 
-    Returns None on unrecoverable failure.
+    Coordinates are converted to 0-based half-open (pyBigWig convention):
+        bw_start = ensembl_start - 1
+        bw_end   = ensembl_end        (unchanged)
+
+    Returns None on unrecoverable failure (404, max retries exceeded, etc.).
     """
     tid = strip_version(transcript_id)
     url = ENSEMBL_LOOKUP_URL.format(transcript_id=tid)
@@ -177,6 +151,7 @@ def fetch_transcript_coords(transcript_id: str, session: requests.Session) -> Op
             if resp.status_code == 200:
                 data = resp.json()
 
+                # Validate required fields are present
                 for field in ("seq_region_name", "start", "end"):
                     if field not in data:
                         log.error("Ensembl response for %s missing field '%s'", tid, field)
@@ -185,7 +160,24 @@ def fetch_transcript_coords(transcript_id: str, session: requests.Session) -> Op
                 chrom = ensembl_chrom_to_ucsc(data["seq_region_name"])
                 ensembl_start = int(data["start"])
                 ensembl_end   = int(data["end"])
+                translation = data.get("Translation")
 
+                cds_start = None
+                cds_end = None
+
+                if translation:
+                    cds_start = int(translation["start"])
+                    cds_end   = int(translation["end"])
+
+                exons = []
+
+                for exon in data.get("Exon", []):
+                    exons.append({
+                        "start": int(exon["start"]),
+                        "end": int(exon["end"]),
+                    })
+
+                # Sanity check
                 if ensembl_start > ensembl_end:
                     log.warning(
                         "%s: Ensembl returned start > end (%d > %d) — skipping",
@@ -194,18 +186,22 @@ def fetch_transcript_coords(transcript_id: str, session: requests.Session) -> Op
                     return None
 
                 return {
-                    "chrom":           chrom,
-                    "start":           ensembl_start - 1,   # convert to 0-based
-                    "end":             ensembl_end,          # half-open
-                    "strand":          int(data.get("strand", 1)),
-                    "display_name":    data.get("display_name", tid),
+                    "chrom": chrom,
+                    "start": ensembl_start - 1,
+                    "end": ensembl_end,
+                    "strand": int(data.get("strand", 1)),
+                    "display_name": data.get("display_name", tid),
                     "ensembl_biotype": data.get("biotype", ""),
+                    "cds_start": cds_start,
+                    "cds_end": cds_end,
+                    "exons": exons,
                 }
 
             elif resp.status_code == 429:
                 retry_after = int(resp.headers.get("Retry-After", ENSEMBL_RETRY_SLEEP_S))
-                log.warning("Ensembl rate limit — waiting %ds …", retry_after)
+                log.warning("Ensembl rate limit hit — waiting %ds …", retry_after)
                 time.sleep(retry_after)
+                # Don't count rate-limit waits as an attempt
 
             elif resp.status_code == 404:
                 log.warning("Transcript not found in Ensembl: %s", tid)
@@ -227,198 +223,197 @@ def fetch_transcript_coords(transcript_id: str, session: requests.Session) -> Op
 
 
 # ---------------------------------------------------------------------------
-# Local BLAT
-# ---------------------------------------------------------------------------
-
-def _psl_score(fields: list) -> int:
-    """
-    Compute a BLAT score from a parsed PSL row (list of strings).
-
-    Formula: matches - misMatches - qNumInsert
-    """
-    try:
-        return (
-            int(fields[PSL_MATCHES])
-            - int(fields[PSL_MISMATCHES])
-            - int(fields[PSL_Q_NUM_INS])
-        )
-    except (IndexError, ValueError):
-        return 0
-
-
-def blat_sequence(
-    sequence: str,
-    expected_chrom: Optional[str],
-    blat_bin: str,
-    twobit: str,
-    label: str = "",
-) -> Tuple[Optional[str], Optional[int], Optional[int], str]:
-    """
-    BLAT a nucleotide sequence against hg38 using a local blat binary.
-
-    Parameters
-    ----------
-    sequence       : nucleotide string (should be ≥ BLAT_MIN_SEQ_LEN nt)
-    expected_chrom : chromosome expected from Ensembl lookup (e.g. "chr7");
-                     used to prefer on-chromosome hits
-    blat_bin       : path to the local blat executable
-    twobit         : path to the hg38.2bit genome file
-    label          : human-readable label for log messages (e.g. "utr5")
-
-    Returns
-    -------
-    (chrom, start, end, status)
-      chrom/start/end  — 0-based half-open coordinates of the best hit,
-                         or (None, None, None) on failure
-      status           — one of:
-                           "ok"
-                           "blat_no_sequence"
-                           "blat_seq_too_short"
-                           "blat_no_hit"
-                           "blat_off_chrom"    (hit found but on wrong chrom)
-                           "blat_error"
-    """
-    seq = str(sequence).strip()
-
-    if not seq or seq.lower() in ("nan", "none", ""):
-        return None, None, None, "blat_no_sequence"
-
-    if len(seq) < BLAT_MIN_SEQ_LEN:
-        log.debug("%s sequence too short for BLAT (%d nt)", label, len(seq))
-        return None, None, None, "blat_seq_too_short"
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        query_fa  = Path(tmpdir) / "query.fa"
-        output_psl = Path(tmpdir) / "output.psl"
-
-        # Write query FASTA
-        query_fa.write_text(f">query\n{seq}\n")
-
-        # Run local blat
-        cmd = [
-            blat_bin,
-            twobit,
-            str(query_fa),
-            str(output_psl),
-            "-noHead",          # suppress PSL header lines for easy parsing
-            "-stepSize=5",      # sensitive setting; matches UCSC web defaults
-            "-repMatch=2253",   # hg38 default repeat threshold
-            "-minScore=20",
-            "-minIdentity=0",
-        ]
-
-        log.debug("%s: running blat: %s", label, " ".join(cmd))
-
-        try:
-            proc = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=120,
-            )
-        except subprocess.TimeoutExpired:
-            log.warning("%s: blat timed out", label)
-            return None, None, None, "blat_error"
-        except FileNotFoundError:
-            log.error(
-                "blat binary not found at '%s'. "
-                "Download from https://hgdownload.gi.ucsc.edu/admin/exe/ "
-                "and pass the path via --blat_bin.",
-                blat_bin,
-            )
-            raise   # fatal — no point continuing if blat is missing
-
-        if proc.returncode != 0:
-            log.warning(
-                "%s: blat exited with code %d\nstderr: %s",
-                label, proc.returncode, proc.stderr.strip(),
-            )
-            return None, None, None, "blat_error"
-
-        # Parse PSL rows
-        psl_lines = output_psl.read_text().splitlines()
-
-    hits = []
-    for line in psl_lines:
-        line = line.strip()
-        if not line:
-            continue
-        fields = line.split("\t")
-        if len(fields) < 17:
-            continue  # malformed row
-        hits.append(fields)
-
-    if not hits:
-        log.debug("%s: blat returned no hits", label)
-        return None, None, None, "blat_no_hit"
-
-    # Prefer hits on the expected chromosome
-    on_chrom  = [h for h in hits if h[PSL_T_NAME] == expected_chrom]
-    pool      = on_chrom if on_chrom else hits
-    best      = max(pool, key=_psl_score)
-
-    chrom = best[PSL_T_NAME]
-
-    # PSL tStart / tEnd are 0-based half-open (same convention as BED / bigWig)
-    try:
-        start = int(best[PSL_T_START])
-        end   = int(best[PSL_T_END])
-    except (IndexError, ValueError) as exc:
-        log.warning("%s: could not parse PSL coordinates: %s", label, exc)
-        return None, None, None, "blat_error"
-
-    if start >= end:
-        log.warning("%s: BLAT hit has start >= end (%d >= %d)", label, start, end)
-        return None, None, None, "blat_error"
-
-    status = "ok" if on_chrom else "blat_off_chrom"
-    if not on_chrom:
-        log.warning(
-            "%s: best BLAT hit is on %s, expected %s",
-            label, chrom, expected_chrom,
-        )
-
-    log.debug(
-        "%s BLAT → %s:%d-%d  score=%d  status=%s",
-        label, chrom, start, end, _psl_score(best), status,
-    )
-    return chrom, start, end, status
-
-
-# ---------------------------------------------------------------------------
 # PhyloP score extraction
 # ---------------------------------------------------------------------------
+def calculate_utr_ranges(
+    tx_start,
+    tx_end,
+    cds_start,
+    cds_end,
+    strand,
+):
+    if cds_start is None or cds_end is None:
+        return None, None
 
-def open_bigwig(path: str) -> pyBigWig.pyBigWig:
-    """Open a bigWig file from a local path or remote URL."""
-    log.info("Opening bigWig: %s", path)
-    bw = pyBigWig.open(path)
+    if strand == 1:
+
+        utr5 = (
+            tx_start,
+            cds_start - 1,
+        )
+
+        utr3 = (
+            cds_end + 1,
+            tx_end,
+        )
+
+    else:
+
+        utr3 = (
+            tx_start,
+            cds_start - 1,
+        )
+
+        utr5 = (
+            cds_end + 1,
+            tx_end,
+        )
+
+    if utr5[0] > utr5[1]:
+        utr5 = None
+
+    if utr3[0] > utr3[1]:
+        utr3 = None
+
+    return utr5, utr3
+
+
+def intersect_exons_with_range(
+    exons,
+    region_start,
+    region_end,
+):
+    fragments = []
+
+    for exon in exons:
+
+        start = max(exon["start"], region_start)
+        end = min(exon["end"], region_end)
+
+        if start <= end:
+            fragments.append((start, end))
+
+    return fragments
+
+
+def get_utr_fragments(
+    exons,
+    tx_start,
+    tx_end,
+    cds_start,
+    cds_end,
+    strand,
+):
+    utr5_range, utr3_range = calculate_utr_ranges(
+        tx_start,
+        tx_end,
+        cds_start,
+        cds_end,
+        strand,
+    )
+
+    utr5_fragments = []
+    utr3_fragments = []
+
+    if utr5_range is not None:
+        utr5_fragments = intersect_exons_with_range(
+            exons,
+            utr5_range[0],
+            utr5_range[1],
+        )
+
+    if utr3_range is not None:
+        utr3_fragments = intersect_exons_with_range(
+            exons,
+            utr3_range[0],
+            utr3_range[1],
+        )
+
+    return utr5_fragments, utr3_fragments
+
+
+def get_fragmented_phylop_stats(
+    bw,
+    chrom,
+    fragments,
+):
+    if not fragments:
+        return None, None, "no_utr"
+
+    chroms = bw.chroms()
+
+    if chrom not in chroms:
+        return None, None, "chrom_not_in_bigwig"
+
+    chrom_size = chroms[chrom]
+
+    all_scores = []
+
+    for start_1based, end_1based in fragments:
+
+        start = max(0, start_1based - 1)
+        end = min(end_1based, chrom_size)
+
+        if start >= end:
+            continue
+
+        try:
+            vals = bw.values(
+                chrom,
+                start,
+                end,
+                numpy=True,
+            )
+        except Exception:
+            continue
+
+        if vals is None:
+            continue
+
+        vals = vals[~np.isnan(vals)]
+
+        if len(vals):
+            all_scores.append(vals)
+
+    if not all_scores:
+        return None, None, "no_data"
+
+    all_scores = np.concatenate(all_scores)
+
+    return (
+        float(np.max(all_scores)),
+        float(np.median(all_scores)),
+        "ok",
+    )
+
+def open_bigwig(path_or_url: str) -> pyBigWig.pyBigWig:
+    """
+    Open a bigWig file from a local path or remote URL.
+    Logs the available chromosomes for diagnostic purposes.
+    Raises RuntimeError if the file cannot be opened.
+    """
+    log.info("Opening bigWig: %s", path_or_url)
+    bw = pyBigWig.open(path_or_url)
     if bw is None:
         raise RuntimeError(
-            f"pyBigWig could not open '{path}'. "
-            "Check the path and that the file is a valid bigWig."
+            f"pyBigWig could not open '{path_or_url}'. "
+            "Check the path/URL and that the file is a valid bigWig."
         )
     chroms_in_file = sorted(bw.chroms().keys())
-    log.info("Chromosomes in bigWig: %s", ", ".join(chroms_in_file))
+    log.info("Chromosomes: %s", ", ".join(chroms_in_file))
     log.info("bigWig opened successfully.")
     return bw
 
 
 def get_phylop_stats(
     bw: pyBigWig.pyBigWig,
-    chrom: Optional[str],
-    start: Optional[int],
-    end: Optional[int],
-) -> Tuple[Optional[float], Optional[float], str]:
+    chrom: str,
+    start: int,
+    end: int,
+) -> tuple[float | None, float | None, str]:
     """
     Extract per-base PhyloP scores for chrom:start-end (0-based half-open)
     and return (max_phylop, median_phylop, status_detail).
 
-    Gracefully handles None inputs (returns (None, None, "no_coords")).
-    """
-    if chrom is None or start is None or end is None:
-        return None, None, "no_coords"
+    status_detail is one of:
+        "ok"                  — scores computed successfully
+        "chrom_not_in_bigwig" — chromosome absent from the file
+        "no_data"             — interval exists but all positions are NaN
+        "invalid_interval"    — start >= end after clamping
 
+    NaN positions (bases with no conservation score) are excluded from
+    both max and median calculations.
+    """
     available_chroms = bw.chroms()
 
     if chrom not in available_chroms:
@@ -431,10 +426,7 @@ def get_phylop_stats(
     end   = min(end, chrom_size)
 
     if start >= end:
-        log.warning(
-            "Interval %s:%d-%d invalid after clamping (chrom size=%d)",
-            chrom, start, end, chrom_size,
-        )
+        log.warning("Interval %s:%d-%d invalid after clamping (chrom size=%d)", chrom, start, end, chrom_size)
         return None, None, "invalid_interval"
 
     try:
@@ -460,51 +452,24 @@ def get_phylop_stats(
 
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=(
-            "Fetch Zoonomia 241-mammalian PhyloP scores for Ensembl transcript IDs, "
-            "including per-UTR scores derived by BLATting UTR sequences against hg38 "
-            "using a local blat binary."
-        ),
+        description="Fetch Zoonomia 241-mammalian PhyloP scores for Ensembl transcript IDs.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
         "--input", "-i", required=True,
-        help="Input CSV file containing Ensembl transcript IDs and UTR sequences.",
+        help="Input CSV file containing Ensembl transcript IDs.",
     )
     parser.add_argument(
         "--id_col", "-c", default="transcript_id",
         help="Column name that contains Ensembl transcript IDs.",
     )
     parser.add_argument(
-        "--utr5_col", default="utr5",
-        help="Column name containing 5′ UTR nucleotide sequences.",
-    )
-    parser.add_argument(
-        "--utr3_col", default="utr3",
-        help="Column name containing 3′ UTR nucleotide sequences.",
-    )
-    parser.add_argument(
         "--output", "-o", default="phylop_results.csv",
         help="Output CSV file path.",
     )
     parser.add_argument(
-        "--bigwig", "-b", required=True,
-        help="Path to the PhyloP bigWig file.",
-    )
-    parser.add_argument(
-        "--blat_bin", default="./blat",
-        help=(
-            "Path to the local blat executable. "
-            "Download from https://hgdownload.gi.ucsc.edu/admin/exe/ "
-            "and ensure it is executable (chmod +x blat)."
-        ),
-    )
-    parser.add_argument(
-        "--twobit", default="./hg38.2bit",
-        help=(
-            "Path to the hg38.2bit genome file. "
-            "Download from https://hgdownload.gi.ucsc.edu/goldenPath/hg38/bigZips/hg38.2bit"
-        ),
+        "--bigwig", "-b", default=BIGWIG_URL,
+        help="Path or URL to the PhyloP bigWig file.",
     )
     parser.add_argument(
         "--sep", default=",",
@@ -523,42 +488,6 @@ def main(argv=None) -> None:
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    # --- Validate local BLAT resources ------------------------------------
-    blat_bin = args.blat_bin
-    twobit   = args.twobit
-
-    if not Path(blat_bin).exists():
-        log.error(
-            "blat binary not found: %s\n"
-            "Download from https://hgdownload.gi.ucsc.edu/admin/exe/ "
-            "and pass the path via --blat_bin.",
-            blat_bin,
-        )
-        sys.exit(1)
-
-    if not Path(twobit).exists():
-        log.error(
-            "hg38.2bit file not found: %s\n"
-            "Download from https://hgdownload.gi.ucsc.edu/goldenPath/hg38/bigZips/hg38.2bit "
-            "and pass the path via --twobit.",
-            twobit,
-        )
-        sys.exit(1)
-
-    # Quick smoke-test: make sure blat is executable
-    try:
-        test = subprocess.run(
-            [blat_bin],
-            capture_output=True, text=True, timeout=10,
-        )
-        # blat exits non-zero when called with no args but prints usage — that's fine
-    except (FileNotFoundError, PermissionError) as exc:
-        log.error("Cannot execute blat at '%s': %s", blat_bin, exc)
-        sys.exit(1)
-
-    log.info("Using local blat: %s", blat_bin)
-    log.info("Using 2bit genome: %s", twobit)
-
     # --- Load input --------------------------------------------------------
     input_path = Path(args.input)
     if not input_path.exists():
@@ -568,20 +497,14 @@ def main(argv=None) -> None:
     log.info("Reading input: %s", input_path)
     df = pd.read_csv(input_path, sep=args.sep, dtype=str)
 
-    missing = [
-        col for col in (args.id_col, args.utr5_col, args.utr3_col)
-        if col not in df.columns
-    ]
-    if missing:
+    if args.id_col not in df.columns:
         log.error(
-            "Required column(s) not found: %s. Available: %s",
-            missing, list(df.columns),
+            "Column '%s' not found. Available columns: %s",
+            args.id_col, list(df.columns),
         )
         sys.exit(1)
 
     transcript_ids = df[args.id_col].tolist()
-    utr5_seqs      = df[args.utr5_col].tolist()
-    utr3_seqs      = df[args.utr3_col].tolist()
     log.info("Found %d transcript IDs to process", len(transcript_ids))
 
     # --- Open bigWig -------------------------------------------------------
@@ -591,47 +514,79 @@ def main(argv=None) -> None:
     results = []
     http_session = requests.Session()
 
-    for tid, utr5_seq, utr3_seq in tqdm(
-        zip(transcript_ids, utr5_seqs, utr3_seqs),
-        total=len(transcript_ids),
-        desc="Transcripts",
-        unit="tx",
-    ):
+    for tid in tqdm(transcript_ids, desc="Transcripts", unit="tx"):
         row: dict = {"transcript_id_query": tid}
 
-        # ------------------------------------------------------------------
-        # Step 1: full-transcript coordinates from Ensembl REST
-        # ------------------------------------------------------------------
+        # Step 1: coordinates from Ensembl REST
         coords = fetch_transcript_coords(tid, http_session)
         time.sleep(ENSEMBL_SLEEP_S)
 
         if coords is None:
             row.update({
-                "chrom": None, "start": None, "end": None,
-                "strand": None, "display_name": None, "ensembl_biotype": None,
-                "max_phylop": None, "median_phylop": None,
+                "chrom": None,
+                "start": None,
+                "end": None,
+                "strand": None,
+
+                "display_name": None,
+                "ensembl_biotype": None,
+
+                "cds_start": None,
+                "cds_end": None,
+
+                "utr5_exons": None,
+                "utr3_exons": None,
+
+                "max_phylop": None,
+                "median_phylop": None,
+
+                "utr5_max_phylop": None,
+                "utr5_med_phylop": None,
+
+                "utr3_max_phylop": None,
+                "utr3_med_phylop": None,
+
+                "utr5_status": None,
+                "utr3_status": None,
+
                 "status": "coord_lookup_failed",
-                "utr5_coords": None, "utr5_blat_status": "skipped",
-                "utr5_max_phylop": None, "utr5_med_phylop": None,
-                "utr3_coords": None, "utr3_blat_status": "skipped",
-                "utr3_max_phylop": None, "utr3_med_phylop": None,
             })
             results.append(row)
             continue
 
         row.update(coords)
-        expected_chrom = coords["chrom"]
 
-        if expected_chrom not in BIGWIG_VALID_CHROMS:
+        tx_start = coords["start"] + 1
+        tx_end = coords["end"]
+
+        utr5_fragments, utr3_fragments = get_utr_fragments(
+            coords["exons"],
+            tx_start,
+            tx_end,
+            coords["cds_start"],
+            coords["cds_end"],
+            coords["strand"],
+        )
+
+        row["utr5_exons"] = ";".join(
+            f"{s}-{e}"
+            for s, e in utr5_fragments
+        )
+
+        row["utr3_exons"] = ";".join(
+            f"{s}-{e}"
+            for s, e in utr3_fragments
+        )
+
+        # Warn if chrom is not in the canonical set (won't be in bigWig)
+        if coords["chrom"] not in BIGWIG_VALID_CHROMS:
             log.warning(
                 "%s maps to %s — not a canonical chromosome; "
                 "PhyloP scores will be unavailable.",
-                tid, expected_chrom,
+                tid, coords["chrom"],
             )
 
-        # ------------------------------------------------------------------
-        # Step 2: whole-transcript PhyloP
-        # ------------------------------------------------------------------
+        # Step 2: PhyloP scores from bigWig
         max_p, med_p, bw_status = get_phylop_stats(
             bw, coords["chrom"], coords["start"], coords["end"]
         )
@@ -640,48 +595,37 @@ def main(argv=None) -> None:
         row["median_phylop"] = med_p
         row["status"]        = bw_status
 
-        # ------------------------------------------------------------------
-        # Step 3: BLAT utr5 → coordinates → PhyloP
-        # ------------------------------------------------------------------
-        u5_chrom, u5_start, u5_end, u5_blat_status = blat_sequence(
-            utr5_seq, expected_chrom,
-            blat_bin=blat_bin, twobit=twobit,
-            label=f"{tid}/utr5",
+        utr5_max, utr5_med, utr5_status = (
+            get_fragmented_phylop_stats(
+                bw,
+                coords["chrom"],
+                utr5_fragments,
+            )
         )
-        u5_max, u5_med, _ = get_phylop_stats(bw, u5_chrom, u5_start, u5_end)
 
-        row["utr5_coords"]      = fmt_coords(u5_chrom, u5_start, u5_end)
-        row["utr5_blat_status"] = u5_blat_status
-        row["utr5_max_phylop"]  = u5_max
-        row["utr5_med_phylop"]  = u5_med
-
-        # ------------------------------------------------------------------
-        # Step 4: BLAT utr3 → coordinates → PhyloP
-        # ------------------------------------------------------------------
-        u3_chrom, u3_start, u3_end, u3_blat_status = blat_sequence(
-            utr3_seq, expected_chrom,
-            blat_bin=blat_bin, twobit=twobit,
-            label=f"{tid}/utr3",
+        utr3_max, utr3_med, utr3_status = (
+            get_fragmented_phylop_stats(
+                bw,
+                coords["chrom"],
+                utr3_fragments,
+            )
         )
-        u3_max, u3_med, _ = get_phylop_stats(bw, u3_chrom, u3_start, u3_end)
 
-        row["utr3_coords"]      = fmt_coords(u3_chrom, u3_start, u3_end)
-        row["utr3_blat_status"] = u3_blat_status
-        row["utr3_max_phylop"]  = u3_max
-        row["utr3_med_phylop"]  = u3_med
+        row["utr5_max_phylop"] = utr5_max
+        row["utr5_med_phylop"] = utr5_med
+
+        row["utr3_max_phylop"] = utr3_max
+        row["utr3_med_phylop"] = utr3_med
+
+        row["utr5_status"] = utr5_status
+        row["utr3_status"] = utr3_status
 
         log.debug(
-            "%s  tx=%s:%d-%d [%s]  "
-            "utr5=%s [%s] max=%.4g med=%.4g  "
-            "utr3=%s [%s] max=%.4g med=%.4g",
-            tid,
-            coords["chrom"], coords["start"], coords["end"], bw_status,
-            row["utr5_coords"], u5_blat_status,
-            u5_max if u5_max is not None else float("nan"),
-            u5_med if u5_med is not None else float("nan"),
-            row["utr3_coords"], u3_blat_status,
-            u3_max if u3_max is not None else float("nan"),
-            u3_med if u3_med is not None else float("nan"),
+            "%s  %s:%d-%d  max=%s  median=%s  [%s]",
+            tid, coords["chrom"], coords["start"], coords["end"],
+            f"{max_p:.4f}" if max_p is not None else "N/A",
+            f"{med_p:.4f}" if med_p is not None else "N/A",
+            bw_status,
         )
 
         results.append(row)
@@ -694,18 +638,38 @@ def main(argv=None) -> None:
 
     out_df = df.copy()
     out_df["_merge_key"] = out_df[args.id_col]
-
-    merge_cols = [
-        "_merge_key",
-        "chrom", "start", "end", "strand",
-        "display_name", "ensembl_biotype",
-        "max_phylop", "median_phylop", "status",
-        "utr5_coords", "utr5_blat_status", "utr5_max_phylop", "utr5_med_phylop",
-        "utr3_coords", "utr3_blat_status", "utr3_max_phylop", "utr3_med_phylop",
-    ]
-
     out_df = out_df.merge(
-        results_df[merge_cols],
+        results_df[
+            "_merge_key",
+
+            "chrom",
+            "start",
+            "end",
+            "strand",
+
+            "display_name",
+            "ensembl_biotype",
+
+            "cds_start",
+            "cds_end",
+
+            "utr5_exons",
+            "utr3_exons",
+
+            "max_phylop",
+            "median_phylop",
+
+            "utr5_max_phylop",
+            "utr5_med_phylop",
+
+            "utr3_max_phylop",
+            "utr3_med_phylop",
+
+            "utr5_status",
+            "utr3_status",
+
+            "status",
+        ],
         on="_merge_key",
         how="left",
     ).drop(columns=["_merge_key"])
@@ -717,13 +681,8 @@ def main(argv=None) -> None:
     log.info("Results written to %s  (%d rows)", output_path, len(out_df))
 
     # --- Summary ----------------------------------------------------------
-    log.info("=== Transcript status summary ===")
-    log.info("\n%s", out_df["status"].value_counts().to_string())
-
-    for utr_label in ("utr5_blat_status", "utr3_blat_status"):
-        if utr_label in out_df.columns:
-            log.info("=== %s summary ===", utr_label)
-            log.info("\n%s", out_df[utr_label].value_counts().to_string())
+    status_counts = out_df["status"].value_counts()
+    log.info("Status summary:\n%s", status_counts.to_string())
 
 
 if __name__ == "__main__":
