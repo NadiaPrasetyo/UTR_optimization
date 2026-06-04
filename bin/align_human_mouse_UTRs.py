@@ -77,13 +77,14 @@ def get_UTR_seqs(input_dir):
     orgs = ['bovine', 'human', 'mouse']
     data = {}
     for org in orgs:
-        for utr in ['3UTR', '5UTR']:
+        for utr in ['3UTR', '5UTR', 'CDS']:
             path = os.path.join(input_dir, org, 'extracted_regions', f'extracted_{utr}.fa')
             data[(org, utr)] = _load_fasta_to_dict(path, org, utr)
 
     def make_df(org, id_col):
         ids_3 = set(data[(org, '3UTR')])
         ids_5 = set(data[(org, '5UTR')])
+        cds = set(data[(org, 'CDS')])
         common  = ids_3 & ids_5
         only_3  = ids_3 - ids_5
         only_5  = ids_5 - ids_3
@@ -97,7 +98,8 @@ def get_UTR_seqs(input_dir):
         rows = [
             {id_col:    gid,
              f'{org}_3UTR': data[(org, '3UTR')][gid],
-             f'{org}_5UTR': data[(org, '5UTR')][gid]}
+             f'{org}_5UTR': data[(org, '5UTR')][gid],
+             f'{org}_CDS':  data[(org, 'CDS')][gid]}
             for gid in common
         ]
         return pd.DataFrame(rows)
@@ -180,6 +182,13 @@ def align_UTRs(merged_df, output_dir):
             f'mouse|{mouse_id}':   row['mouse_5UTR'],
         }, aln5_file)
 
+        cds_file = os.path.join(aln_fasta_dir, f'{row_tag}.CDS.aln.fa')   # ← use aln_fasta_dir
+        pid_cds, cov_cds, pdiff_cds = run_mafft_alignment({
+            f'bovine|{bovine_id}': row['bovine_CDS'],
+            f'human|{human_id}':   row['human_CDS'],
+            f'mouse|{mouse_id}':   row['mouse_CDS'],
+        }, cds_file)
+
         results.append({
             '3utr_pid_mean':       round(pid3,   4),
             '3utr_coverage_mean':  round(cov3,   4),
@@ -187,8 +196,12 @@ def align_UTRs(merged_df, output_dir):
             '5utr_pid_mean':       round(pid5,   4),
             '5utr_coverage_mean':  round(cov5,   4),
             '5utr_pctdiff_mean':   round(pdiff5, 4),
+            'cds_pid_mean':        round(pid_cds, 4),
+            'cds_coverage_mean':   round(cov_cds, 4),
+            'cds_pctdiff_mean':    round(pdiff_cds, 4),
             'alignment_file_3utr': aln3_file,
             'alignment_file_5utr': aln5_file,
+            'alignment_file_cds':  cds_file,
         })
 
     return pd.concat([merged_df.reset_index(drop=True),
@@ -250,7 +263,7 @@ def main():
     results_df = align_UTRs(merged, args.output_dir)
 
     # trim results df from the sequence
-    results_df = results_df.drop(columns=['bovine_3UTR', 'bovine_5UTR', 'human_3UTR', 'human_5UTR', 'mouse_3UTR', 'mouse_5UTR'])
+    results_df = results_df.drop(columns=['bovine_3UTR', 'bovine_5UTR', 'human_3UTR', 'human_5UTR', 'mouse_3UTR', 'mouse_5UTR', 'bovine_CDS', 'human_CDS', 'mouse_CDS'])
 
     out_tsv = os.path.join(args.output_dir, 'utr_alignment_results.tsv')
     results_df.to_csv(out_tsv, sep='\t', index=False)
