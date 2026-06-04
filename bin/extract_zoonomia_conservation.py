@@ -71,10 +71,11 @@ BIGWIG_URL = (
 )
 
 ENSEMBL_REST_BASE = "https://rest.ensembl.org"
-ENSEMBL_LOOKUP_URL = (
+ENSEMBL_LOOKUP_BATCH_URL = (
     ENSEMBL_REST_BASE
-    + "/lookup/id/{transcript_id}?expand=1"
+    + "/lookup/id"
 )
+ENSEMBL_BATCH_SIZE = 500
 ENSEMBL_HEADERS = {
     "Content-Type": "application/json",
     "Accept": "application/json",
@@ -129,97 +130,160 @@ def ensembl_chrom_to_ucsc(seq_region_name: str) -> str:
 # ---------------------------------------------------------------------------
 # Ensembl coordinate lookup
 # ---------------------------------------------------------------------------
-
-def fetch_transcript_coords(transcript_id: str, session: requests.Session) -> dict | None:
+def fetch_transcript_coords_batch(
+    transcript_ids: list[str],
+    session: requests.Session,
+) -> dict:
     """
-    Query the Ensembl REST API and return a dict:
-        {chrom, start, end, strand, display_name, ensembl_biotype}
+    Returns:
 
-    Coordinates are converted to 0-based half-open (pyBigWig convention):
-        bw_start = ensembl_start - 1
-        bw_end   = ensembl_end        (unchanged)
+        {
+            ENST... : coords_dict,
+            ENST... : coords_dict,
+        }
 
-    Returns None on unrecoverable failure (404, max retries exceeded, etc.).
+    Missing transcripts are omitted.
     """
-    tid = strip_version(transcript_id)
-    url = ENSEMBL_LOOKUP_URL.format(transcript_id=tid)
+
+    payload = {
+        "ids": [
+            strip_version(tid)
+            for tid in transcript_ids
+        ]
+    }
+
+    params = {
+        "expand": 1,
+        "object_type": "transcript",
+    }
 
     for attempt in range(1, ENSEMBL_RETRY_MAX + 1):
+
         try:
-            resp = session.get(url, headers=ENSEMBL_HEADERS, timeout=30)
+
+            resp = session.post(
+                ENSEMBL_LOOKUP_BATCH_URL,
+                params=params,
+                json=payload,
+                headers=ENSEMBL_HEADERS,
+                timeout=120,
+            )
 
             if resp.status_code == 200:
-                data = resp.json()
 
-                # Validate required fields are present
-                for field in ("seq_region_name", "start", "end"):
-                    if field not in data:
-                        log.error("Ensembl response for %s missing field '%s'", tid, field)
-                        return None
+                raw = resp.json()
 
-                chrom = ensembl_chrom_to_ucsc(data["seq_region_name"])
-                ensembl_start = int(data["start"])
-                ensembl_end   = int(data["end"])
-                translation = data.get("Translation")
+                results = {}
 
-                cds_start = None
-                cds_end = None
+                for tid, data in raw.items():
 
-                if translation:
-                    cds_start = int(translation["start"])
-                    cds_end   = int(translation["end"])
+                    if data is None:
+                        continue
 
-                exons = []
+                    try:
 
-                for exon in data.get("Exon", []):
-                    exons.append({
-                        "start": int(exon["start"]),
-                        "end": int(exon["end"]),
-                    })
+                        chrom = ensembl_chrom_to_ucsc(
+                            data["seq_region_name"]
+                        )
 
-                # Sanity check
-                if ensembl_start > ensembl_end:
-                    log.warning(
-                        "%s: Ensembl returned start > end (%d > %d) — skipping",
-                        tid, ensembl_start, ensembl_end,
-                    )
-                    return None
+                        ensembl_start = int(data["start"])
+                        ensembl_end = int(data["end"])
 
-                return {
-                    "chrom": chrom,
-                    "start": ensembl_start - 1,
-                    "end": ensembl_end,
-                    "strand": int(data.get("strand", 1)),
-                    "display_name": data.get("display_name", tid),
-                    "ensembl_biotype": data.get("biotype", ""),
-                    "cds_start": cds_start,
-                    "cds_end": cds_end,
-                    "exons": exons,
-                }
+                        translation = data.get("Translation")
+
+                        cds_start = None
+                        cds_end = None
+
+                        if translation:
+
+                            cds_start = int(
+                                translation["start"]
+                            )
+
+                            cds_end = int(
+                                translation["end"]
+                            )
+
+                        exons = []
+
+                        for exon in data.get("Exon", []):
+
+                            exons.append({
+                                "start": int(exon["start"]),
+                                "end": int(exon["end"]),
+                            })
+
+                        results[tid] = {
+                            "chrom": chrom,
+                            "start": ensembl_start - 1,
+                            "end": ensembl_end,
+                            "strand": int(
+                                data.get("strand", 1)
+                            ),
+                            "display_name": data.get(
+                                "display_name",
+                                tid,
+                            ),
+                            "ensembl_biotype": data.get(
+                                "biotype",
+                                "",
+                            ),
+                            "cds_start": cds_start,
+                            "cds_end": cds_end,
+                            "exons": exons,
+                        }
+
+                    except Exception as exc:
+
+                        log.warning(
+                            "Failed parsing %s: %s",
+                            tid,
+                            exc,
+                        )
+
+                return results
 
             elif resp.status_code == 429:
-                retry_after = int(resp.headers.get("Retry-After", ENSEMBL_RETRY_SLEEP_S))
-                log.warning("Ensembl rate limit hit — waiting %ds …", retry_after)
-                time.sleep(retry_after)
-                # Don't count rate-limit waits as an attempt
 
-            elif resp.status_code == 404:
-                log.warning("Transcript not found in Ensembl: %s", tid)
-                return None
+                retry_after = int(
+                    resp.headers.get(
+                        "Retry-After",
+                        ENSEMBL_RETRY_SLEEP_S,
+                    )
+                )
+
+                log.warning(
+                    "Rate limited, waiting %ds",
+                    retry_after,
+                )
+
+                time.sleep(retry_after)
 
             else:
+
                 log.warning(
-                    "Ensembl HTTP %d for %s (attempt %d/%d)",
-                    resp.status_code, tid, attempt, ENSEMBL_RETRY_MAX,
+                    "Ensembl batch lookup returned HTTP %d",
+                    resp.status_code,
                 )
-                time.sleep(ENSEMBL_RETRY_SLEEP_S)
+
+                time.sleep(
+                    ENSEMBL_RETRY_SLEEP_S
+                )
 
         except requests.RequestException as exc:
-            log.warning("Network error for %s (attempt %d/%d): %s", tid, attempt, ENSEMBL_RETRY_MAX, exc)
-            time.sleep(ENSEMBL_RETRY_SLEEP_S)
 
-    log.error("All %d attempts failed for %s", ENSEMBL_RETRY_MAX, tid)
-    return None
+            log.warning(
+                "Batch lookup failed (attempt %d/%d): %s",
+                attempt,
+                ENSEMBL_RETRY_MAX,
+                exc,
+            )
+
+            time.sleep(
+                ENSEMBL_RETRY_SLEEP_S
+            )
+
+    return {}
 
 
 # ---------------------------------------------------------------------------
@@ -449,6 +513,9 @@ def get_phylop_stats(
 # ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
+def chunks(lst, size):
+    for i in range(0, len(lst), size):
+        yield lst[i:i + size]
 
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -483,45 +550,128 @@ def parse_args(argv=None) -> argparse.Namespace:
 
 
 def main(argv=None) -> None:
+
     args = parse_args(argv)
 
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    # --- Load input --------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Load input
+    # ------------------------------------------------------------------
+
     input_path = Path(args.input)
+
     if not input_path.exists():
         log.error("Input file not found: %s", input_path)
         sys.exit(1)
 
     log.info("Reading input: %s", input_path)
-    df = pd.read_csv(input_path, sep=args.sep, dtype=str)
+
+    df = pd.read_csv(
+        input_path,
+        sep=args.sep,
+        dtype=str,
+    )
 
     if args.id_col not in df.columns:
         log.error(
             "Column '%s' not found. Available columns: %s",
-            args.id_col, list(df.columns),
+            args.id_col,
+            list(df.columns),
         )
         sys.exit(1)
 
     transcript_ids = df[args.id_col].tolist()
-    log.info("Found %d transcript IDs to process", len(transcript_ids))
 
-    # --- Open bigWig -------------------------------------------------------
+    log.info(
+        "Found %d transcript IDs",
+        len(transcript_ids),
+    )
+
+    # ------------------------------------------------------------------
+    # Open PhyloP bigWig
+    # ------------------------------------------------------------------
+
     bw = open_bigwig(args.bigwig)
 
-    # --- Process each transcript ------------------------------------------
-    results = []
+    # ------------------------------------------------------------------
+    # Create HTTP session
+    # ------------------------------------------------------------------
+
     http_session = requests.Session()
 
-    for tid in tqdm(transcript_ids, desc="Transcripts", unit="tx"):
-        row: dict = {"transcript_id_query": tid}
+    # ------------------------------------------------------------------
+    # Batch Ensembl lookup
+    # ------------------------------------------------------------------
 
-        # Step 1: coordinates from Ensembl REST
-        coords = fetch_transcript_coords(tid, http_session)
-        time.sleep(ENSEMBL_SLEEP_S)
+    coord_lookup = {}
+
+    batches = list(
+        chunks(
+            transcript_ids,
+            ENSEMBL_BATCH_SIZE,
+        )
+    )
+
+    log.info(
+        "Fetching transcript annotations from Ensembl "
+        "(%d batches)",
+        len(batches),
+    )
+
+    for batch in tqdm(
+        batches,
+        desc="Ensembl lookup",
+        unit="batch",
+    ):
+
+        batch_results = fetch_transcript_coords_batch(
+            batch,
+            http_session,
+        )
+
+        coord_lookup.update(
+            batch_results
+        )
+
+        time.sleep(
+            ENSEMBL_SLEEP_S
+        )
+
+    log.info(
+        "Retrieved annotations for %d transcripts",
+        len(coord_lookup),
+    )
+
+    # ------------------------------------------------------------------
+    # Process transcripts
+    # ------------------------------------------------------------------
+
+    results = []
+
+    for tid in tqdm(
+        transcript_ids,
+        desc="Transcripts",
+        unit="tx",
+    ):
+
+        lookup_id = strip_version(tid)
+
+        row = {
+            "transcript_id_query": tid
+        }
+
+        coords = coord_lookup.get(
+            lookup_id
+        )
+
+        # --------------------------------------------------------------
+        # Annotation lookup failed
+        # --------------------------------------------------------------
 
         if coords is None:
+
             row.update({
                 "chrom": None,
                 "start": None,
@@ -551,49 +701,72 @@ def main(argv=None) -> None:
 
                 "status": "coord_lookup_failed",
             })
+
             results.append(row)
             continue
 
         row.update(coords)
 
+        # --------------------------------------------------------------
+        # Determine exon-only UTR fragments
+        # --------------------------------------------------------------
+
         tx_start = coords["start"] + 1
         tx_end = coords["end"]
 
-        utr5_fragments, utr3_fragments = get_utr_fragments(
-            coords["exons"],
-            tx_start,
-            tx_end,
-            coords["cds_start"],
-            coords["cds_end"],
-            coords["strand"],
+        utr5_fragments, utr3_fragments = (
+            get_utr_fragments(
+                exons=coords["exons"],
+                tx_start=tx_start,
+                tx_end=tx_end,
+                cds_start=coords["cds_start"],
+                cds_end=coords["cds_end"],
+                strand=coords["strand"],
+            )
         )
 
         row["utr5_exons"] = ";".join(
-            f"{s}-{e}"
-            for s, e in utr5_fragments
+            f"{start}-{end}"
+            for start, end in utr5_fragments
         )
 
         row["utr3_exons"] = ";".join(
-            f"{s}-{e}"
-            for s, e in utr3_fragments
+            f"{start}-{end}"
+            for start, end in utr3_fragments
         )
 
-        # Warn if chrom is not in the canonical set (won't be in bigWig)
+        # --------------------------------------------------------------
+        # Warn if chromosome absent from bigWig
+        # --------------------------------------------------------------
+
         if coords["chrom"] not in BIGWIG_VALID_CHROMS:
+
             log.warning(
-                "%s maps to %s — not a canonical chromosome; "
-                "PhyloP scores will be unavailable.",
-                tid, coords["chrom"],
+                "%s maps to %s — chromosome absent from PhyloP bigWig",
+                tid,
+                coords["chrom"],
             )
 
-        # Step 2: PhyloP scores from bigWig
-        max_p, med_p, bw_status = get_phylop_stats(
-            bw, coords["chrom"], coords["start"], coords["end"]
+        # --------------------------------------------------------------
+        # Whole transcript PhyloP
+        # --------------------------------------------------------------
+
+        max_p, med_p, bw_status = (
+            get_phylop_stats(
+                bw,
+                coords["chrom"],
+                coords["start"],
+                coords["end"],
+            )
         )
 
-        row["max_phylop"]    = max_p
+        row["max_phylop"] = max_p
         row["median_phylop"] = med_p
-        row["status"]        = bw_status
+        row["status"] = bw_status
+
+        # --------------------------------------------------------------
+        # 5' UTR PhyloP
+        # --------------------------------------------------------------
 
         utr5_max, utr5_med, utr5_status = (
             get_fragmented_phylop_stats(
@@ -603,6 +776,14 @@ def main(argv=None) -> None:
             )
         )
 
+        row["utr5_max_phylop"] = utr5_max
+        row["utr5_med_phylop"] = utr5_med
+        row["utr5_status"] = utr5_status
+
+        # --------------------------------------------------------------
+        # 3' UTR PhyloP
+        # --------------------------------------------------------------
+
         utr3_max, utr3_med, utr3_status = (
             get_fragmented_phylop_stats(
                 bw,
@@ -611,35 +792,32 @@ def main(argv=None) -> None:
             )
         )
 
-        row["utr5_max_phylop"] = utr5_max
-        row["utr5_med_phylop"] = utr5_med
-
         row["utr3_max_phylop"] = utr3_max
         row["utr3_med_phylop"] = utr3_med
-
-        row["utr5_status"] = utr5_status
         row["utr3_status"] = utr3_status
-
-        log.debug(
-            "%s  %s:%d-%d  max=%s  median=%s  [%s]",
-            tid, coords["chrom"], coords["start"], coords["end"],
-            f"{max_p:.4f}" if max_p is not None else "N/A",
-            f"{med_p:.4f}" if med_p is not None else "N/A",
-            bw_status,
-        )
 
         results.append(row)
 
     bw.close()
 
-    # --- Merge results onto original dataframe ----------------------------
+    # ------------------------------------------------------------------
+    # Merge results onto original dataframe
+    # ------------------------------------------------------------------
+
     results_df = pd.DataFrame(results)
-    results_df["_merge_key"] = results_df["transcript_id_query"]
+
+    results_df["_merge_key"] = (
+        results_df["transcript_id_query"]
+    )
 
     out_df = df.copy()
-    out_df["_merge_key"] = out_df[args.id_col]
+
+    out_df["_merge_key"] = (
+        out_df[args.id_col]
+    )
+
     out_df = out_df.merge(
-        results_df[
+        results_df[[
             "_merge_key",
 
             "chrom",
@@ -669,10 +847,12 @@ def main(argv=None) -> None:
             "utr3_status",
 
             "status",
-        ],
+        ]],
         on="_merge_key",
         how="left",
-    ).drop(columns=["_merge_key"])
+    ).drop(
+        columns=["_merge_key"]
+    )
 
     # --- Write output -----------------------------------------------------
     output_path = Path(args.output)
