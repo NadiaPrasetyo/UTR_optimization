@@ -78,10 +78,6 @@ from tqdm import tqdm
 # Configuration
 # ---------------------------------------------------------------------------
 
-BIGWIG_URL = (
-    "https://cgl.gi.ucsc.edu/data/cactus/241-mammalian-2020v2-hub/"
-    "Homo_sapiens/241-mammalian-2020v2.bigWig"
-)
 
 ENSEMBL_REST_BASE = "https://rest.ensembl.org"
 ENSEMBL_LOOKUP_URL = ENSEMBL_REST_BASE + "/lookup/id/{transcript_id}"
@@ -348,14 +344,14 @@ def blat_sequence(
 # PhyloP score extraction
 # ---------------------------------------------------------------------------
 
-def open_bigwig(path_or_url: str) -> pyBigWig.pyBigWig:
+def open_bigwig(path: str) -> pyBigWig.pyBigWig:
     """Open a bigWig file from a local path or remote URL."""
-    log.info("Opening bigWig: %s", path_or_url)
-    bw = pyBigWig.open(path_or_url)
+    log.info("Opening bigWig: %s", path)
+    bw = pyBigWig.open(path)
     if bw is None:
         raise RuntimeError(
-            f"pyBigWig could not open '{path_or_url}'. "
-            "Check the path/URL and that the file is a valid bigWig."
+            f"pyBigWig could not open '{path}'. "
+            "Check the path and that the file is a valid bigWig."
         )
     chroms_in_file = sorted(bw.chroms().keys())
     log.info("Chromosomes in bigWig: %s", ", ".join(chroms_in_file))
@@ -446,8 +442,8 @@ def parse_args(argv=None) -> argparse.Namespace:
         help="Output CSV file path.",
     )
     parser.add_argument(
-        "--bigwig", "-b", default=BIGWIG_URL,
-        help="Path or URL to the PhyloP bigWig file.",
+        "--bigwig", "-b", required=True,
+        help="Path to the PhyloP bigWig file.",
     )
     parser.add_argument(
         "--sep", default=",",
