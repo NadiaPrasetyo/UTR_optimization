@@ -136,7 +136,6 @@ def fetch_transcript_coords_batch(
 ) -> dict:
     """
     Returns:
-
         {
             ENST... : coords_dict,
             ENST... : coords_dict,
@@ -146,41 +145,47 @@ def fetch_transcript_coords_batch(
     """
 
     payload = {
-        "ids": [
-            strip_version(tid)
-            for tid in transcript_ids
-        ]
+        "ids": [strip_version(tid) for tid in transcript_ids]
     }
 
     params = {
         "expand": 1,
     }
 
+    timeout_s = 300  # IMPORTANT: expand=1 is heavy
+
     for attempt in range(1, ENSEMBL_RETRY_MAX + 1):
 
         try:
+            log.info(
+                "Submitting Ensembl batch (%d/%d) with %d transcripts",
+                attempt,
+                ENSEMBL_RETRY_MAX,
+                len(transcript_ids),
+            )
 
             resp = session.post(
                 ENSEMBL_LOOKUP_BATCH_URL,
                 params=params,
                 json=payload,
                 headers=ENSEMBL_HEADERS,
-                timeout=120,
+                timeout=timeout_s,
             )
 
+            # -------------------------
+            # SUCCESS
+            # -------------------------
             if resp.status_code == 200:
 
                 raw = resp.json()
-
                 results = {}
 
                 for tid, data in raw.items():
 
-                    if data is None:
+                    if not data:
                         continue
 
                     try:
-
                         chrom = ensembl_chrom_to_ucsc(
                             data["seq_region_name"]
                         )
@@ -188,60 +193,53 @@ def fetch_transcript_coords_batch(
                         ensembl_start = int(data["start"])
                         ensembl_end = int(data["end"])
 
-                        translation = data.get("Translation")
+                        translation = data.get("Translation", {})
 
-                        cds_start = None
-                        cds_end = None
+                        cds_start = (
+                            int(translation["start"])
+                            if translation and "start" in translation
+                            else None
+                        )
 
-                        if translation:
+                        cds_end = (
+                            int(translation["end"])
+                            if translation and "end" in translation
+                            else None
+                        )
 
-                            cds_start = int(
-                                translation["start"]
-                            )
-
-                            cds_end = int(
-                                translation["end"]
-                            )
-
-                        exons = []
-
-                        for exon in data.get("Exon", []):
-
-                            exons.append({
+                        exons = [
+                            {
                                 "start": int(exon["start"]),
                                 "end": int(exon["end"]),
-                            })
+                            }
+                            for exon in data.get("Exon", [])
+                            if "start" in exon and "end" in exon
+                        ]
 
                         results[tid] = {
                             "chrom": chrom,
-                            "start": ensembl_start - 1,
+                            "start": ensembl_start - 1,  # 0-based
                             "end": ensembl_end,
-                            "strand": int(
-                                data.get("strand", 1)
-                            ),
-                            "display_name": data.get(
-                                "display_name",
-                                tid,
-                            ),
-                            "ensembl_biotype": data.get(
-                                "biotype",
-                                "",
-                            ),
+                            "strand": int(data.get("strand", 1)),
+                            "display_name": data.get("display_name", tid),
+                            "ensembl_biotype": data.get("biotype", ""),
                             "cds_start": cds_start,
                             "cds_end": cds_end,
                             "exons": exons,
                         }
 
                     except Exception as exc:
-
                         log.warning(
-                            "Failed parsing %s: %s",
+                            "Failed parsing transcript %s: %s",
                             tid,
                             exc,
                         )
 
                 return results
 
+            # -------------------------
+            # RATE LIMIT
+            # -------------------------
             elif resp.status_code == 429:
 
                 retry_after = int(
@@ -252,35 +250,58 @@ def fetch_transcript_coords_batch(
                 )
 
                 log.warning(
-                    "Rate limited, waiting %ds",
+                    "Ensembl rate limited (attempt %d/%d), waiting %ds",
+                    attempt,
+                    ENSEMBL_RETRY_MAX,
                     retry_after,
                 )
 
                 time.sleep(retry_after)
+                continue
 
+            # -------------------------
+            # OTHER HTTP ERROR
+            # -------------------------
             else:
 
                 log.warning(
-                    "Ensembl batch lookup returned HTTP %d",
+                    "Ensembl batch HTTP %d (attempt %d/%d)",
                     resp.status_code,
+                    attempt,
+                    ENSEMBL_RETRY_MAX,
                 )
 
-                time.sleep(
-                    ENSEMBL_RETRY_SLEEP_S
-                )
-
+        # -------------------------
+        # NETWORK ERROR / TIMEOUT
+        # -------------------------
         except requests.RequestException as exc:
 
             log.warning(
-                "Batch lookup failed (attempt %d/%d): %s",
+                "Ensembl batch network error (attempt %d/%d): %s",
                 attempt,
                 ENSEMBL_RETRY_MAX,
                 exc,
             )
 
-            time.sleep(
-                ENSEMBL_RETRY_SLEEP_S
+        # -------------------------
+        # BACKOFF BEFORE RETRY
+        # -------------------------
+        if attempt < ENSEMBL_RETRY_MAX:
+
+            backoff = min(5 * (2 ** (attempt - 1)), 60)
+
+            log.info(
+                "Retrying Ensembl batch in %ds...",
+                backoff,
             )
+
+            time.sleep(backoff)
+
+    log.error(
+        "Ensembl batch failed after %d attempts (%d transcripts)",
+        ENSEMBL_RETRY_MAX,
+        len(transcript_ids),
+    )
 
     return {}
 
