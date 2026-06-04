@@ -75,7 +75,7 @@ ENSEMBL_LOOKUP_BATCH_URL = (
     ENSEMBL_REST_BASE
     + "/lookup/id"
 )
-ENSEMBL_BATCH_SIZE = 500
+ENSEMBL_BATCH_SIZE = 100
 ENSEMBL_HEADERS = {
     "Content-Type": "application/json",
     "Accept": "application/json",
@@ -154,7 +154,6 @@ def fetch_transcript_coords_batch(
 
     params = {
         "expand": 1,
-        "object_type": "transcript",
     }
 
     for attempt in range(1, ENSEMBL_RETRY_MAX + 1):
@@ -625,6 +624,10 @@ def main(argv=None) -> None:
         desc="Ensembl lookup",
         unit="batch",
     ):
+        log.info(
+            "Submitting Ensembl batch of %d transcripts",
+            len(batch),
+        )
 
         batch_results = fetch_transcript_coords_batch(
             batch,
