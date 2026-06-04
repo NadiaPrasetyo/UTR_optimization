@@ -5,8 +5,8 @@ fetch_phylop_scores.py
 For each Ensembl transcript ID in an input CSV, this script:
   1. Fetches genomic coordinates (chrom, start, end, strand) via the
      Ensembl REST API (GRCh38 / hg38).
-  2. BLATs the UTR sequences (utr5, utr3 columns) against hg38 via the
-     UCSC BLAT REST API to resolve UTR genomic coordinates.
+  2. BLATs the UTR sequences (utr5, utr3 columns) against hg38 using a
+     LOCAL blat binary + hg38.2bit file.
   3. Queries the Zoonomia 241-mammalian PhyloP bigWig for scores over
      the full transcript AND each UTR region.
   4. Writes results to an output CSV, adding:
@@ -20,7 +20,10 @@ Usage
 -----
     python fetch_phylop_scores.py --input transcripts.csv \\
                                   --id_col transcript_id \\
-                                  --output results.csv
+                                  --output results.csv \\
+                                  --bigwig 241-mammalian-2020v2.bigWig \\
+                                  --blat_bin ./blat \\
+                                  --twobit hg38.2bit
 
 Input CSV
 ---------
@@ -30,18 +33,30 @@ Must contain:
   • A column named  utr3  with the 3′ UTR nucleotide sequence string.
 All other columns are preserved in the output.
 
-BLAT REST API
--------------
-Sequences are aligned against hg38 via:
-    https://genome.ucsc.edu/cgi-bin/hgBlat?userSeq={SEQ}&type=DNA&db=hg38&output=json
+Local BLAT
+----------
+Requires:
+  • A blat binary (download from https://hgdownload.gi.ucsc.edu/admin/exe/).
+  • The hg38.2bit genome file
+    (https://hgdownload.gi.ucsc.edu/goldenPath/hg38/bigZips/hg38.2bit).
+
+For each UTR sequence the script:
+  1. Writes the sequence to a temporary FASTA file.
+  2. Runs: blat <hg38.2bit> <query.fa> <output.psl> -noHead
+  3. Parses the PSL output to pick the best-scoring hit, preferring hits
+     on the expected chromosome from the Ensembl lookup.
+
+PSL column indices used (0-based):
+  0  matches          8  qNumInsert
+  9  tName (chrom)   15  tStart        16  tEnd
 
 Hit selection strategy:
-  1. Parse all returned blocks.
-  2. Keep only hits on the expected chromosome (from Ensembl lookup).
-  3. Among remaining hits, pick the one with the highest BLAT score
-     (matches − misMatches − repMatches − qNumInsert).
-  4. If no hit survives chromosome filtering, fall back to the global
-     top hit (different-chrom hits are flagged with blat_status="blat_off_chrom").
+  1. Parse all PSL rows.
+  2. Prefer hits on the expected chromosome (from Ensembl lookup).
+  3. Among remaining hits, pick the one with the highest score
+     (matches − misMatches − qNumInsert).
+  4. If no on-chrom hit exists, fall back to the global top hit and flag
+     with blat_status="blat_off_chrom".
   5. Very short sequences (<20 nt) are flagged as "blat_seq_too_short"
      and skipped (BLAT is unreliable below this length).
 
@@ -61,11 +76,13 @@ Dependencies
 
 import argparse
 import logging
+import shutil
+import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Optional, Tuple
-from urllib.parse import quote
 
 import numpy as np
 import pandas as pd
@@ -78,7 +95,6 @@ from tqdm import tqdm
 # Configuration
 # ---------------------------------------------------------------------------
 
-
 ENSEMBL_REST_BASE = "https://rest.ensembl.org"
 ENSEMBL_LOOKUP_URL = ENSEMBL_REST_BASE + "/lookup/id/{transcript_id}"
 ENSEMBL_HEADERS = {
@@ -86,19 +102,22 @@ ENSEMBL_HEADERS = {
     "Accept": "application/json",
 }
 
-BLAT_URL = "https://genome.ucsc.edu/cgi-bin/hgBlat"
-BLAT_DB = "hg38"
-BLAT_MIN_SEQ_LEN = 20       # BLAT unreliable below this
-BLAT_SLEEP_S = 1.0          # UCSC asks for polite intervals between BLAT calls
-BLAT_RETRY_MAX = 3
-BLAT_RETRY_SLEEP_S = 10
-
 # Rate-limiting / retry settings for Ensembl
 ENSEMBL_SLEEP_S = 0.1
 ENSEMBL_RETRY_MAX = 3
 ENSEMBL_RETRY_SLEEP_S = 5
 
+BLAT_MIN_SEQ_LEN = 20       # BLAT unreliable below this length
+
 BIGWIG_VALID_CHROMS = {f"chr{i}" for i in range(1, 23)} | {"chrX", "chrY"}
+
+# PSL column indices (0-based) used during hit parsing
+PSL_MATCHES     = 0
+PSL_MISMATCHES  = 1
+PSL_Q_NUM_INS   = 8
+PSL_T_NAME      = 13
+PSL_T_START     = 15
+PSL_T_END       = 16
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -158,7 +177,6 @@ def fetch_transcript_coords(transcript_id: str, session: requests.Session) -> Op
             if resp.status_code == 200:
                 data = resp.json()
 
-                # Validate required fields are present
                 for field in ("seq_region_name", "start", "end"):
                     if field not in data:
                         log.error("Ensembl response for %s missing field '%s'", tid, field)
@@ -168,7 +186,6 @@ def fetch_transcript_coords(transcript_id: str, session: requests.Session) -> Op
                 ensembl_start = int(data["start"])
                 ensembl_end   = int(data["end"])
 
-                # Sanity check
                 if ensembl_start > ensembl_end:
                     log.warning(
                         "%s: Ensembl returned start > end (%d > %d) — skipping",
@@ -178,7 +195,7 @@ def fetch_transcript_coords(transcript_id: str, session: requests.Session) -> Op
 
                 return {
                     "chrom":           chrom,
-                    "start":           ensembl_start - 1,   # 0-based
+                    "start":           ensembl_start - 1,   # convert to 0-based
                     "end":             ensembl_end,          # half-open
                     "strand":          int(data.get("strand", 1)),
                     "display_name":    data.get("display_name", tid),
@@ -210,40 +227,42 @@ def fetch_transcript_coords(transcript_id: str, session: requests.Session) -> Op
 
 
 # ---------------------------------------------------------------------------
-# BLAT helpers
+# Local BLAT
 # ---------------------------------------------------------------------------
 
-def _blat_score(hit: dict) -> int:
+def _psl_score(fields: list) -> int:
     """
-    Compute a simple BLAT score from a JSON hit dict.
+    Compute a BLAT score from a parsed PSL row (list of strings).
 
-    BLAT's own scoring formula:
-        score = matches + repMatches/2 - misMatches - qNumInsert - tNumInsert
-    We use a slightly simplified version (repMatches not always present):
-        score = matches - misMatches - qNumInsert
+    Formula: matches - misMatches - qNumInsert
     """
-    return (
-        int(hit.get("matches", 0))
-        - int(hit.get("misMatches", 0))
-        - int(hit.get("qNumInsert", 0))
-    )
+    try:
+        return (
+            int(fields[PSL_MATCHES])
+            - int(fields[PSL_MISMATCHES])
+            - int(fields[PSL_Q_NUM_INS])
+        )
+    except (IndexError, ValueError):
+        return 0
 
 
 def blat_sequence(
     sequence: str,
     expected_chrom: Optional[str],
-    session: requests.Session,
+    blat_bin: str,
+    twobit: str,
     label: str = "",
 ) -> Tuple[Optional[str], Optional[int], Optional[int], str]:
     """
-    BLAT a nucleotide sequence against hg38 via the UCSC REST endpoint.
+    BLAT a nucleotide sequence against hg38 using a local blat binary.
 
     Parameters
     ----------
     sequence       : nucleotide string (should be ≥ BLAT_MIN_SEQ_LEN nt)
     expected_chrom : chromosome expected from Ensembl lookup (e.g. "chr7");
                      used to prefer on-chromosome hits
-    session        : shared requests.Session
+    blat_bin       : path to the local blat executable
+    twobit         : path to the hg38.2bit genome file
     label          : human-readable label for log messages (e.g. "utr5")
 
     Returns
@@ -253,9 +272,10 @@ def blat_sequence(
                          or (None, None, None) on failure
       status           — one of:
                            "ok"
+                           "blat_no_sequence"
                            "blat_seq_too_short"
                            "blat_no_hit"
-                           "blat_off_chrom"   (hit found but on wrong chrom)
+                           "blat_off_chrom"    (hit found but on wrong chrom)
                            "blat_error"
     """
     seq = str(sequence).strip()
@@ -267,77 +287,102 @@ def blat_sequence(
         log.debug("%s sequence too short for BLAT (%d nt)", label, len(seq))
         return None, None, None, "blat_seq_too_short"
 
-    params = {
-        "userSeq": seq,
-        "type":    "DNA",
-        "db":      BLAT_DB,
-        "output":  "json",
-    }
+    with tempfile.TemporaryDirectory() as tmpdir:
+        query_fa  = Path(tmpdir) / "query.fa"
+        output_psl = Path(tmpdir) / "output.psl"
 
-    for attempt in range(1, BLAT_RETRY_MAX + 1):
+        # Write query FASTA
+        query_fa.write_text(f">query\n{seq}\n")
+
+        # Run local blat
+        cmd = [
+            blat_bin,
+            twobit,
+            str(query_fa),
+            str(output_psl),
+            "-noHead",          # suppress PSL header lines for easy parsing
+            "-stepSize=5",      # sensitive setting; matches UCSC web defaults
+            "-repMatch=2253",   # hg38 default repeat threshold
+            "-minScore=20",
+            "-minIdentity=0",
+        ]
+
+        log.debug("%s: running blat: %s", label, " ".join(cmd))
+
         try:
-            resp = session.get(BLAT_URL, params=params, timeout=60)
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+        except subprocess.TimeoutExpired:
+            log.warning("%s: blat timed out", label)
+            return None, None, None, "blat_error"
+        except FileNotFoundError:
+            log.error(
+                "blat binary not found at '%s'. "
+                "Download from https://hgdownload.gi.ucsc.edu/admin/exe/ "
+                "and pass the path via --blat_bin.",
+                blat_bin,
+            )
+            raise   # fatal — no point continuing if blat is missing
 
-            if resp.status_code == 200:
-                try:
-                    data = resp.json()
-                except ValueError:
-                    log.warning("%s: BLAT returned non-JSON response (attempt %d)", label, attempt)
-                    time.sleep(BLAT_RETRY_SLEEP_S)
-                    continue
+        if proc.returncode != 0:
+            log.warning(
+                "%s: blat exited with code %d\nstderr: %s",
+                label, proc.returncode, proc.stderr.strip(),
+            )
+            return None, None, None, "blat_error"
 
-                hits = data.get("blat", [])
-                if not hits:
-                    log.debug("%s: BLAT returned no hits", label)
-                    return None, None, None, "blat_no_hit"
+        # Parse PSL rows
+        psl_lines = output_psl.read_text().splitlines()
 
-                # Separate hits by chromosome match
-                on_chrom  = [h for h in hits if h.get("tName") == expected_chrom]
-                off_chrom = hits  # fallback pool
+    hits = []
+    for line in psl_lines:
+        line = line.strip()
+        if not line:
+            continue
+        fields = line.split("\t")
+        if len(fields) < 17:
+            continue  # malformed row
+        hits.append(fields)
 
-                # Pick best hit from the preferred pool
-                pool  = on_chrom if on_chrom else off_chrom
-                best  = max(pool, key=_blat_score)
-                chrom = best["tName"]
+    if not hits:
+        log.debug("%s: blat returned no hits", label)
+        return None, None, None, "blat_no_hit"
 
-                # UCSC BLAT JSON uses tStart / tEnd (0-based half-open)
-                start = int(best["tStart"])
-                end   = int(best["tEnd"])
+    # Prefer hits on the expected chromosome
+    on_chrom  = [h for h in hits if h[PSL_T_NAME] == expected_chrom]
+    pool      = on_chrom if on_chrom else hits
+    best      = max(pool, key=_psl_score)
 
-                if start >= end:
-                    log.warning("%s: BLAT hit has start >= end (%d >= %d)", label, start, end)
-                    return None, None, None, "blat_error"
+    chrom = best[PSL_T_NAME]
 
-                status = "ok" if on_chrom else "blat_off_chrom"
-                if not on_chrom:
-                    log.warning(
-                        "%s: best BLAT hit is on %s, expected %s",
-                        label, chrom, expected_chrom,
-                    )
+    # PSL tStart / tEnd are 0-based half-open (same convention as BED / bigWig)
+    try:
+        start = int(best[PSL_T_START])
+        end   = int(best[PSL_T_END])
+    except (IndexError, ValueError) as exc:
+        log.warning("%s: could not parse PSL coordinates: %s", label, exc)
+        return None, None, None, "blat_error"
 
-                log.debug(
-                    "%s BLAT → %s:%d-%d  score=%d  status=%s",
-                    label, chrom, start, end, _blat_score(best), status,
-                )
-                return chrom, start, end, status
+    if start >= end:
+        log.warning("%s: BLAT hit has start >= end (%d >= %d)", label, start, end)
+        return None, None, None, "blat_error"
 
-            elif resp.status_code == 429:
-                log.warning("%s: BLAT rate-limited, waiting %ds …", label, BLAT_RETRY_SLEEP_S)
-                time.sleep(BLAT_RETRY_SLEEP_S)
+    status = "ok" if on_chrom else "blat_off_chrom"
+    if not on_chrom:
+        log.warning(
+            "%s: best BLAT hit is on %s, expected %s",
+            label, chrom, expected_chrom,
+        )
 
-            else:
-                log.warning(
-                    "%s: BLAT HTTP %d (attempt %d/%d)",
-                    label, resp.status_code, attempt, BLAT_RETRY_MAX,
-                )
-                time.sleep(BLAT_RETRY_SLEEP_S)
-
-        except requests.RequestException as exc:
-            log.warning("%s: BLAT network error (attempt %d/%d): %s", label, attempt, BLAT_RETRY_MAX, exc)
-            time.sleep(BLAT_RETRY_SLEEP_S)
-
-    log.error("%s: all %d BLAT attempts failed", label, BLAT_RETRY_MAX)
-    return None, None, None, "blat_error"
+    log.debug(
+        "%s BLAT → %s:%d-%d  score=%d  status=%s",
+        label, chrom, start, end, _psl_score(best), status,
+    )
+    return chrom, start, end, status
 
 
 # ---------------------------------------------------------------------------
@@ -417,7 +462,8 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Fetch Zoonomia 241-mammalian PhyloP scores for Ensembl transcript IDs, "
-            "including per-UTR scores derived by BLATting UTR sequences against hg38."
+            "including per-UTR scores derived by BLATting UTR sequences against hg38 "
+            "using a local blat binary."
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
@@ -446,6 +492,21 @@ def parse_args(argv=None) -> argparse.Namespace:
         help="Path to the PhyloP bigWig file.",
     )
     parser.add_argument(
+        "--blat_bin", default="./blat",
+        help=(
+            "Path to the local blat executable. "
+            "Download from https://hgdownload.gi.ucsc.edu/admin/exe/ "
+            "and ensure it is executable (chmod +x blat)."
+        ),
+    )
+    parser.add_argument(
+        "--twobit", default="./hg38.2bit",
+        help=(
+            "Path to the hg38.2bit genome file. "
+            "Download from https://hgdownload.gi.ucsc.edu/goldenPath/hg38/bigZips/hg38.2bit"
+        ),
+    )
+    parser.add_argument(
         "--sep", default=",",
         help="Delimiter used in the input CSV.",
     )
@@ -462,6 +523,42 @@ def main(argv=None) -> None:
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
+    # --- Validate local BLAT resources ------------------------------------
+    blat_bin = args.blat_bin
+    twobit   = args.twobit
+
+    if not Path(blat_bin).exists():
+        log.error(
+            "blat binary not found: %s\n"
+            "Download from https://hgdownload.gi.ucsc.edu/admin/exe/ "
+            "and pass the path via --blat_bin.",
+            blat_bin,
+        )
+        sys.exit(1)
+
+    if not Path(twobit).exists():
+        log.error(
+            "hg38.2bit file not found: %s\n"
+            "Download from https://hgdownload.gi.ucsc.edu/goldenPath/hg38/bigZips/hg38.2bit "
+            "and pass the path via --twobit.",
+            twobit,
+        )
+        sys.exit(1)
+
+    # Quick smoke-test: make sure blat is executable
+    try:
+        test = subprocess.run(
+            [blat_bin],
+            capture_output=True, text=True, timeout=10,
+        )
+        # blat exits non-zero when called with no args but prints usage — that's fine
+    except (FileNotFoundError, PermissionError) as exc:
+        log.error("Cannot execute blat at '%s': %s", blat_bin, exc)
+        sys.exit(1)
+
+    log.info("Using local blat: %s", blat_bin)
+    log.info("Using 2bit genome: %s", twobit)
+
     # --- Load input --------------------------------------------------------
     input_path = Path(args.input)
     if not input_path.exists():
@@ -471,7 +568,6 @@ def main(argv=None) -> None:
     log.info("Reading input: %s", input_path)
     df = pd.read_csv(input_path, sep=args.sep, dtype=str)
 
-    # Validate required columns
     missing = [
         col for col in (args.id_col, args.utr5_col, args.utr3_col)
         if col not in df.columns
@@ -515,7 +611,6 @@ def main(argv=None) -> None:
                 "strand": None, "display_name": None, "ensembl_biotype": None,
                 "max_phylop": None, "median_phylop": None,
                 "status": "coord_lookup_failed",
-                # UTR fields
                 "utr5_coords": None, "utr5_blat_status": "skipped",
                 "utr5_max_phylop": None, "utr5_med_phylop": None,
                 "utr3_coords": None, "utr3_blat_status": "skipped",
@@ -548,9 +643,10 @@ def main(argv=None) -> None:
         # ------------------------------------------------------------------
         # Step 3: BLAT utr5 → coordinates → PhyloP
         # ------------------------------------------------------------------
-        time.sleep(BLAT_SLEEP_S)
         u5_chrom, u5_start, u5_end, u5_blat_status = blat_sequence(
-            utr5_seq, expected_chrom, http_session, label=f"{tid}/utr5"
+            utr5_seq, expected_chrom,
+            blat_bin=blat_bin, twobit=twobit,
+            label=f"{tid}/utr5",
         )
         u5_max, u5_med, _ = get_phylop_stats(bw, u5_chrom, u5_start, u5_end)
 
@@ -562,9 +658,10 @@ def main(argv=None) -> None:
         # ------------------------------------------------------------------
         # Step 4: BLAT utr3 → coordinates → PhyloP
         # ------------------------------------------------------------------
-        time.sleep(BLAT_SLEEP_S)
         u3_chrom, u3_start, u3_end, u3_blat_status = blat_sequence(
-            utr3_seq, expected_chrom, http_session, label=f"{tid}/utr3"
+            utr3_seq, expected_chrom,
+            blat_bin=blat_bin, twobit=twobit,
+            label=f"{tid}/utr3",
         )
         u3_max, u3_med, _ = get_phylop_stats(bw, u3_chrom, u3_start, u3_end)
 
