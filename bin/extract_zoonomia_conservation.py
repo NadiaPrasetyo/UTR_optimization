@@ -529,6 +529,10 @@ def get_phylop_stats(
 
     return float(np.max(valid)), float(np.median(valid)), "ok"
 
+def calculate_utr_length(fragments: list[tuple[int, int]]) -> int:
+    """Sum of exonic fragment lengths (1-based inclusive coords)."""
+    return sum(end - start + 1 for start, end in fragments)
+
 def utr_length_sanity_check(
     tid: str,
     utr5_fragments: list,
