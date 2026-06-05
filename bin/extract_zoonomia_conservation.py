@@ -529,6 +529,52 @@ def get_phylop_stats(
 
     return float(np.max(valid)), float(np.median(valid)), "ok"
 
+def utr_length_sanity_check(
+    tid: str,
+    utr5_fragments: list,
+    utr3_fragments: list,
+    coords: dict,
+    tolerance: int = 10,
+) -> dict[str, str]:
+    """
+    Compare computed exonic UTR lengths against CSV-supplied lengths.
+
+    Returns a dict with keys 'utr5_length_check' and 'utr3_length_check',
+    each one of:
+        'ok'               — within tolerance
+        'mismatch'         — differs by more than tolerance bp
+        'no_annotation'    — CSV didn't supply a UTR length to compare
+        'no_fragments'     — no exonic fragments found (UTR may not exist)
+    """
+    results = {}
+
+    for utr_key, fragments, length_key in [
+        ("utr5_length_check", utr5_fragments, "utr5_length"),
+        ("utr3_length_check", utr3_fragments, "utr3_length"),
+    ]:
+        annotated = coords.get(length_key)
+
+        if not fragments:
+            results[utr_key] = "no_fragments"
+            continue
+
+        if annotated is None:
+            results[utr_key] = "no_annotation"
+            continue
+
+        computed = calculate_utr_length(fragments)
+        diff = abs(computed - annotated)
+
+        if diff > tolerance:
+            log.warning(
+                "%s %s length mismatch: computed=%d, csv=%d (diff=%d bp)",
+                tid, utr_key, computed, annotated, diff,
+            )
+            results[utr_key] = f"mismatch(computed={computed},csv={annotated})"
+        else:
+            results[utr_key] = "ok"
+
+    return results
 
 # ---------------------------------------------------------------------------
 # Main pipeline
@@ -669,6 +715,21 @@ def main(argv=None) -> None:
     )
 
     # ------------------------------------------------------------------
+    # Build UTR length lookup from input CSV
+    # ------------------------------------------------------------------
+
+    utr_length_lookup = {}
+
+    for _, input_row in df.iterrows():
+        tid = strip_version(str(input_row[args.id_col]))
+        utr5_len = input_row["utr5_length"] if "utr5_length" in df.columns else None
+        utr3_len = input_row["utr3_length"] if "utr3_length" in df.columns else None
+        utr_length_lookup[tid] = {
+            "utr5_length": int(utr5_len) if pd.notna(utr5_len) else None,
+            "utr3_length": int(utr3_len) if pd.notna(utr3_len) else None,
+        }
+
+    # ------------------------------------------------------------------
     # Process transcripts
     # ------------------------------------------------------------------
 
@@ -723,6 +784,9 @@ def main(argv=None) -> None:
                 "utr5_status": None,
                 "utr3_status": None,
 
+                "utr5_length_check": None,
+                "utr3_length_check": None,
+
                 "status": "coord_lookup_failed",
             })
 
@@ -748,6 +812,23 @@ def main(argv=None) -> None:
                 strand=coords["strand"],
             )
         )
+
+        # --------------------------------------------------------------
+        # Sanity check UTR lengths against CSV-supplied lengths
+        # --------------------------------------------------------------
+
+        csv_lengths = utr_length_lookup.get(lookup_id, {})
+
+        length_checks = utr_length_sanity_check(
+            tid,
+            utr5_fragments,
+            utr3_fragments,
+            csv_lengths,
+            tolerance=10,
+        )
+
+        row["utr5_length_check"] = length_checks["utr5_length_check"]
+        row["utr3_length_check"] = length_checks["utr3_length_check"]
 
         row["utr5_exons"] = ";".join(
             f"{start}-{end}"
@@ -825,10 +906,20 @@ def main(argv=None) -> None:
     bw.close()
 
     # ------------------------------------------------------------------
-    # Merge results onto original dataframe
+    # UTR length check summaries
     # ------------------------------------------------------------------
 
     results_df = pd.DataFrame(results)
+
+    utr5_check_counts = results_df["utr5_length_check"].value_counts()
+    log.info("UTR5 length check summary:\n%s", utr5_check_counts.to_string())
+
+    utr3_check_counts = results_df["utr3_length_check"].value_counts()
+    log.info("UTR3 length check summary:\n%s", utr3_check_counts.to_string())
+
+    # ------------------------------------------------------------------
+    # Merge results onto original dataframe
+    # ------------------------------------------------------------------
 
     results_df["_merge_key"] = (
         results_df["transcript_id_query"]
@@ -869,6 +960,9 @@ def main(argv=None) -> None:
 
             "utr5_status",
             "utr3_status",
+
+            "utr5_length_check",
+            "utr3_length_check",
 
             "status",
         ]],
