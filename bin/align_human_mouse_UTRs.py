@@ -111,33 +111,58 @@ def get_UTR_seqs(input_dir):
 
 
 def compute_pairwise_pid(alignment):
+    """
+    For each pair of aligned sequences compute five metrics,
+    then return the mean of each metric across all pairs.
+
+    Metrics
+    -------
+    pid_aln     : matches / alignment_length                (gaps count against identity)
+    pid_shorter : matches / length_of_shorter_ungapped_seq  (normalised to shorter seq)
+    pid_longer  : matches / length_of_longer_ungapped_seq   (normalised to longer seq)
+    pct_gaps    : total gap characters / alignment_length   (gap density in the MSA)
+    coverage    : compared_positions / alignment_length     (non-double-gap columns)
+    """
     seqs = [str(rec.seq) for rec in alignment]
     n = len(seqs)
     if n < 2:
-        return 0.0, 0.0, 0.0
+        return 0.0, 0.0, 0.0, 0.0, 0.0
 
-    pids, coverages, pct_diffs = [], [], []
+    pid_alns, pid_shorters, pid_longers, pct_gaps_list, coverages = [], [], [], [], []
 
     for i in range(n):
         for j in range(i + 1, n):
             a, b = seqs[i], seqs[j]
-            aln_len = len(a)
+            aln_len = len(a)  # both sequences have the same length after alignment
 
-            matches  = sum(ca == cb for ca, cb in zip(a, b) if not (ca == '-' and cb == '-'))
-            compared = sum(1 for ca, cb in zip(a, b) if not (ca == '-' and cb == '-'))
+            matches   = sum(ca == cb for ca, cb in zip(a, b) if ca != '-' and cb != '-')
+            gap_chars = sum(1 for ca, cb in zip(a, b) if ca == '-' or cb == '-')
+            compared  = sum(1 for ca, cb in zip(a, b) if not (ca == '-' and cb == '-'))
 
-            pid      = (matches / compared * 100) if compared > 0 else 0.0
-            coverage = (compared / aln_len * 100) if aln_len > 0 else 0.0
-            pct_diff = 100.0 - pid
+            len_a = sum(1 for c in a if c != '-')  # ungapped length of seq a
+            len_b = sum(1 for c in b if c != '-')  # ungapped length of seq b
+            shorter = min(len_a, len_b)
+            longer  = max(len_a, len_b)
 
-            pids.append(pid)
+            pid_aln     = (matches  / aln_len  * 100) if aln_len  > 0 else 0.0
+            pid_shorter = (matches  / shorter  * 100) if shorter  > 0 else 0.0
+            pid_longer  = (matches  / longer   * 100) if longer   > 0 else 0.0
+            pct_gaps    = (gap_chars / aln_len * 100) if aln_len  > 0 else 0.0
+            coverage    = (compared  / aln_len * 100) if aln_len  > 0 else 0.0
+
+            pid_alns.append(pid_aln)
+            pid_shorters.append(pid_shorter)
+            pid_longers.append(pid_longer)
+            pct_gaps_list.append(pct_gaps)
             coverages.append(coverage)
-            pct_diffs.append(pct_diff)
 
+    k = len(pid_alns)
     return (
-        sum(pids)      / len(pids),
-        sum(coverages) / len(coverages),
-        sum(pct_diffs) / len(pct_diffs),
+        sum(pid_alns)      / k,
+        sum(pid_shorters)  / k,
+        sum(pid_longers)   / k,
+        sum(pct_gaps_list) / k,
+        sum(coverages)     / k,
     )
 
 
@@ -153,14 +178,14 @@ def run_mafft_alignment(sequences, output_file):
                 stdout=out_f, stderr=subprocess.PIPE, check=True
             )
         alignment = AlignIO.read(output_file, 'fasta')
-        return compute_pairwise_pid(alignment)
+        return compute_pairwise_pid(alignment)  # pid_aln, pid_shorter, pid_longer, pct_gaps, coverage
     finally:
         os.unlink(tmp_in_path)
 
 
 def align_UTRs(merged_df, output_dir):
     aln_fasta_dir = os.path.join(output_dir, 'aln_fasta')
-    os.makedirs(aln_fasta_dir, exist_ok=True)   # ← creates output_dir/aln_fasta/
+    os.makedirs(aln_fasta_dir, exist_ok=True)
     results = []
     for _, row in merged_df.iterrows():
         bovine_id = row['bovine_ensembl_gene_id']
@@ -168,37 +193,47 @@ def align_UTRs(merged_df, output_dir):
         mouse_id  = row['mouse_return_gene']
         row_tag   = f"{bovine_id}__{human_id}__{mouse_id}"
 
-        aln3_file = os.path.join(aln_fasta_dir, f'{row_tag}.3UTR.aln.fa')   # ← use aln_fasta_dir
-        pid3, cov3, pdiff3 = run_mafft_alignment({
+        aln3_file = os.path.join(aln_fasta_dir, f'{row_tag}.3UTR.aln.fa')
+        pid3_aln, pid3_short, pid3_long, gaps3, cov3 = run_mafft_alignment({
             f'bovine|{bovine_id}': row['bovine_3UTR'],
             f'human|{human_id}':   row['human_3UTR'],
             f'mouse|{mouse_id}':   row['mouse_3UTR'],
         }, aln3_file)
 
-        aln5_file = os.path.join(aln_fasta_dir, f'{row_tag}.5UTR.aln.fa')   # ← use aln_fasta_dir
-        pid5, cov5, pdiff5 = run_mafft_alignment({
+        aln5_file = os.path.join(aln_fasta_dir, f'{row_tag}.5UTR.aln.fa')
+        pid5_aln, pid5_short, pid5_long, gaps5, cov5 = run_mafft_alignment({
             f'bovine|{bovine_id}': row['bovine_5UTR'],
             f'human|{human_id}':   row['human_5UTR'],
             f'mouse|{mouse_id}':   row['mouse_5UTR'],
         }, aln5_file)
 
-        cds_file = os.path.join(aln_fasta_dir, f'{row_tag}.CDS.aln.fa')   # ← use aln_fasta_dir
-        pid_cds, cov_cds, pdiff_cds = run_mafft_alignment({
+        cds_file = os.path.join(aln_fasta_dir, f'{row_tag}.CDS.aln.fa')
+        pid_cds_aln, pid_cds_short, pid_cds_long, gaps_cds, cov_cds = run_mafft_alignment({
             f'bovine|{bovine_id}': row['bovine_CDS'],
             f'human|{human_id}':   row['human_CDS'],
             f'mouse|{mouse_id}':   row['mouse_CDS'],
         }, cds_file)
 
         results.append({
-            '3utr_pid_mean':       round(pid3,   4),
-            '3utr_coverage_mean':  round(cov3,   4),
-            '3utr_pctdiff_mean':   round(pdiff3, 4),
-            '5utr_pid_mean':       round(pid5,   4),
-            '5utr_coverage_mean':  round(cov5,   4),
-            '5utr_pctdiff_mean':   round(pdiff5, 4),
-            'cds_pid_mean':        round(pid_cds, 4),
-            'cds_coverage_mean':   round(cov_cds, 4),
-            'cds_pctdiff_mean':    round(pdiff_cds, 4),
+            # 3' UTR
+            '3utr_pid_aln_mean':     round(pid3_aln,   4),
+            '3utr_pid_shorter_mean': round(pid3_short,  4),
+            '3utr_pid_longer_mean':  round(pid3_long,   4),
+            '3utr_pct_gaps_mean':    round(gaps3,       4),
+            '3utr_coverage_mean':    round(cov3,        4),
+            # 5' UTR
+            '5utr_pid_aln_mean':     round(pid5_aln,   4),
+            '5utr_pid_shorter_mean': round(pid5_short,  4),
+            '5utr_pid_longer_mean':  round(pid5_long,   4),
+            '5utr_pct_gaps_mean':    round(gaps5,       4),
+            '5utr_coverage_mean':    round(cov5,        4),
+            # CDS
+            'cds_pid_aln_mean':      round(pid_cds_aln,   4),
+            'cds_pid_shorter_mean':  round(pid_cds_short,  4),
+            'cds_pid_longer_mean':   round(pid_cds_long,   4),
+            'cds_pct_gaps_mean':     round(gaps_cds,       4),
+            'cds_coverage_mean':     round(cov_cds,        4),
+            # alignment files
             'alignment_file_3utr': aln3_file,
             'alignment_file_5utr': aln5_file,
             'alignment_file_cds':  cds_file,
@@ -262,8 +297,12 @@ def main():
     print('Running MAFFT alignments...')
     results_df = align_UTRs(merged, args.output_dir)
 
-    # trim results df from the sequence
-    results_df = results_df.drop(columns=['bovine_3UTR', 'bovine_5UTR', 'human_3UTR', 'human_5UTR', 'mouse_3UTR', 'mouse_5UTR', 'bovine_CDS', 'human_CDS', 'mouse_CDS'])
+    # trim sequence columns before writing
+    results_df = results_df.drop(columns=[
+        'bovine_3UTR', 'bovine_5UTR', 'bovine_CDS',
+        'human_3UTR',  'human_5UTR',  'human_CDS',
+        'mouse_3UTR',  'mouse_5UTR',  'mouse_CDS',
+    ])
 
     out_tsv = os.path.join(args.output_dir, 'utr_alignment_results.tsv')
     results_df.to_csv(out_tsv, sep='\t', index=False)

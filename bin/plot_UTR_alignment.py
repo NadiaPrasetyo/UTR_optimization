@@ -29,11 +29,12 @@ PALETTE = {
     "grid":    "#eceef5",
     "accent1": "#2563eb",   # 3′ UTR – cobalt blue
     "accent2": "#e11d48",   # 5′ UTR – crimson
-    "accent3": "#059669",   # shared  – emerald
+    "accent3": "#059669",   # CDS    – emerald
     "text":    "#111827",
     "subtext": "#6b7280",
     "fill1":   "#dbeafe",   # light blue fill
     "fill2":   "#ffe4e6",   # light rose fill
+    "fill3":   "#d1fae5",   # light green fill
 }
 
 plt.rcParams.update({
@@ -59,14 +60,38 @@ plt.rcParams.update({
     "savefig.facecolor":      PALETTE["bg"],
 })
 
+# ── Column registry ───────────────────────────────────────────────────────────
+# (label, accent_color, fill_color)
 NUMERIC_COLS = {
-    "3utr_pid_mean":        ("3′ UTR % Identity",    PALETTE["accent1"], PALETTE["fill1"]),
-    "3utr_coverage_mean":   ("3′ UTR Coverage",      PALETTE["accent1"], PALETTE["fill1"]),
-    "3utr_pctdiff_mean":    ("3′ UTR % Difference",  PALETTE["accent1"], PALETTE["fill1"]),
-    "5utr_pid_mean":        ("5′ UTR % Identity",    PALETTE["accent2"], PALETTE["fill2"]),
-    "5utr_coverage_mean":   ("5′ UTR Coverage",      PALETTE["accent2"], PALETTE["fill2"]),
-    "5utr_pctdiff_mean":    ("5′ UTR % Difference",  PALETTE["accent2"], PALETTE["fill2"]),
+    # 3′ UTR
+    "3utr_pid_aln_mean":     ("3′ UTR PID / aln length",     PALETTE["accent1"], PALETTE["fill1"]),
+    "3utr_pid_shorter_mean": ("3′ UTR PID / shorter seq",    PALETTE["accent1"], PALETTE["fill1"]),
+    "3utr_pid_longer_mean":  ("3′ UTR PID / longer seq",     PALETTE["accent1"], PALETTE["fill1"]),
+    "3utr_pct_gaps_mean":    ("3′ UTR % gaps",               PALETTE["accent1"], PALETTE["fill1"]),
+    "3utr_coverage_mean":    ("3′ UTR coverage",             PALETTE["accent1"], PALETTE["fill1"]),
+    # 5′ UTR
+    "5utr_pid_aln_mean":     ("5′ UTR PID / aln length",     PALETTE["accent2"], PALETTE["fill2"]),
+    "5utr_pid_shorter_mean": ("5′ UTR PID / shorter seq",    PALETTE["accent2"], PALETTE["fill2"]),
+    "5utr_pid_longer_mean":  ("5′ UTR PID / longer seq",     PALETTE["accent2"], PALETTE["fill2"]),
+    "5utr_pct_gaps_mean":    ("5′ UTR % gaps",               PALETTE["accent2"], PALETTE["fill2"]),
+    "5utr_coverage_mean":    ("5′ UTR coverage",             PALETTE["accent2"], PALETTE["fill2"]),
+    # CDS
+    "cds_pid_aln_mean":      ("CDS PID / aln length",        PALETTE["accent3"], PALETTE["fill3"]),
+    "cds_pid_shorter_mean":  ("CDS PID / shorter seq",       PALETTE["accent3"], PALETTE["fill3"]),
+    "cds_pid_longer_mean":   ("CDS PID / longer seq",        PALETTE["accent3"], PALETTE["fill3"]),
+    "cds_pct_gaps_mean":     ("CDS % gaps",                  PALETTE["accent3"], PALETTE["fill3"]),
+    "cds_coverage_mean":     ("CDS coverage",                PALETTE["accent3"], PALETTE["fill3"]),
 }
+
+# Metric groups used for cross-region comparisons
+# Each tuple: (display label, 3utr col, 5utr col, cds col)
+METRIC_GROUPS = [
+    ("PID / aln length",  "3utr_pid_aln_mean",     "5utr_pid_aln_mean",     "cds_pid_aln_mean"),
+    ("PID / shorter seq", "3utr_pid_shorter_mean",  "5utr_pid_shorter_mean", "cds_pid_shorter_mean"),
+    ("PID / longer seq",  "3utr_pid_longer_mean",   "5utr_pid_longer_mean",  "cds_pid_longer_mean"),
+    ("% gaps",            "3utr_pct_gaps_mean",     "5utr_pct_gaps_mean",    "cds_pct_gaps_mean"),
+    ("Coverage",          "3utr_coverage_mean",     "5utr_coverage_mean",    "cds_coverage_mean"),
+]
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -111,14 +136,14 @@ def plot_distributions(df: pd.DataFrame, output_dir: Path, dpi: int):
         print("[WARN] No numeric columns found – skipping distribution plot.")
         return
 
-    ncols = 3
+    ncols = 5   # one column per metric type
     nrows = int(np.ceil(n / ncols))
     fig, axes = plt.subplots(nrows, ncols,
-                             figsize=(6.5 * ncols, 4.2 * nrows),
+                             figsize=(5.5 * ncols, 4.2 * nrows),
                              facecolor=PALETTE["bg"])
     axes_flat = axes.flatten() if n > 1 else [axes]
 
-    fig.suptitle("UTR Alignment — Individual Distributions",
+    fig.suptitle("UTR / CDS Alignment — Individual Distributions",
                  fontsize=15, color=PALETTE["text"],
                  fontweight="bold", y=1.02)
 
@@ -150,7 +175,7 @@ def plot_distributions(df: pd.DataFrame, output_dir: Path, dpi: int):
                 color=color, fontsize=7, va="top", fontweight="bold")
 
         ax.set_title(label, color=PALETTE["text"],
-                     fontsize=10, fontweight="semibold", pad=7)
+                     fontsize=9, fontweight="semibold", pad=7)
         ax.set_xlabel("Value", fontsize=8, color=PALETTE["subtext"])
         ax.set_ylabel("Density", fontsize=8, color=PALETTE["subtext"])
 
@@ -171,49 +196,53 @@ def plot_distributions(df: pd.DataFrame, output_dir: Path, dpi: int):
     plt.close(fig)
 
 
-# ── Plot 2 : 3′ vs 5′ paired comparison ──────────────────────────────────────
+# ── Plot 2 : cross-region paired comparison (one panel per metric) ────────────
 
 def plot_paired_comparison(df: pd.DataFrame, output_dir: Path, dpi: int):
-    pairs = [
-        ("% Identity",   "3utr_pid_mean",      "5utr_pid_mean"),
-        ("Coverage",     "3utr_coverage_mean",  "5utr_coverage_mean"),
-        ("% Difference", "3utr_pctdiff_mean",   "5utr_pctdiff_mean"),
-    ]
-    pairs = [(lbl, c3, c5) for lbl, c3, c5 in pairs
-             if c3 in df.columns and c5 in df.columns]
-    if not pairs:
+    # keep only groups where at least two region columns are present
+    groups = [(lbl, c3, c5, cc) for lbl, c3, c5, cc in METRIC_GROUPS
+              if sum(c in df.columns for c in (c3, c5, cc)) >= 2]
+    if not groups:
         print("[WARN] Not enough columns for paired comparison – skipping.")
         return
 
-    fig, axes = plt.subplots(1, len(pairs),
-                             figsize=(5.5 * len(pairs), 5.8),
+    fig, axes = plt.subplots(1, len(groups),
+                             figsize=(5.5 * len(groups), 5.8),
                              facecolor=PALETTE["bg"])
-    if len(pairs) == 1:
+    if len(groups) == 1:
         axes = [axes]
 
-    fig.suptitle("3′ UTR vs 5′ UTR — Paired Comparisons",
+    fig.suptitle("3′ UTR vs 5′ UTR vs CDS — Paired Comparisons",
                  fontsize=15, color=PALETTE["text"],
                  fontweight="bold", y=1.02)
 
-    region_palette = {"3′ UTR": PALETTE["accent1"],
-                      "5′ UTR": PALETTE["accent2"]}
+    region_palette = {
+        "3′ UTR": PALETTE["accent1"],
+        "5′ UTR": PALETTE["accent2"],
+        "CDS":    PALETTE["accent3"],
+    }
+    fill_palette = {
+        "3′ UTR": PALETTE["fill1"],
+        "5′ UTR": PALETTE["fill2"],
+        "CDS":    PALETTE["fill3"],
+    }
 
-    for ax, (label, c3, c5) in zip(axes, pairs):
+    for ax, (label, c3, c5, cc) in zip(axes, groups):
         style_ax(ax)
-        ax.grid(True, axis="y", color=PALETTE["grid"],
-                linewidth=0.7, zorder=0)
+        ax.grid(True, axis="y", color=PALETTE["grid"], linewidth=0.7, zorder=0)
 
-        tidy = pd.DataFrame({
-            "value":  pd.concat([df[c3].dropna(), df[c5].dropna()],
-                                ignore_index=True),
-            "region": (["3′ UTR"] * df[c3].dropna().shape[0] +
-                       ["5′ UTR"] * df[c5].dropna().shape[0]),
-        })
+        rows = []
+        for col, key in [(c3, "3′ UTR"), (c5, "5′ UTR"), (cc, "CDS")]:
+            if col in df.columns:
+                rows.append(pd.DataFrame({"value": df[col].dropna().values,
+                                          "region": key}))
+        tidy = pd.concat(rows, ignore_index=True)
+        present_regions = tidy["region"].unique().tolist()
 
         sns.boxplot(
             data=tidy, x="region", y="value",
-            palette={"3′ UTR": PALETTE["fill1"],
-                     "5′ UTR": PALETTE["fill2"]},
+            palette={r: fill_palette[r] for r in present_regions},
+            order=present_regions,
             width=0.48, linewidth=1.1,
             medianprops=dict(linewidth=2),
             flierprops=dict(marker="o", markersize=2,
@@ -221,16 +250,15 @@ def plot_paired_comparison(df: pd.DataFrame, output_dir: Path, dpi: int):
                             alpha=0.4, linewidth=0),
             ax=ax, zorder=3,
         )
-        # recolour box edges by region
-        for patch, key in zip(ax.patches,
-                              ["3′ UTR", "5′ UTR"] * 10):
+        for patch, key in zip(ax.patches, present_regions * 10):
             patch.set_edgecolor(region_palette.get(key, PALETTE["border"]))
             patch.set_linewidth(1.3)
 
         sns.stripplot(
-            data=tidy.sample(min(len(tidy), 500), random_state=42),
+            data=tidy.sample(min(len(tidy), 600), random_state=42),
             x="region", y="value",
-            palette=region_palette,
+            palette={r: region_palette[r] for r in present_regions},
+            order=present_regions,
             alpha=0.22, size=3, jitter=0.18, ax=ax, zorder=2,
         )
 
@@ -239,12 +267,14 @@ def plot_paired_comparison(df: pd.DataFrame, output_dir: Path, dpi: int):
         ax.set_xlabel("")
         ax.set_ylabel("Value", fontsize=9, color=PALETTE["subtext"])
 
-        # annotate n
-        for i, (col, key) in enumerate([(c3, "3′ UTR"), (c5, "5′ UTR")]):
-            n = df[col].dropna().shape[0]
-            ax.text(i, ax.get_ylim()[0] - (ax.get_ylim()[1] -
-                    ax.get_ylim()[0]) * 0.06,
-                    f"n={n:,}", ha="center", va="top",
+        for col, key in [(c3, "3′ UTR"), (c5, "5′ UTR"), (cc, "CDS")]:
+            if col not in df.columns:
+                continue
+            n_obs = df[col].dropna().shape[0]
+            yspan = ax.get_ylim()[1] - ax.get_ylim()[0]
+            ax.text(present_regions.index(key),
+                    ax.get_ylim()[0] - yspan * 0.06,
+                    f"n={n_obs:,}", ha="center", va="top",
                     fontsize=7.5, color=PALETTE["subtext"])
 
     fig.tight_layout(pad=1.5)
@@ -264,7 +294,7 @@ def plot_correlation(df: pd.DataFrame, output_dir: Path, dpi: int):
     corr = df[cols_present].corr()
     labels = [NUMERIC_COLS[c][0] for c in cols_present]
 
-    fig, ax = plt.subplots(figsize=(9, 7), facecolor=PALETTE["bg"])
+    fig, ax = plt.subplots(figsize=(14, 12), facecolor=PALETTE["bg"])
     ax.set_facecolor(PALETTE["bg"])
     fig.suptitle("Pearson Correlation — Alignment Metrics",
                  fontsize=14, color=PALETTE["text"], fontweight="bold")
@@ -276,7 +306,7 @@ def plot_correlation(df: pd.DataFrame, output_dir: Path, dpi: int):
     sns.heatmap(
         corr, mask=mask, cmap=cmap, vmin=-1, vmax=1,
         annot=True, fmt=".2f",
-        annot_kws={"size": 9.5, "color": PALETTE["text"]},
+        annot_kws={"size": 8, "color": PALETTE["text"]},
         linewidths=1.2, linecolor=PALETTE["bg"],
         xticklabels=labels, yticklabels=labels,
         ax=ax,
@@ -284,8 +314,8 @@ def plot_correlation(df: pd.DataFrame, output_dir: Path, dpi: int):
         square=True,
     )
 
-    ax.tick_params(axis="x", rotation=30, colors=PALETTE["text"], labelsize=8.5)
-    ax.tick_params(axis="y", rotation=0,  colors=PALETTE["text"], labelsize=8.5)
+    ax.tick_params(axis="x", rotation=35, colors=PALETTE["text"], labelsize=8)
+    ax.tick_params(axis="y", rotation=0,  colors=PALETTE["text"], labelsize=8)
     ax.spines[:].set_visible(False)
 
     fig.tight_layout(pad=1.5)
@@ -295,14 +325,85 @@ def plot_correlation(df: pd.DataFrame, output_dir: Path, dpi: int):
     plt.close(fig)
 
 
-# ── Plot 4 : identity vs coverage scatter ────────────────────────────────────
+# ── Plot 4 : PID metric comparison per region (3 PID measures side by side) ───
 
-def plot_identity_vs_coverage(df: pd.DataFrame, output_dir: Path, dpi: int):
+def plot_pid_comparison(df: pd.DataFrame, output_dir: Path, dpi: int):
+    """
+    For each genomic region, overlay the three PID normalisation schemes
+    (aln length, shorter seq, longer seq) as overlapping KDEs so the
+    effect of the denominator choice is immediately visible.
+    """
+    regions = [
+        ("3′ UTR", "3utr_pid_aln_mean", "3utr_pid_shorter_mean", "3utr_pid_longer_mean",
+         PALETTE["accent1"]),
+        ("5′ UTR", "5utr_pid_aln_mean", "5utr_pid_shorter_mean", "5utr_pid_longer_mean",
+         PALETTE["accent2"]),
+        ("CDS",    "cds_pid_aln_mean",  "cds_pid_shorter_mean",  "cds_pid_longer_mean",
+         PALETTE["accent3"]),
+    ]
+    regions = [(lbl, ca, cs, cl, color) for lbl, ca, cs, cl, color in regions
+               if any(c in df.columns for c in (ca, cs, cl))]
+    if not regions:
+        return
+
+    fig, axes = plt.subplots(1, len(regions),
+                             figsize=(6 * len(regions), 5.5),
+                             facecolor=PALETTE["bg"])
+    if len(regions) == 1:
+        axes = [axes]
+
+    fig.suptitle("PID Normalisation Comparison per Region",
+                 fontsize=14, color=PALETTE["text"], fontweight="bold")
+
+    line_styles = ["-", "--", ":"]
+    denominators = ["aln length", "shorter seq", "longer seq"]
+
+    for ax, (label, ca, cs, cl, color) in zip(axes, regions):
+        style_ax(ax)
+        ax.grid(True, axis="y", color=PALETTE["grid"], linewidth=0.7, zorder=0)
+
+        for col, ls, denom in zip([ca, cs, cl], line_styles, denominators):
+            if col not in df.columns:
+                continue
+            data = df[col].dropna()
+            ax.hist(data, bins=40, density=True,
+                    alpha=0.18, color=color, zorder=1)
+            try:
+                from scipy.stats import gaussian_kde
+                kde = gaussian_kde(data, bw_method="scott")
+                xs = np.linspace(data.min(), data.max(), 400)
+                ax.plot(xs, kde(xs), color=color, linewidth=2,
+                        linestyle=ls, label=f"/ {denom}  (med={data.median():.1f})",
+                        zorder=3)
+            except ImportError:
+                ax.hist(data, bins=40, density=True, histtype="step",
+                        linewidth=1.5, linestyle=ls, color=color,
+                        label=f"/ {denom}", zorder=3)
+
+        ax.set_title(label, fontsize=11, color=PALETTE["text"],
+                     fontweight="semibold")
+        ax.set_xlabel("% Identity", fontsize=9, color=PALETTE["subtext"])
+        ax.set_ylabel("Density",    fontsize=9, color=PALETTE["subtext"])
+        ax.legend(fontsize=8, framealpha=0.8,
+                  edgecolor=PALETTE["border"], facecolor=PALETTE["bg"])
+
+    fig.tight_layout(pad=1.5)
+    out = output_dir / "04_pid_normalisation_comparison.png"
+    fig.savefig(out, dpi=dpi, bbox_inches="tight")
+    print(f"  Saved → {out}")
+    plt.close(fig)
+
+
+# ── Plot 5 : gaps vs coverage scatter ────────────────────────────────────────
+
+def plot_gaps_vs_coverage(df: pd.DataFrame, output_dir: Path, dpi: int):
     pairs = [
-        ("3′ UTR", "3utr_pid_mean", "3utr_coverage_mean",
+        ("3′ UTR", "3utr_pct_gaps_mean", "3utr_coverage_mean",
          PALETTE["accent1"], PALETTE["fill1"]),
-        ("5′ UTR", "5utr_pid_mean", "5utr_coverage_mean",
+        ("5′ UTR", "5utr_pct_gaps_mean", "5utr_coverage_mean",
          PALETTE["accent2"], PALETTE["fill2"]),
+        ("CDS",    "cds_pct_gaps_mean",  "cds_coverage_mean",
+         PALETTE["accent3"], PALETTE["fill3"]),
     ]
     pairs = [(lbl, x, y, c, f) for lbl, x, y, c, f in pairs
              if x in df.columns and y in df.columns]
@@ -315,7 +416,7 @@ def plot_identity_vs_coverage(df: pd.DataFrame, output_dir: Path, dpi: int):
     if len(pairs) == 1:
         axes = [axes]
 
-    fig.suptitle("% Identity vs Coverage",
+    fig.suptitle("% Gaps vs Coverage",
                  fontsize=14, color=PALETTE["text"], fontweight="bold")
 
     for ax, (label, xcol, ycol, color, fill) in zip(axes, pairs):
@@ -334,13 +435,12 @@ def plot_identity_vs_coverage(df: pd.DataFrame, output_dir: Path, dpi: int):
                     linestyle="--", alpha=0.85,
                     label=f"slope = {m:.3f}", zorder=4)
             ax.legend(fontsize=8, framealpha=0.7,
-                      edgecolor=PALETTE["border"],
-                      facecolor=PALETTE["bg"])
+                      edgecolor=PALETTE["border"], facecolor=PALETTE["bg"])
 
         ax.set_title(label, fontsize=11, color=PALETTE["text"],
                      fontweight="semibold")
-        ax.set_xlabel("% Identity", fontsize=9, color=PALETTE["subtext"])
-        ax.set_ylabel("Coverage",   fontsize=9, color=PALETTE["subtext"])
+        ax.set_xlabel("% Gaps",   fontsize=9, color=PALETTE["subtext"])
+        ax.set_ylabel("Coverage", fontsize=9, color=PALETTE["subtext"])
 
         r = sub.corr().iloc[0, 1]
         ax.text(0.04, 0.97, f"r = {r:.3f}",
@@ -351,13 +451,13 @@ def plot_identity_vs_coverage(df: pd.DataFrame, output_dir: Path, dpi: int):
                           alpha=0.85, linewidth=0.8))
 
     fig.tight_layout(pad=1.5)
-    out = output_dir / "04_identity_vs_coverage.png"
+    out = output_dir / "05_gaps_vs_coverage.png"
     fig.savefig(out, dpi=dpi, bbox_inches="tight")
     print(f"  Saved → {out}")
     plt.close(fig)
 
 
-# ── Plot 5 : violin overview ──────────────────────────────────────────────────
+# ── Plot 6 : violin overview ──────────────────────────────────────────────────
 
 def plot_violin_all(df: pd.DataFrame, output_dir: Path, dpi: int):
     cols_present = [c for c in NUMERIC_COLS if c in df.columns]
@@ -372,15 +472,12 @@ def plot_violin_all(df: pd.DataFrame, output_dir: Path, dpi: int):
                                "color": color, "fill": fill})
     tidy = pd.DataFrame(tidy_rows)
 
-    fig, ax = plt.subplots(figsize=(max(10, len(cols_present) * 2.2), 6),
+    fig, ax = plt.subplots(figsize=(max(12, len(cols_present) * 1.8), 6),
                            facecolor=PALETTE["bg"])
     style_ax(ax)
     ax.grid(True, axis="y", color=PALETTE["grid"], linewidth=0.7, zorder=0)
 
-    fill_palette = {NUMERIC_COLS[c][0]: NUMERIC_COLS[c][2]
-                    for c in cols_present}
-    line_palette = {NUMERIC_COLS[c][0]: NUMERIC_COLS[c][1]
-                    for c in cols_present}
+    fill_palette = {NUMERIC_COLS[c][0]: NUMERIC_COLS[c][2] for c in cols_present}
 
     vp = sns.violinplot(data=tidy, x="metric", y="value",
                         palette=fill_palette, inner="box",
@@ -397,11 +494,11 @@ def plot_violin_all(df: pd.DataFrame, output_dir: Path, dpi: int):
                  fontweight="bold", pad=10)
     ax.set_xlabel("")
     ax.set_ylabel("Value", fontsize=9, color=PALETTE["subtext"])
-    ax.tick_params(axis="x", rotation=18, colors=PALETTE["text"])
+    ax.tick_params(axis="x", rotation=25, colors=PALETTE["text"])
     ax.tick_params(axis="y", colors=PALETTE["subtext"])
 
     fig.tight_layout(pad=1.5)
-    out = output_dir / "05_violin_overview.png"
+    out = output_dir / "06_violin_overview.png"
     fig.savefig(out, dpi=dpi, bbox_inches="tight")
     print(f"  Saved → {out}")
     plt.close(fig)
@@ -411,7 +508,7 @@ def plot_violin_all(df: pd.DataFrame, output_dir: Path, dpi: int):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Visualise UTR alignment distribution data from a CSV.",
+        description="Visualise UTR / CDS alignment distribution data from a CSV.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
@@ -445,7 +542,8 @@ def main():
     plot_distributions(df, output_dir, args.dpi)
     plot_paired_comparison(df, output_dir, args.dpi)
     plot_correlation(df, output_dir, args.dpi)
-    plot_identity_vs_coverage(df, output_dir, args.dpi)
+    plot_pid_comparison(df, output_dir, args.dpi)
+    plot_gaps_vs_coverage(df, output_dir, args.dpi)
     plot_violin_all(df, output_dir, args.dpi)
 
     print(f"\n[DONE] All plots saved to → {output_dir.resolve()}")
