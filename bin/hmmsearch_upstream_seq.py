@@ -7,6 +7,7 @@ Upstream HMM Pipeline
 3. Align upstream sequences with MAFFT
 4. Build an HMM profile with hmmbuild
 5. Search the HMM profile against a sequence database with hmmsearch
+6. Extract downstream (3') sequence of each hmmsearch hit to genome end
 
 Dependencies: MAFFT, HMMER3
   conda install -c bioconda mafft hmmer
@@ -307,6 +308,91 @@ def run_hmmsearch(
 
     return outputs
 
+# ── Step 6 – Extract downstream sequences from hmmsearch hits ────────────────
+
+def extract_downstream(
+    hmmsearch_stk: str,
+    db_fasta: str,
+    outdir: Path,
+    profile_name: str = "upstream_profile",
+) -> str:
+    """
+    Parse hit coordinates from the hmmsearch Stockholm MSA output (-A file),
+    then extract the sequence from immediately after the hit end to the end
+    of the genome (plus strand), or from genome start to immediately before
+    the hit start (minus strand, returned as reverse complement).
+
+    The hmmsearch -A output uses the same ACCESSION/START-END row naming as
+    any other Stockholm file, so we reuse parse_stockholm_hits() directly.
+
+    The db_fasta must contain the same accessions that hmmsearch was run
+    against (i.e. the --db sequences).
+
+    Returns the path to the downstream FASTA file.
+    """
+    hits = parse_stockholm_hits(hmmsearch_stk)
+    if not hits:
+        log.warning("No hits found in hmmsearch Stockholm output – skipping downstream extraction.")
+        out_path = str(outdir / f"{profile_name}_downstream.fasta")
+        open(out_path, "w").close()   # write empty file so downstream steps don't crash
+        return out_path
+
+    # Build lookup: seq_id → sequence
+    db_seqs = read_fasta(db_fasta)
+    db_by_id: dict[str, str] = {
+        fasta_seq_id(h): seq for h, seq in db_seqs.items()
+    }
+
+    downstream_seqs: dict[str, str] = {}
+    seen: set[str] = set()
+
+    for hit in hits:
+        acc = hit["accession"]
+        if acc not in db_by_id:
+            log.warning("Accession '%s' not found in database FASTA – skipping", acc)
+            continue
+
+        genome     = db_by_id[acc]
+        genome_len = len(genome)
+
+        if hit["strand"] == "plus":
+            # hit ends at 'end' (1-based inclusive) → downstream starts at end+1
+            ds_start_0 = hit["end"]          # 0-based start of downstream region
+            subseq = genome[ds_start_0:]     # to end of genome
+        else:
+            # minus strand: hit occupies [start, end] on the stored sequence;
+            # 'downstream' on the minus strand is to the LEFT of 'start'
+            ds_end_0 = hit["start"] - 1      # 0-based exclusive end of downstream window
+            subseq = reverse_complement(genome[:ds_end_0])
+
+        if not subseq:
+            log.warning("Empty downstream region for '%s' (hit may be at genome terminus) – skipping", acc)
+            continue
+
+        # Deduplicate by accession + hit position + strand
+        key = f"{acc}_{hit['start']}_{hit['end']}_{hit['strand']}"
+        if key in seen:
+            continue
+        seen.add(key)
+
+        label = f"{acc}/{hit['start']}-{hit['end']}_downstream_{hit['strand']}_to_end"
+        downstream_seqs[label] = subseq
+        log.info(
+            "  Extracted %d nt downstream of %s hit %d-%d (%s strand)",
+            len(subseq), acc, hit["start"], hit["end"], hit["strand"],
+        )
+
+    if not downstream_seqs:
+        log.warning("No downstream sequences extracted — check that db FASTA accessions "
+                    "match the hmmsearch target names.")
+
+    out_path = str(outdir / f"{profile_name}_downstream.fasta")
+    write_fasta(downstream_seqs, out_path)
+    log.info(
+        "Downstream sequences written to %s (%d total)", out_path, len(downstream_seqs)
+    )
+    return out_path
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 def print_summary(
@@ -315,8 +401,10 @@ def print_summary(
     msa_path: str,
     hmm_path: str,
     hmmsearch_outputs: dict[str, str],
+    downstream_fasta: str,
 ) -> None:
-    upstream_count = len(read_fasta(upstream_fasta))
+    upstream_count   = len(read_fasta(upstream_fasta))
+    downstream_count = len(read_fasta(downstream_fasta)) if os.path.isfile(downstream_fasta) else 0
 
     tblout_hits = 0
     try:
@@ -336,14 +424,16 @@ def print_summary(
     print(f"  MSA file                     : {msa_path}")
     print(f"  HMM profile                  : {hmm_path}")
     print(f"  hmmsearch hits (tblout)      : {tblout_hits}")
+    print(f"  Downstream sequences         : {downstream_count}")
     print()
     print("  Output files")
-    print(f"    Upstream FASTA   : {upstream_fasta}")
-    print(f"    MSA (upstream)   : {msa_path}")
-    print(f"    HMM profile      : {hmm_path}")
-    print(f"    hmmsearch TXT    : {hmmsearch_outputs['txt']}")
-    print(f"    hmmsearch TBLOUT : {hmmsearch_outputs['tblout']}")
-    print(f"    hmmsearch MSA    : {hmmsearch_outputs['msa']}")
+    print(f"    Upstream FASTA      : {upstream_fasta}")
+    print(f"    MSA (upstream)      : {msa_path}")
+    print(f"    HMM profile         : {hmm_path}")
+    print(f"    hmmsearch TXT       : {hmmsearch_outputs['txt']}")
+    print(f"    hmmsearch TBLOUT    : {hmmsearch_outputs['tblout']}")
+    print(f"    hmmsearch MSA       : {hmmsearch_outputs['msa']}")
+    print(f"    Downstream FASTA    : {downstream_fasta}")
     print("=" * 60 + "\n")
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
@@ -447,6 +537,15 @@ def main() -> None:
         profile_name = args.profile_name,
     )
 
+    # ── Step 6: Extract downstream sequences from hmmsearch hits ─────────────
+    log.info("=== Step 6: Extract downstream sequences (hit end → genome end) ===")
+    downstream_fasta = extract_downstream(
+        hmmsearch_stk = hmmsearch_outputs["msa"],
+        db_fasta      = args.db,
+        outdir        = outdir,
+        profile_name  = args.profile_name,
+    )
+
     # ── Summary ──────────────────────────────────────────────────────────────
     print_summary(
         hits              = hits,
@@ -454,6 +553,7 @@ def main() -> None:
         msa_path          = msa_path,
         hmm_path          = hmm_path,
         hmmsearch_outputs = hmmsearch_outputs,
+        downstream_fasta  = downstream_fasta,
     )
 
 
