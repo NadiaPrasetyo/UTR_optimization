@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """
-checkPatent.py — Local alignment checker against patent WO2026038929A1 sequences.
+checkPatent.py — Alignment checker against patent WO2026038929A1 sequences.
+
+Uses BLAST (blastn-short) for pairwise alignment and MAFFT for the optional
+multi-sequence alignment view in the HTML report.
+
+Requirements:
+  blastn  (ncbi-blast+)
+  mafft
+  Python ≥ 3.9
 
 Usage:
     python checkPatent.py <query_seq> [query_seq2 ...]
@@ -13,18 +21,21 @@ Options:
     --names STR         Comma-separated names for --seqs (optional)
     --output FILE       HTML report output path (default: patent_alignment_report.html)
     --threshold FLOAT   Identity threshold (default: 0.80)
-    --match INT         Match score (default: 2)
-    --mismatch INT      Mismatch penalty (default: -1)
-    --gap-open INT      Gap open penalty (default: -2)
-    --gap-extend INT    Gap extend penalty (default: -1)
+    --evalue FLOAT      BLAST E-value cutoff (default: 1000, keeps weak hits)
     --no-html           Skip HTML report generation
+    --no-msa            Skip MAFFT MSA section in HTML report (faster)
 """
 
 import sys
+import json
 import argparse
 import datetime
+import subprocess
+import tempfile
+import os
+import shutil
 from dataclasses import dataclass
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Optional
 
 # ─── Patent sequences (WO2026038929A1) ────────────────────────────────────────
 PATENT_SEQUENCES = [
@@ -41,6 +52,19 @@ PATENT_ID  = "WO2026038929A1"
 PATENT_URL = "https://patents.google.com/patent/WO2026038929A1/en"
 
 
+# ─── Dependency checks ────────────────────────────────────────────────────────
+def _require_tool(name: str):
+    if shutil.which(name) is None:
+        print(f"Error: '{name}' not found on PATH. Install ncbi-blast+ and mafft.",
+              file=sys.stderr)
+        sys.exit(1)
+
+
+def check_dependencies():
+    _require_tool("blastn")
+    _require_tool("mafft")
+
+
 # ─── Alignment data class ─────────────────────────────────────────────────────
 @dataclass
 class AlignmentResult:
@@ -50,162 +74,270 @@ class AlignmentResult:
     ref_seq: str
     ref_genome_start: int
     ref_genome_end: int
-    score: float
-    aligned_query: str
-    aligned_ref: str
+    # BLAST fields (replacing raw SW score)
+    bit_score: float
+    evalue: float
+    # Alignment coordinates (1-based, inclusive, matching BLAST convention)
     q_start: int
     q_end: int
     r_start: int
     r_end: int
+    # Alignment strings (gaps as "-")
+    aligned_query: str
+    aligned_ref: str
+    midline: str
+    # Counts
     matches: int
     mismatches: int
     gaps: int
     alignment_length: int
+    # Identity fractions
     identity_over_alignment: float
     identity_over_shorter: float
     identity_over_longer: float
     above_threshold: bool
     threshold: float
+    # True when BLAST found no hit at all
+    no_hit: bool = False
 
 
-# ─── Smith-Waterman (affine gap) ──────────────────────────────────────────────
-def smith_waterman(query, ref, match=2, mismatch=-1, gap_open=-2, gap_extend=-1):
-    n, m = len(query), len(ref)
-    NEG_INF = float("-inf")
-
-    H = [[0.0]*(m+1) for _ in range(n+1)]
-    E = [[NEG_INF]*(m+1) for _ in range(n+1)]
-    F = [[NEG_INF]*(m+1) for _ in range(n+1)]
-    trace = [[0]*(m+1) for _ in range(n+1)]
-
-    best_score, best_i, best_j = 0.0, 0, 0
-
-    for i in range(1, n+1):
-        for j in range(1, m+1):
-            E[i][j] = max(H[i][j-1] + gap_open, E[i][j-1] + gap_extend)
-            F[i][j] = max(H[i-1][j] + gap_open, F[i-1][j] + gap_extend)
-            sc = match if query[i-1].upper() == ref[j-1].upper() else mismatch
-            diag = H[i-1][j-1] + sc
-            h = max(0.0, diag, E[i][j], F[i][j])
-            H[i][j] = h
-            if h > best_score:
-                best_score, best_i, best_j = h, i, j
-            if h == 0:          trace[i][j] = 0
-            elif h == diag:     trace[i][j] = 1
-            elif h == F[i][j]:  trace[i][j] = 2
-            else:               trace[i][j] = 3
-
-    aq, ar = [], []
-    i, j = best_i, best_j
-    q_end, r_end = i-1, j-1
-
-    while i > 0 and j > 0 and H[i][j] > 0:
-        t = trace[i][j]
-        if t == 1:
-            aq.append(query[i-1]); ar.append(ref[j-1]); i -= 1; j -= 1
-        elif t == 2:
-            aq.append(query[i-1]); ar.append("-"); i -= 1
-        elif t == 3:
-            aq.append("-"); ar.append(ref[j-1]); j -= 1
-        else:
-            break
-
-    aq.reverse(); ar.reverse()
-    return best_score, aq, ar, i, q_end, j, r_end
+# ─── BLAST backend ────────────────────────────────────────────────────────────
+def _write_fasta(path: str, entries: List[Tuple[str, str]]):
+    with open(path, "w") as fh:
+        for name, seq in entries:
+            fh.write(f">{name}\n{seq}\n")
 
 
-def compute_alignment(query_name, query_seq, patent_entry, threshold=0.80,
-                      match=2, mismatch=-1, gap_open=-2, gap_extend=-1):
-    ref_seq = patent_entry["seq"]
-    score, aq, ar, q_start, q_end, r_start, r_end = smith_waterman(
-        query_seq, ref_seq, match, mismatch, gap_open, gap_extend)
+def _run_blast(query_fa: str, subject_fa: str, evalue: float) -> dict:
+    """Run blastn-short (subject mode, no DB needed), return parsed JSON."""
+    cmd = [
+        "blastn",
+        "-task",            "blastn-short",
+        "-query",           query_fa,
+        "-subject",         subject_fa,
+        "-outfmt",          "15",           # single-file JSON
+        "-dust",            "no",
+        "-soft_masking",    "false",
+        "-evalue",          str(evalue),
+        "-max_hsps",        "1",            # best HSP per subject only
+        "-max_target_seqs", str(len(PATENT_SEQUENCES) + 1),
+    ]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        print(f"BLAST error:\n{r.stderr}", file=sys.stderr)
+        sys.exit(1)
+    if not r.stdout.strip():
+        return {}
+    return json.loads(r.stdout)
 
-    aln_len  = len(aq)
-    matches  = sum(1 for a, b in zip(aq, ar) if a.upper()==b.upper() and a!="-")
-    gaps     = sum(1 for a in aq if a=="-") + sum(1 for b in ar if b=="-")
-    mismatches = aln_len - matches - gaps
-    shorter  = min(len(query_seq), len(ref_seq))
-    longer   = max(len(query_seq), len(ref_seq))
 
-    id_aln     = matches / aln_len    if aln_len  else 0.0
-    id_shorter = matches / shorter    if shorter  else 0.0
-    id_longer  = matches / longer     if longer   else 0.0
+def _extract_hsps(blast_json: dict) -> dict:
+    """Return {(query_title, subject_title): hsp_dict | None}."""
+    hits_map = {}
+    results = (blast_json
+               .get("BlastOutput2", [{}])[0]
+               .get("report", {})
+               .get("results", {}))
+    for search in results.get("bl2seq", []):
+        qtitle = search.get("query_title", "")
+        for hit in search.get("hits", []):
+            stitle = hit["description"][0]["title"]
+            hsp = hit["hsps"][0] if hit.get("hsps") else None
+            hits_map[(qtitle, stitle)] = hsp
+    return hits_map
+
+
+def _make_no_hit(query_name, query_seq, pat, threshold) -> AlignmentResult:
+    return AlignmentResult(
+        query_name=query_name, query_seq=query_seq,
+        ref_name=pat["id"], ref_seq=pat["seq"],
+        ref_genome_start=pat["start"], ref_genome_end=pat["end"],
+        bit_score=0.0, evalue=999.0,
+        q_start=0, q_end=0, r_start=0, r_end=0,
+        aligned_query="", aligned_ref="", midline="",
+        matches=0, mismatches=0, gaps=0, alignment_length=0,
+        identity_over_alignment=0.0,
+        identity_over_shorter=0.0,
+        identity_over_longer=0.0,
+        above_threshold=False,
+        threshold=threshold,
+        no_hit=True,
+    )
+
+
+def _hsp_to_result(query_name, query_seq, pat, hsp, threshold) -> AlignmentResult:
+    shorter    = min(len(query_seq), len(pat["seq"]))
+    longer     = max(len(query_seq), len(pat["seq"]))
+    aln_len    = hsp["align_len"]
+    identity   = hsp["identity"]
+    gaps       = hsp.get("gaps", 0)
+    mismatches = aln_len - identity - gaps
+    id_aln     = identity / aln_len  if aln_len  else 0.0
+    id_shorter = identity / shorter  if shorter  else 0.0
+    id_longer  = identity / longer   if longer   else 0.0
+
+    # Build a "|" / " " midline from qseq/hseq if BLAST didn't supply one
+    qseq = hsp.get("qseq", "")
+    hseq = hsp.get("hseq", "")
+    midline = hsp.get("midline") or "".join(
+        "|" if a.upper() == b.upper() and a != "-" else " "
+        for a, b in zip(qseq, hseq)
+    )
 
     return AlignmentResult(
         query_name=query_name, query_seq=query_seq,
-        ref_name=patent_entry["id"], ref_seq=ref_seq,
-        ref_genome_start=patent_entry["start"], ref_genome_end=patent_entry["end"],
-        score=score, aligned_query="".join(aq), aligned_ref="".join(ar),
-        q_start=q_start, q_end=q_end, r_start=r_start, r_end=r_end,
-        matches=matches, mismatches=mismatches, gaps=gaps, alignment_length=aln_len,
+        ref_name=pat["id"], ref_seq=pat["seq"],
+        ref_genome_start=pat["start"], ref_genome_end=pat["end"],
+        bit_score=hsp.get("bit_score", 0.0),
+        evalue=hsp.get("evalue", 999.0),
+        q_start=hsp.get("query_from", 0),
+        q_end=hsp.get("query_to", 0),
+        r_start=hsp.get("hit_from", 0),
+        r_end=hsp.get("hit_to", 0),
+        aligned_query=qseq,
+        aligned_ref=hseq,
+        midline=midline,
+        matches=identity,
+        mismatches=mismatches,
+        gaps=gaps,
+        alignment_length=aln_len,
         identity_over_alignment=id_aln,
         identity_over_shorter=id_shorter,
         identity_over_longer=id_longer,
         above_threshold=(id_aln >= threshold or id_shorter >= threshold),
         threshold=threshold,
+        no_hit=False,
     )
 
 
-def run_all(queries, threshold=0.80, match=2, mismatch=-1, gap_open=-2, gap_extend=-1):
+def run_all(
+    queries: List[Tuple[str, str]],
+    threshold: float = 0.80,
+    evalue: float = 1000.0,
+) -> List[AlignmentResult]:
+    """Batch all queries in a single BLAST call, return per-pair AlignmentResults."""
     results = []
-    for name, seq in queries:
-        for pat in PATENT_SEQUENCES:
-            results.append(compute_alignment(name, seq, pat, threshold, match, mismatch, gap_open, gap_extend))
+    with tempfile.TemporaryDirectory() as tmpdir:
+        qfa = os.path.join(tmpdir, "queries.fa")
+        sfa = os.path.join(tmpdir, "subject.fa")
+        _write_fasta(qfa, queries)
+        _write_fasta(sfa, [(p["id"], p["seq"]) for p in PATENT_SEQUENCES])
+
+        blast_json = _run_blast(qfa, sfa, evalue)
+        hits_map   = _extract_hsps(blast_json)
+
+        for query_name, query_seq in queries:
+            for pat in PATENT_SEQUENCES:
+                hsp = hits_map.get((query_name, pat["id"]))
+                if hsp is None:
+                    results.append(_make_no_hit(query_name, query_seq, pat, threshold))
+                else:
+                    results.append(_hsp_to_result(query_name, query_seq, pat, hsp, threshold))
     return results
 
 
+# ─── MAFFT MSA ────────────────────────────────────────────────────────────────
+def run_mafft(sequences: List[Tuple[str, str]]) -> Optional[List[Tuple[str, str]]]:
+    """Run MAFFT on (name, seq) list, return aligned (name, gapped_seq) or None."""
+    if len(sequences) < 2:
+        return None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".fa", mode="w", delete=False) as f:
+            for name, seq in sequences:
+                f.write(f">{name}\n{seq}\n")
+            fname = f.name
+
+        r = subprocess.run(
+            ["mafft", "--auto", "--quiet", fname],
+            capture_output=True, text=True, timeout=60,
+        )
+        os.unlink(fname)
+        if r.returncode != 0:
+            return None
+
+        aligned, cur_name, cur_seq = [], None, []
+        for line in r.stdout.splitlines():
+            if line.startswith(">"):
+                if cur_name:
+                    aligned.append((cur_name, "".join(cur_seq)))
+                cur_name = line[1:].split()[0]
+                cur_seq  = []
+            else:
+                cur_seq.append(line.strip().upper())
+        if cur_name:
+            aligned.append((cur_name, "".join(cur_seq)))
+        return aligned
+    except Exception:
+        return None
+
+
 # ─── Text report ──────────────────────────────────────────────────────────────
-def print_report(results, threshold):
+def print_report(results: List[AlignmentResult], threshold: float):
     queries = list(dict.fromkeys(r.query_name for r in results))
     print(f"\n{'='*80}")
     print(f"  Patent alignment report — {PATENT_ID}")
+    print(f"  Aligner  : BLAST blastn-short")
     print(f"  Threshold: {threshold*100:.0f}%  |  Metric: max(id/alignment, id/shorter)")
     print(f"{'='*80}\n")
 
     for qname in queries:
-        grp = [r for r in results if r.query_name == qname]
+        grp  = [r for r in results if r.query_name == qname]
         best = max(grp, key=lambda r: r.identity_over_shorter)
         flag = "⚠ ABOVE THRESHOLD" if best.above_threshold else "✓ below threshold"
         print(f"Query: {qname}  [{flag}]")
-        print(f"  Seq : {best.query_seq[:70]}{'...' if len(best.query_seq)>70 else ''}")
-        print(f"  Best match → {best.ref_name}  (genome {best.ref_genome_start}-{best.ref_genome_end})")
-        print(f"    Score                    : {best.score:.1f}")
-        print(f"    Aligned region           : query[{best.q_start}:{best.q_end+1}] vs ref[{best.r_start}:{best.r_end+1}]")
-        print(f"    Matches / Mismatches / Gaps: {best.matches} / {best.mismatches} / {best.gaps}")
-        print(f"    Identity (/ aln length)  : {best.identity_over_alignment*100:.1f}%")
-        print(f"    Identity (/ shorter seq) : {best.identity_over_shorter*100:.1f}%")
-        print(f"    Identity (/ longer seq)  : {best.identity_over_longer*100:.1f}%")
-        print()
-        w = 60
-        mid = "".join("|" if a.upper()==b.upper() and a!="-" else " "
-                      for a,b in zip(best.aligned_query, best.aligned_ref))
-        for k in range(0, len(best.aligned_query), w):
-            print(f"    Qry  {best.aligned_query[k:k+w]}")
-            print(f"         {mid[k:k+w]}")
-            print(f"    Ref  {best.aligned_ref[k:k+w]}")
+        print(f"  Seq : {best.query_seq[:70]}{'...' if len(best.query_seq) > 70 else ''}")
+        print(f"  Best match → {best.ref_name}  "
+              f"(genome {best.ref_genome_start}-{best.ref_genome_end})")
+
+        if best.no_hit:
+            print("    No BLAST hit found.\n")
+        else:
+            print(f"    Bit-score                : {best.bit_score:.1f}")
+            print(f"    E-value                  : {best.evalue:.2e}")
+            print(f"    Aligned region           : "
+                  f"query[{best.q_start}:{best.q_end}] vs ref[{best.r_start}:{best.r_end}]  (1-based)")
+            print(f"    Matches / Mismatches / Gaps: "
+                  f"{best.matches} / {best.mismatches} / {best.gaps}")
+            print(f"    Identity (/ aln length)  : {best.identity_over_alignment*100:.1f}%")
+            print(f"    Identity (/ shorter seq) : {best.identity_over_shorter*100:.1f}%")
+            print(f"    Identity (/ longer seq)  : {best.identity_over_longer*100:.1f}%")
             print()
-        print(f"  {'Patent seq':<12} {'Score':>6}  {'Id/aln':>7}  {'Id/short':>9}  {'Id/long':>9}")
-        print(f"  {'-'*55}")
+            w = 60
+            for k in range(0, len(best.aligned_query), w):
+                print(f"    Qry  {best.aligned_query[k:k+w]}")
+                print(f"         {best.midline[k:k+w]}")
+                print(f"    Ref  {best.aligned_ref[k:k+w]}")
+                print()
+
+        print(f"  {'Patent seq':<12} {'Bit-score':>10}  {'E-value':>10}  "
+              f"{'Id/aln':>7}  {'Id/short':>9}  {'Id/long':>9}")
+        print(f"  {'-'*65}")
         for r in sorted(grp, key=lambda x: x.identity_over_shorter, reverse=True):
-            f = " ⚠" if r.above_threshold else ""
-            print(f"  {r.ref_name:<12} {r.score:>6.1f}  "
-                  f"{r.identity_over_alignment*100:>6.1f}%  "
-                  f"{r.identity_over_shorter*100:>8.1f}%  "
-                  f"{r.identity_over_longer*100:>8.1f}%{f}")
+            marker = " ⚠" if r.above_threshold else ""
+            if r.no_hit:
+                print(f"  {r.ref_name:<12} {'(no hit)':>10}  {'—':>10}  "
+                      f"{'0.0%':>7}  {'0.0%':>9}  {'0.0%':>9}")
+            else:
+                print(f"  {r.ref_name:<12} {r.bit_score:>10.1f}  "
+                      f"{r.evalue:>10.2e}  "
+                      f"{r.identity_over_alignment*100:>6.1f}%  "
+                      f"{r.identity_over_shorter*100:>8.1f}%  "
+                      f"{r.identity_over_longer*100:>8.1f}%{marker}")
         print()
 
 
 # ─── HTML helpers ─────────────────────────────────────────────────────────────
-def _heatmap_color(pct):
+def _heatmap_color(pct: float) -> str:
     if pct >= 0.90: return "background:#1a3a2a;color:#3ecf8e;"
     if pct >= 0.80: return "background:#2e200e;color:#f5a623;"
     if pct >= 0.60: return "background:#1c1828;color:#a080ff;"
     return "background:#161420;color:#6b748a;"
 
 
-def _build_seq_html(seq, aln_start, aln_end):
+def _build_seq_html(seq: str, aln_start: int, aln_end: int) -> str:
+    """Highlight the aligned region within the full sequence. Coords are 1-based."""
     parts = []
-    for i, nt in enumerate(seq):
+    for i, nt in enumerate(seq, start=1):
         if aln_start <= i <= aln_end:
             parts.append(f'<span class="nt-aligned">{nt}</span>')
         else:
@@ -213,24 +345,26 @@ def _build_seq_html(seq, aln_start, aln_end):
     return "".join(parts)
 
 
-def _build_aln_html(aq, ar, chunk=60):
+def _build_aln_html(aq: str, ar: str, midline: str, chunk: int = 60) -> str:
     blocks = []
     for k in range(0, len(aq), chunk):
-        qa, ra = aq[k:k+chunk], ar[k:k+chunk]
+        qa  = aq[k:k+chunk]
+        ra  = ar[k:k+chunk]
+        mid = midline[k:k+chunk]
         q_html = r_html = mid_html = ""
-        for a, b in zip(qa, ra):
+        for a, b, m in zip(qa, ra, mid):
             if a == "-" or b == "-":
                 ca = cb = "nt-gap"
-                m = "·"
+                mc = "mid-miss"
             elif a.upper() == b.upper():
                 ca = cb = "nt-match"
-                m = "|"
+                mc = "mid-match"
             else:
                 ca = cb = "nt-miss"
-                m = "·"
-            q_html  += f'<span class="{ca}">{a}</span>'
-            r_html  += f'<span class="{cb}">{b}</span>'
-            mid_html += f'<span class="mid-{"match" if m=="|" else "miss"}">{m}</span>'
+                mc = "mid-miss"
+            q_html   += f'<span class="{ca}">{a}</span>'
+            r_html   += f'<span class="{cb}">{b}</span>'
+            mid_html += f'<span class="{mc}">{m}</span>'
         blocks.append(
             f'<div class="ar"><span class="al">Qry</span><span>{q_html}</span></div>'
             f'<div class="ar"><span class="al"></span><span>{mid_html}</span></div>'
@@ -240,34 +374,82 @@ def _build_aln_html(aq, ar, chunk=60):
     return "\n".join(blocks)
 
 
-def _build_query_section(grp, threshold):
-    best = max(grp, key=lambda r: r.identity_over_shorter)
-    above = any(r.above_threshold for r in grp)
+def _build_msa_html(query_name: str, query_seq: str) -> str:
+    """Run MAFFT on query + all patent seqs and return a styled pre block."""
+    seqs    = [(query_name, query_seq)] + [(p["id"], p["seq"]) for p in PATENT_SEQUENCES]
+    aligned = run_mafft(seqs)
+    if not aligned:
+        return "<p class='dim' style='font-size:12px'>MAFFT MSA not available.</p>"
+    lines = [f"{name:<14}  {gapped}" for name, gapped in aligned]
+    return (
+        '<div class="section-block">'
+        '<div class="section-title">Multiple-sequence alignment (MAFFT)</div>'
+        '<div class="aln-block" style="white-space:pre">'
+        + "\n".join(lines)
+        + "</div></div>"
+    )
+
+
+def _build_query_section(grp: List[AlignmentResult], threshold: float,
+                         include_msa: bool = True) -> str:
+    best   = max(grp, key=lambda r: r.identity_over_shorter)
+    above  = any(r.above_threshold for r in grp)
     pill_cls = "pill-warn" if above else "pill-ok"
-    pill_txt = f"⚠ ≥{threshold*100:.0f}% identity" if above else f"✓ &lt;{threshold*100:.0f}%"
+    pill_txt = (f"⚠ ≥{threshold*100:.0f}% identity" if above
+                else f"✓ &lt;{threshold*100:.0f}%")
 
-    aln_html  = _build_aln_html(best.aligned_query, best.aligned_ref)
-    full_q    = _build_seq_html(best.query_seq, best.q_start, best.q_end)
-    full_r    = _build_seq_html(best.ref_seq,   best.r_start, best.r_end)
-
-    def mvc(v):
+    def mvc(v: float) -> str:
         return "red" if v >= threshold else "green"
 
+    # ── alignment block ──────────────────────────────────────────────────────
+    if best.no_hit:
+        aln_html  = "<p class='dim' style='font-size:12px'>No BLAST hit found.</p>"
+        full_q    = f'<span class="nt-dim">{best.query_seq}</span>'
+        full_r    = f'<span class="nt-dim">{best.ref_seq}</span>'
+        callout   = ""
+    else:
+        aln_html = _build_aln_html(best.aligned_query, best.aligned_ref, best.midline)
+        full_q   = _build_seq_html(best.query_seq, best.q_start, best.q_end)
+        full_r   = _build_seq_html(best.ref_seq,   best.r_start, best.r_end)
+        callout  = f"""
+    <div class="callout">
+      <div class="callout-title">Best match → {best.ref_name} · genome {best.ref_genome_start}–{best.ref_genome_end} · q[{best.q_start}:{best.q_end}] vs r[{best.r_start}:{best.r_end}]</div>
+      <div class="mgrid">
+        <div class="mc"><div class="mv {mvc(best.identity_over_alignment)}">{best.identity_over_alignment*100:.1f}%</div><div class="mk">Identity / aln len</div></div>
+        <div class="mc"><div class="mv {mvc(best.identity_over_shorter)}">{best.identity_over_shorter*100:.1f}%</div><div class="mk">Identity / shorter ★</div></div>
+        <div class="mc"><div class="mv {mvc(best.identity_over_longer)}">{best.identity_over_longer*100:.1f}%</div><div class="mk">Identity / longer</div></div>
+        <div class="mc"><div class="mv accent">{best.bit_score:.1f}</div><div class="mk">Bit-score</div></div>
+        <div class="mc"><div class="mv accent">{best.evalue:.2e}</div><div class="mk">E-value</div></div>
+        <div class="mc"><div class="mv" style="color:var(--text)">{best.matches}/{best.alignment_length}</div><div class="mk">Matches / aln len</div></div>
+        <div class="mc"><div class="mv" style="color:var(--text)">{best.gaps}</div><div class="mk">Gaps</div></div>
+      </div>
+    </div>"""
+
+    # ── per-ref table ─────────────────────────────────────────────────────────
     rows = ""
     for r in sorted(grp, key=lambda x: x.identity_over_shorter, reverse=True):
         is_best = ' class="best-row"' if r.ref_name == best.ref_name else ""
-        bw = min(100, int(r.identity_over_shorter*100))
+        bw = min(100, int(r.identity_over_shorter * 100))
         bc = "#f05a6e" if r.above_threshold else "#3ecf8e"
-        rows += f"""<tr{is_best}>
-          <td class="mono">{r.ref_name}</td>
-          <td class="dim">{r.ref_genome_start}–{r.ref_genome_end}</td>
-          <td class="mono">{r.score:.0f}</td>
-          <td>{r.identity_over_alignment*100:.1f}%</td>
-          <td style="font-weight:600">{r.identity_over_shorter*100:.1f}%</td>
-          <td>{r.identity_over_longer*100:.1f}%</td>
-          <td><div class="bar-bg"><div class="bar-fg" style="width:{bw}%;background:{bc}"></div></div></td>
-          <td class="dim">{r.matches}/{r.mismatches}/{r.gaps}</td>
-        </tr>"""
+        if r.no_hit:
+            rows += f"""<tr{is_best}>
+              <td class="mono">{r.ref_name}</td>
+              <td class="dim">{r.ref_genome_start}–{r.ref_genome_end}</td>
+              <td colspan="6" class="dim" style="font-style:italic">no BLAST hit</td>
+            </tr>"""
+        else:
+            rows += f"""<tr{is_best}>
+              <td class="mono">{r.ref_name}</td>
+              <td class="dim">{r.ref_genome_start}–{r.ref_genome_end}</td>
+              <td class="mono">{r.bit_score:.1f}</td>
+              <td>{r.identity_over_alignment*100:.1f}%</td>
+              <td style="font-weight:600">{r.identity_over_shorter*100:.1f}%</td>
+              <td>{r.identity_over_longer*100:.1f}%</td>
+              <td><div class="bar-bg"><div class="bar-fg" style="width:{bw}%;background:{bc}"></div></div></td>
+              <td class="dim">{r.matches}/{r.mismatches}/{r.gaps}</td>
+            </tr>"""
+
+    msa_block = _build_msa_html(best.query_name, best.query_seq) if include_msa else ""
 
     return f"""
 <div class="qs">
@@ -283,37 +465,36 @@ def _build_query_section(grp, threshold):
       <span class="mono">{best.query_seq}</span>
     </div>
 
-    <div class="callout">
-      <div class="callout-title">Best match → {best.ref_name} · genome {best.ref_genome_start}–{best.ref_genome_end} · q[{best.q_start}:{best.q_end+1}] vs r[{best.r_start}:{best.r_end+1}]</div>
-      <div class="mgrid">
-        <div class="mc"><div class="mv {mvc(best.identity_over_alignment)}">{best.identity_over_alignment*100:.1f}%</div><div class="mk">Identity / aln len</div></div>
-        <div class="mc"><div class="mv {mvc(best.identity_over_shorter)}">{best.identity_over_shorter*100:.1f}%</div><div class="mk">Identity / shorter ★</div></div>
-        <div class="mc"><div class="mv {mvc(best.identity_over_longer)}">{best.identity_over_longer*100:.1f}%</div><div class="mk">Identity / longer</div></div>
-        <div class="mc"><div class="mv accent">{best.score:.0f}</div><div class="mk">SW score</div></div>
-        <div class="mc"><div class="mv" style="color:var(--text)">{best.matches}/{best.alignment_length}</div><div class="mk">Matches / aln len</div></div>
-        <div class="mc"><div class="mv" style="color:var(--text)">{best.gaps}</div><div class="mk">Gaps</div></div>
-      </div>
-    </div>
+    {callout}
 
     <div class="section-block">
-      <div class="section-title">Local alignment (Smith-Waterman)</div>
+      <div class="section-title">Pairwise alignment (BLAST blastn-short)</div>
       <div class="aln-block">{aln_html}</div>
     </div>
 
     <div class="section-block">
       <div class="section-title">Full sequences — aligned region highlighted</div>
-      <div class="legend"><span><span class="dot dot-a"></span>aligned</span><span><span class="dot dot-d"></span>unaligned</span></div>
+      <div class="legend">
+        <span><span class="dot dot-a"></span>aligned</span>
+        <span><span class="dot dot-d"></span>unaligned</span>
+      </div>
       <div class="fullseq">
         <div><span class="dim mono" style="margin-right:8px">QRY</span>{full_q}</div>
         <div style="margin-top:4px"><span class="dim mono" style="margin-right:8px">REF</span>{full_r}</div>
       </div>
     </div>
 
+    {msa_block}
+
     <div class="section-block">
       <div class="section-title">All patent sequences — identity summary</div>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>Patent seq</th><th>Genome pos</th><th>SW score</th><th>Id/aln</th><th>Id/shorter ★</th><th>Id/longer</th><th style="min-width:110px">Bar</th><th>M/MM/G</th></tr></thead>
+          <thead><tr>
+            <th>Patent seq</th><th>Genome pos</th><th>Bit-score</th>
+            <th>Id/aln</th><th>Id/shorter ★</th><th>Id/longer</th>
+            <th style="min-width:110px">Bar</th><th>M/MM/G</th>
+          </tr></thead>
           <tbody>{rows}</tbody>
         </table>
       </div>
@@ -322,18 +503,18 @@ def _build_query_section(grp, threshold):
 </div>"""
 
 
-def _build_heatmap(results):
+def _build_heatmap(results: List[AlignmentResult]) -> str:
     queries = list(dict.fromkeys(r.query_name for r in results))
     refs    = [p["id"] for p in PATENT_SEQUENCES]
     idx     = {(r.query_name, r.ref_name): r for r in results}
 
-    hdr = "<tr><th></th>" + "".join(f"<th>{ref}</th>" for ref in refs) + "</tr>"
+    hdr  = "<tr><th></th>" + "".join(f"<th>{ref}</th>" for ref in refs) + "</tr>"
     rows = ""
     for q in queries:
         cells = f"<td class='hm-label'>{q}</td>"
         for ref in refs:
             r   = idx.get((q, ref))
-            pct = r.identity_over_shorter if r else 0.0
+            pct = r.identity_over_shorter if r and not r.no_hit else 0.0
             f   = " ⚠" if r and r.above_threshold else ""
             cells += f"<td style='{_heatmap_color(pct)}'>{pct*100:.0f}%{f}</td>"
         rows += f"<tr>{cells}</tr>"
@@ -489,7 +670,7 @@ footer{{margin:36px 28px 20px;padding-top:14px;border-top:1px solid var(--brd);
   <div class="hmeta">
     <span>Patent: <a href="{patent_url}" target="_blank">{patent_id}</a></span>
     <span>Threshold: {thr_pct}% identity</span>
-    <span>Algorithm: Smith-Waterman (affine gap)</span>
+    <span>Aligner: BLAST blastn-short + MAFFT</span>
     <span>{generated}</span>
   </div>
 </header>
@@ -537,13 +718,14 @@ footer{{margin:36px 28px 20px;padding-top:14px;border-top:1px solid var(--brd);
         <div style="color:var(--dim);font-size:12px">Worst-case: penalises when one sequence is much longer than the other.</div>
       </div>
     </div>
+    <p>Bit-score and E-value are reported directly from BLAST. E-values are inflated here (E-value cutoff {evalue}) because the "database" is only 7 short sequences — use them as a relative ranking, not an absolute significance measure.</p>
     <div class="note"><strong style="color:var(--warn)">Legal note:</strong> Patent WO2026038929A1 claims protection at ≥80% identity. The legally binding interpretation depends on claim construction before a court. Consult a registered patent attorney for definitive opinions.</div>
   </div>
 </div>
 
 <footer>
   <span>checkPatent.py · {patent_id}</span>
-  <span>match={match_s} mismatch={mm_s} gap_open={go_s} gap_extend={ge_s}</span>
+  <span>blastn-short · evalue={evalue}</span>
 </footer>
 
 <script>
@@ -562,16 +744,17 @@ function toggle(el){{
 </html>"""
 
 
-def generate_html(results, threshold, match, mismatch, gap_open, gap_extend):
+def generate_html(results: List[AlignmentResult], threshold: float,
+                  evalue: float, include_msa: bool = True) -> str:
     queries   = list(dict.fromkeys(r.query_name for r in results))
-    above_set = set(r.query_name for r in results if r.above_threshold)
+    above_set = {r.query_name for r in results if r.above_threshold}
     n_above   = len(above_set)
     n_below   = len(queries) - n_above
 
     sections = ""
     for qname in queries:
         grp = [r for r in results if r.query_name == qname]
-        sections += _build_query_section(grp, threshold)
+        sections += _build_query_section(grp, threshold, include_msa=include_msa)
 
     return _HTML.format(
         patent_id=PATENT_ID, patent_url=PATENT_URL,
@@ -583,22 +766,25 @@ def generate_html(results, threshold, match, mismatch, gap_open, gap_extend):
         bc="ok" if n_below == len(queries) else "warn",
         query_sections=sections,
         heatmap=_build_heatmap(results),
-        match_s=match, mm_s=mismatch, go_s=gap_open, ge_s=gap_extend,
+        evalue=evalue,
     )
 
 
 # ─── FASTA parser ─────────────────────────────────────────────────────────────
-def parse_fasta(path):
+def parse_fasta(path: str) -> List[Tuple[str, str]]:
     seqs, name, seq = [], None, []
     with open(path) as fh:
         for line in fh:
             line = line.strip()
             if line.startswith(">"):
-                if name: seqs.append((name, "".join(seq)))
-                name = line[1:].split()[0]; seq = []
+                if name:
+                    seqs.append((name, "".join(seq)))
+                name = line[1:].split()[0]
+                seq  = []
             else:
                 seq.append(line.replace(" ", "").upper())
-    if name: seqs.append((name, "".join(seq)))
+    if name:
+        seqs.append((name, "".join(seq)))
     return seqs
 
 
@@ -606,21 +792,26 @@ def parse_fasta(path):
 def main():
     p = argparse.ArgumentParser(
         description="Check query sequences against patent WO2026038929A1.",
-        formatter_class=argparse.RawDescriptionHelpFormatter, epilog=__doc__)
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
     p.add_argument("positional", nargs="*", help="Raw DNA sequences")
     p.add_argument("--fasta",       help="FASTA file of queries")
     p.add_argument("--seqs",        help="Comma-separated sequences")
     p.add_argument("--names",       help="Comma-separated names for --seqs")
     p.add_argument("--output",      default="patent_alignment_report.html")
-    p.add_argument("--threshold",   type=float, default=0.80)
-    p.add_argument("--match",       type=int,   default=2)
-    p.add_argument("--mismatch",    type=int,   default=-1)
-    p.add_argument("--gap-open",    type=int,   default=-2)
-    p.add_argument("--gap-extend",  type=int,   default=-1)
+    p.add_argument("--threshold",   type=float, default=0.80,
+                   help="Identity threshold for flagging (default: 0.80)")
+    p.add_argument("--evalue",      type=float, default=1000.0,
+                   help="BLAST E-value cutoff (default: 1000 — keeps weak hits)")
     p.add_argument("--no-html",     action="store_true")
+    p.add_argument("--no-msa",      action="store_true",
+                   help="Skip MAFFT MSA section in HTML report (faster)")
     args = p.parse_args()
 
-    queries = []
+    check_dependencies()
+
+    queries: List[Tuple[str, str]] = []
     if args.fasta:
         queries += parse_fasta(args.fasta)
     if args.seqs:
@@ -633,17 +824,18 @@ def main():
 
     if not queries:
         print("Error: no sequences provided. Use positional args, --fasta, or --seqs.")
-        print(__doc__); sys.exit(1)
+        print(__doc__)
+        sys.exit(1)
 
     print(f"\nChecking {len(queries)} quer{'y' if len(queries)==1 else 'ies'} "
-          f"against {len(PATENT_SEQUENCES)} patent sequences…")
-    results = run_all(queries, args.threshold, args.match, args.mismatch,
-                      args.gap_open, args.gap_extend)
+          f"against {len(PATENT_SEQUENCES)} patent sequences (BLAST blastn-short)…")
+
+    results = run_all(queries, threshold=args.threshold, evalue=args.evalue)
     print_report(results, args.threshold)
 
     if not args.no_html:
-        html = generate_html(results, args.threshold, args.match, args.mismatch,
-                             args.gap_open, args.gap_extend)
+        html = generate_html(results, args.threshold, args.evalue,
+                             include_msa=not args.no_msa)
         with open(args.output, "w") as fh:
             fh.write(html)
         print(f"HTML report → {args.output}\n")
