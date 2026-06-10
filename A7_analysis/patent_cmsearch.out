@@ -1,0 +1,355 @@
+# cmsearch :: search CM(s) against a sequence database
+# INFERNAL 1.1.5 (Sep 2023)
+# Copyright (C) 2023 Howard Hughes Medical Institute.
+# Freely distributed under the BSD open source license.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query CM file:                         A7_analysis/a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2.cm
+# target sequence database:              /tmp/tmp73gpofa0/queries.fa
+# output directed to file:               /projects/health_sciences/bms/biochemistry/gardner_group/nadia/UTR_optimization/A7_analysis/patent_cmsearch.out
+# MSA of significant hits saved to file: /projects/health_sciences/bms/biochemistry/gardner_group/nadia/UTR_optimization/A7_analysis/patent_cmsearch.sto
+# tabular output of hits:                /projects/health_sciences/bms/biochemistry/gardner_group/nadia/UTR_optimization/A7_analysis/patent_cmsearch.tblout
+# max ASCII text line length:            unlimited
+# number of worker threads:              4
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  [CLEN=83]
+Hit scores:
+ rank     E-value  score  bias  sequence                                      start    end   mdl trunc   gc  description
+ ----   --------- ------ -----  -------------------------------------------- ------ ------   --- ----- ----  -----------
+  (1) !     6e-25   93.2   0.0  KC663628.1/9310-9555_downstream_plus_to_end       3     85 +  cm    no 0.53  -
+  (2) !     6e-25   93.2   0.0  NC_024120.1/9310-9555_downstream_plus_to_end      3     85 +  cm    no 0.53  -
+  (3) !   9.6e-25   92.5   0.0  PP346853.1/9706-9951_downstream_plus_to_end       4     86 +  cm    no 0.52  -
+  (4) !   1.1e-24   92.4   0.0  KY369300.1/9710-9957_downstream_plus_to_end       2     84 +  cm    no 0.53  -
+  (5) !   1.1e-24   92.4   0.0  NC_033793.1/9710-9957_downstream_plus_to_end      2     84 +  cm    no 0.53  -
+  (6) !   1.3e-24   92.1   0.0  KY369299.1/9448-9694_downstream_plus_to_end       3     85 +  cm    no 0.53  -
+  (7) !   1.8e-24   91.6   0.0  PQ368551.1/9611-9854_downstream_plus_to_end       4     86 +  cm    no 0.55  -
+  (8) !   8.9e-23   85.7   0.0  PP228891.1/9072-9302_downstream_plus_to_end      14     98 +  cm    no 0.51  -
+  (9) !   8.9e-23   85.7   0.0  PP228890.1/9171-9401_downstream_plus_to_end      14     98 +  cm    no 0.51  -
+ (10) !   8.9e-23   85.7   0.0  PP228897.1/9189-9419_downstream_plus_to_end      14     98 +  cm    no 0.51  -
+ (11) !   8.9e-23   85.7   0.0  KF961187.1/9169-9420_downstream_plus_to_end      14     98 +  cm    no 0.51  -
+ (12) !   4.2e-22   83.3   0.0  KF979335.1/9192-9418_downstream_plus_to_end      14     98 +  cm    no 0.52  -
+ (13) !   4.2e-22   83.3   0.0  NC_024768.1/9192-9418_downstream_plus_to_end     14     98 +  cm    no 0.52  -
+ (14) !   1.3e-21   81.6   0.0  KF979336.1/9220-9445_downstream_plus_to_end      14     98 +  cm    no 0.53  -
+ (15) !   1.3e-21   81.6   0.0  NC_024769.1/9220-9445_downstream_plus_to_end     14     98 +  cm    no 0.53  -
+ (16) !     2e-21   81.0   0.0  KF961188.1/9387-9593_downstream_plus_to_end      14     98 +  cm    no 0.52  -
+ (17) !     2e-21   81.0   0.0  NC_023858.1/9387-9593_downstream_plus_to_end     14     98 +  cm    no 0.52  -
+ (18) !   2.6e-20   77.1   0.0  OP169446.1/8869-9067_downstream_plus_to_end       5     86 +  cm    no 0.59  -
+ (19) !   2.8e-20   77.0   0.0  OR364988.1/8823-9030_downstream_plus_to_end       5     86 +  cm    no 0.61  -
+ (20) !   2.8e-20   77.0   0.0  NC_038957.1/8746-8952_downstream_plus_to_end      5     86 +  cm    no 0.61  -
+ (21) !     4e-20   76.5   0.0  KC811837.1/8865-9072_downstream_plus_to_end       5     86 +  cm    no 0.61  -
+ (22) !     1e-18   71.6   0.0  PQ368550.1/9625-9868_downstream_plus_to_end       4     77 +  cm    3' 0.57  -
+ (23) !   4.1e-18   69.5   0.0  KF961186.1/9187-9418_downstream_plus_to_end      14     97 +  cm    no 0.48  -
+ (24) !   4.1e-18   69.5   0.0  NC_039235.1/9187-9418_downstream_plus_to_end     14     97 +  cm    no 0.48  -
+
+
+Hit alignments:
+>> KC663628.1/9310-9555_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (1) !     6e-25   93.2   0.0  cm        1       83 []           3          85 + .. 1.00    no 0.53
+
+                                                                                                                                                NC
+                                                            ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            G+U:CU++A:CACA:G:GACAAA:UC:::CUU G+:::GA:AG++CC+CCCCCCGGGGCAAUAGGGGGG:C:UGUG:AG:AGU
+             KC663628.1/9310-9555_downstream_plus_to_end  3 GGUGCUUUAUCACAAGUGACAAAGUCGAUCUUCGGAUUGAUAGACCCUCCCCCCGGGGCAAUAGGGGGGCCUUGUGAAGUAGU 85
+                                                            *********************************************************************************** PP
+
+>> NC_024120.1/9310-9555_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (2) !     6e-25   93.2   0.0  cm        1       83 []           3          85 + .. 1.00    no 0.53
+
+                                                                                                                                                NC
+                                                            ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            G+U:CU++A:CACA:G:GACAAA:UC:::CUU G+:::GA:AG++CC+CCCCCCGGGGCAAUAGGGGGG:C:UGUG:AG:AGU
+            NC_024120.1/9310-9555_downstream_plus_to_end  3 GGUGCUUUAUCACAAGUGACAAAGUCGAUCUUCGGAUUGAUAGACCCUCCCCCCGGGGCAAUAGGGGGGCCUUGUGAAGUAGU 85
+                                                            *********************************************************************************** PP
+
+>> PP346853.1/9706-9951_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (3) !   9.6e-25   92.5   0.0  cm        1       83 []           4          86 + .. 1.00    no 0.52
+
+                                                                                                                                                NC
+                                                            ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            G+U:CU++A:CACA:G:GACAAA:UC:G:CUU+++:C:GA:AG++CC+CCCCCCGGGG+AAUAGGGGGG:C:UGUG:AG:AGU
+             PP346853.1/9706-9951_downstream_plus_to_end  4 GGUGCUUUAUCACAAGUGACAAAGUCGGUCUUUUGACUGAUAGACCCUCCCCCCGGGGUAAUAGGGGGGCCUUGUGAAGUAGU 86
+                                                            *********************************************************************************** PP
+
+>> KY369300.1/9710-9957_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (4) !   1.1e-24   92.4   0.0  cm        1       83 []           2          84 + .. 1.00    no 0.53
+
+                                                                                                                                                NC
+                                                            ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            G+U:CU+AA:CACA:G:GACAAAGU::G:CUUA++:C::ACAG++CC+CCCCCCGGGGCAAUAGGGGGG:C:UGUG:AG:AGU
+             KY369300.1/9710-9957_downstream_plus_to_end  2 GGUGCUUAAUCACAAGUGACAAAGUUGGUCUUAUGACUGACAGACCCUCCCCCCGGGGCAAUAGGGGGGCCUUGUGAAGUAGU 84
+                                                            *********************************************************************************** PP
+
+>> NC_033793.1/9710-9957_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (5) !   1.1e-24   92.4   0.0  cm        1       83 []           2          84 + .. 1.00    no 0.53
+
+                                                                                                                                                NC
+                                                            ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            G+U:CU+AA:CACA:G:GACAAAGU::G:CUUA++:C::ACAG++CC+CCCCCCGGGGCAAUAGGGGGG:C:UGUG:AG:AGU
+            NC_033793.1/9710-9957_downstream_plus_to_end  2 GGUGCUUAAUCACAAGUGACAAAGUUGGUCUUAUGACUGACAGACCCUCCCCCCGGGGCAAUAGGGGGGCCUUGUGAAGUAGU 84
+                                                            *********************************************************************************** PP
+
+>> KY369299.1/9448-9694_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (6) !   1.3e-24   92.1   0.0  cm        1       83 []           3          85 + .. 1.00    no 0.53
+
+                                                                                                                                                NC
+                                                            ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            G+U:CU++A:CACA:G:GACAAA:UC:G:CUU ++:C:GA:AG++CC+CCCCCCGGGG+AAUAGGGGGG:C:UGUG:AG:AGU
+             KY369299.1/9448-9694_downstream_plus_to_end  3 GGUGCUUUAUCACAAGUGACAAAGUCGGUCUUCUGACUGAUAGACCCUCCCCCCGGGGUAAUAGGGGGGCCUUGUGAAGUAGU 85
+                                                            *********************************************************************************** PP
+
+>> PQ368551.1/9611-9854_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (7) !   1.8e-24   91.6   0.0  cm        1       83 []           4          86 + .. 1.00    no 0.55
+
+                                                                                                                                                NC
+                                                            ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            G+U:CU++A:CACA:G:GACAAA:UC:G:C U ++:C:GA:AG++CC+CCCCCCGGGGCAAUAGGGGGG:C:UGUG:AG:AGU
+             PQ368551.1/9611-9854_downstream_plus_to_end  4 GGUGCUUUAUCACAAGUGACAAAGUCGGUCCUCUGACUGAUAGACCCUCCCCCCGGGGCAAUAGGGGGGCCUUGUGAAGUAGU 86
+                                                            *********************************************************************************** PP
+
+>> PP228891.1/9072-9302_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (8) !   8.9e-23   85.7   0.0  cm        1       83 []          14          98 + .. 1.00    no 0.51
+
+                                                                                                                                                  NC
+                                                            ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            +U:A::GAAC:A:A::GGAC  A++:UCC::CUUAGA::GGA: +GACCC::::CCGGGGCAAUAGG::::C::U:U:G::U:++
+             PP228891.1/9072-9302_downstream_plus_to_end 14 UUAAGCGAACGAAAUGGGACgcAUGAUCCAUCUUAGAGUGGAUCAGACCCUGGUCCGGGGCAAUAGGACCACUGUUUCGCGUUUA 98
+                                                            ************************************************************************************* PP
+
+>> PP228890.1/9171-9401_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (9) !   8.9e-23   85.7   0.0  cm        1       83 []          14          98 + .. 1.00    no 0.51
+
+                                                                                                                                                  NC
+                                                            ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            +U:A::GAAC:A:A::GGAC  A++:UCC::CUUAGA::GGA: +GACCC::::CCGGGGCAAUAGG::::C::U:U:G::U:++
+             PP228890.1/9171-9401_downstream_plus_to_end 14 UUAAGCGAACGAAAUGGGACgcAUGAUCCAUCUUAGAGUGGAUCAGACCCUGGUCCGGGGCAAUAGGACCACUGUUUCGCGUUUA 98
+                                                            ************************************************************************************* PP
+
+>> PP228897.1/9189-9419_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (10) !   8.9e-23   85.7   0.0  cm        1       83 []          14          98 + .. 1.00    no 0.51
+
+                                                                                                                                                  NC
+                                                            ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            +U:A::GAAC:A:A::GGAC  A++:UCC::CUUAGA::GGA: +GACCC::::CCGGGGCAAUAGG::::C::U:U:G::U:++
+             PP228897.1/9189-9419_downstream_plus_to_end 14 UUAAGCGAACGAAAUGGGACgcAUGAUCCAUCUUAGAGUGGAUCAGACCCUGGUCCGGGGCAAUAGGACCACUGUUUCGCGUUUA 98
+                                                            ************************************************************************************* PP
+
+>> KF961187.1/9169-9420_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (11) !   8.9e-23   85.7   0.0  cm        1       83 []          14          98 + .. 1.00    no 0.51
+
+                                                                                                                                                  NC
+                                                            ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            +U:A::GAAC:A:A::GGAC  A++:UCC::CUUAGA::GGA: +GACCC::::CCGGGGCAAUAGG::::C::U:U:G::U:++
+             KF961187.1/9169-9420_downstream_plus_to_end 14 UUAAGCGAACGAAAUGGGACgcAUGAUCCAUCUUAGAGUGGAUCAGACCCUGGUCCGGGGCAAUAGGACCACUGUUUCGCGUUUA 98
+                                                            ************************************************************************************* PP
+
+>> KF979335.1/9192-9418_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (12) !   4.2e-22   83.3   0.0  cm        1       83 []          14          98 + .. 1.00    no 0.52
+
+                                                                                                                                                  NC
+                                                            ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            +U:A::GAAC:A:A::GGAC  A++::CC::CUU GA::GG:: +GACCC::::CCGGGGCAAUAGG::::C::U:U:G::U:++
+             KF979335.1/9192-9418_downstream_plus_to_end 14 UUAAGCGAACGAAAUGGGACguAUGAUCCAUCUUGGAGUGGGUCAGACCCUGGUCCGGGGCAAUAGGACCACUGUUUCGCGUUUA 98
+                                                            ************************************************************************************* PP
+
+>> NC_024768.1/9192-9418_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (13) !   4.2e-22   83.3   0.0  cm        1       83 []          14          98 + .. 1.00    no 0.52
+
+                                                                                                                                                  NC
+                                                            ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            +U:A::GAAC:A:A::GGAC  A++::CC::CUU GA::GG:: +GACCC::::CCGGGGCAAUAGG::::C::U:U:G::U:++
+            NC_024768.1/9192-9418_downstream_plus_to_end 14 UUAAGCGAACGAAAUGGGACguAUGAUCCAUCUUGGAGUGGGUCAGACCCUGGUCCGGGGCAAUAGGACCACUGUUUCGCGUUUA 98
+                                                            ************************************************************************************* PP
+
+>> KF979336.1/9220-9445_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (14) !   1.3e-21   81.6   0.0  cm        1       83 []          14          98 + .. 1.00    no 0.53
+
+                                                                                                                                                  NC
+                                                            ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            +U:A::GAAC:A:A::GGAC  A++::CC::CUU GA::GG:: +GACCC::::CCGGGGCAAUAGG::::C::U:U:G::U:++
+             KF979336.1/9220-9445_downstream_plus_to_end 14 UUAAGCGAACGAAAUGGGACguAUGAUCCAUCUUGGAGUGGGUCAGACCCUGGUCCGGGGCAAUAGGGCCACUGUUUCGCGUUUA 98
+                                                            ************************************************************************************* PP
+
+>> NC_024769.1/9220-9445_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (15) !   1.3e-21   81.6   0.0  cm        1       83 []          14          98 + .. 1.00    no 0.53
+
+                                                                                                                                                  NC
+                                                            ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            +U:A::GAAC:A:A::GGAC  A++::CC::CUU GA::GG:: +GACCC::::CCGGGGCAAUAGG::::C::U:U:G::U:++
+            NC_024769.1/9220-9445_downstream_plus_to_end 14 UUAAGCGAACGAAAUGGGACguAUGAUCCAUCUUGGAGUGGGUCAGACCCUGGUCCGGGGCAAUAGGGCCACUGUUUCGCGUUUA 98
+                                                            ************************************************************************************* PP
+
+>> KF961188.1/9387-9593_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (16) !     2e-21   81.0   0.0  cm        1       83 []          14          98 + .. 1.00    no 0.52
+
+                                                                                                                                                  NC
+                                                            ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            +U:A::GAAC:A:A::GGAC  A +::CC::CUUAGA::GG:: +GACCC::::CCGGGGCAAU GG::::C::U:U:G::U:++
+             KF961188.1/9387-9593_downstream_plus_to_end 14 UUAAGCGAACGAAAUGGGACauACGAUCCAUCUUAGAGUGGGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUUUCGCGUUUA 98
+                                                            ********************9999************************************************************* PP
+
+>> NC_023858.1/9387-9593_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (17) !     2e-21   81.0   0.0  cm        1       83 []          14          98 + .. 1.00    no 0.52
+
+                                                                                                                                                  NC
+                                                            ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            +U:A::GAAC:A:A::GGAC  A +::CC::CUUAGA::GG:: +GACCC::::CCGGGGCAAU GG::::C::U:U:G::U:++
+            NC_023858.1/9387-9593_downstream_plus_to_end 14 UUAAGCGAACGAAAUGGGACauACGAUCCAUCUUAGAGUGGGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUUUCGCGUUUA 98
+                                                            ********************9999************************************************************* PP
+
+>> OP169446.1/8869-9067_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (18) !   2.6e-20   77.1   0.0  cm        1       83 []           5          86 + .. 1.00    no 0.59
+
+                                                              vv                                                                           vv   NC
+                                                            ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            G+  :UGAA:CA::C:GG+CAAAG:C:GCCU AG GC:G:CA GACCC:CC:CCGGGG+AAU GG:GG:C:G::UG:A:  G 
+             OP169446.1/8869-9067_downstream_plus_to_end  5 GAGUGUGAAGCAAGCAGGGCAAAGCCGGCCUGAGUGCUGGCA-GACCCUCCACCGGGGUAAUUGGUGGACUGUUUGCAUUAGG 86
+                                                            ******************************************.999************************************* PP
+
+>> OR364988.1/8823-9030_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (19) !   2.8e-20   77.0   0.0  cm        1       83 []           5          86 + .. 1.00    no 0.61
+
+                                                              vv                                                                           vv   NC
+                                                            ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            G+  :UGAA:CA::C:GG+CAAAG:C:GCC  AG GC:G:CA GACCC:CC:CCGGGGCAAUAGG:GG:C:G::UG:A:  G 
+             OR364988.1/8823-9030_downstream_plus_to_end  5 GAGUGUGAAGCAAGCAGGGCAAAGCCUGCCGGAGUGCGGGCA-GACCCUCCACCGGGGCAAUAGGUGGACUGUUUGCAUUAGG 86
+                                                            ******************************************.999************************************* PP
+
+>> NC_038957.1/8746-8952_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (20) !   2.8e-20   77.0   0.0  cm        1       83 []           5          86 + .. 1.00    no 0.61
+
+                                                              vv                                                                           vv   NC
+                                                            ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            G+  :UGAA:CA::C:GG+CAAAG:C:GCC  AG GC:G:CA GACCC:CC:CCGGGGCAAUAGG:GG:C:G::UG:A:  G 
+            NC_038957.1/8746-8952_downstream_plus_to_end  5 GAGUGUGAAGCAAGCAGGGCAAAGCCUGCCGGAGUGCGGGCA-GACCCUCCACCGGGGCAAUAGGUGGACUGUUUGCAUUAGG 86
+                                                            ******************************************.999************************************* PP
+
+>> KC811837.1/8865-9072_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (21) !     4e-20   76.5   0.0  cm        1       83 []           5          86 + .. 1.00    no 0.61
+
+                                                              vv                                                                           vv   NC
+                                                            ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            G+  :UGAA:C::AC:GG+CAAAG:C:GCC  AG GC:G:CA GACCC:CC:CCGGGGCAAUAGG:GG:C:GU::G:A:  G 
+             KC811837.1/8865-9072_downstream_plus_to_end  5 GAGUGUGAAGCGAACAGGGCAAAGCCUGCCGGAGUGCGGGCA-GACCCUCCACCGGGGCAAUAGGUGGACUGUUUGCAUUAGG 86
+                                                            ******************************************.999************************************* PP
+
+>> PQ368550.1/9625-9868_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (22) !     1e-18   71.6   0.0  cm        1       74 [~           4          77 + .~ 1.00    3' 0.57
+
+                                                              ????   ???                                                                    NC
+                                                            ::((((---((((((((,,,,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))~~~~~ CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaCAaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUg*[9]> 83
+                                                            G+U CU++A CACA:G:GACAAA:UC:G:C U ++:C:GA:AG++CC+CCCCCCGGGG+AAUAGGGGGG:C:UG     
+             PQ368550.1/9625-9868_downstream_plus_to_end  4 GGUGCUUUAUCACAAGUGACAAAGUCGGUCCUCUGACUGAUAGACCCUCCCCCCGGGGUAAUAGGGGGGCCUUG*[0]> 77
+                                                            **************************************************************************..... PP
+
+>> KF961186.1/9187-9418_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (23) !   4.1e-18   69.5   0.0  cm        1       83 []          14          97 + .. 1.00    no 0.48
+
+                                                                                          v      v             v                 v                NC
+                                                            ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            +U:A::GAAC:A:A::GGAC  A++:UCC: CUUAGA :GGA: +GACCC:+::CC GGGCAAU GG:: :C::U:U:G::U:++
+             KF961186.1/9187-9418_downstream_plus_to_end 14 UUAAGCGAACGAAAUGGGACguAUGAUCCAUCUUAGAUUGGAUCAGACCCUGGUCCCGGGCAAUUGGAC-ACUGUUUCGCGUUUA 97
+                                                            ********************************************************************9.*************** PP
+
+>> NC_039235.1/9187-9418_downstream_plus_to_end  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (24) !   4.1e-18   69.5   0.0  cm        1       83 []          14          97 + .. 1.00    no 0.48
+
+                                                                                          v      v             v                 v                NC
+                                                            ::((((---((((((((,,,..,,,<<<<<<______>>>>>>,,,,,,,<<<<<<_________>>>>>>)))))))))))):: CS
+  a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2  1 guuacugaAccAcAcgGGaC..AaaguCcgcCUUagagcgGacaggaCCcccccCCGGGGCAAUAGGggggCcgUgUggaguagu 83
+                                                            +U:A::GAAC:A:A::GGAC  A++:UCC: CUUAGA :GGA: +GACCC:+::CC GGGCAAU GG:: :C::U:U:G::U:++
+            NC_039235.1/9187-9418_downstream_plus_to_end 14 UUAAGCGAACGAAAUGGGACguAUGAUCCAUCUUAGAUUGGAUCAGACCCUGGUCCCGGGCAAUUGGAC-ACUGUUUCGCGUUUA 97
+                                                            ********************************************************************9.*************** PP
+
+
+
+Internal CM pipeline statistics summary:
+----------------------------------------
+Query model(s):                                                  1  (83 consensus positions)
+Target sequences:                                               61  (19444 residues searched)
+Target sequences re-searched for truncated hits:                61  (23156 residues re-searched)
+Windows   passing  local HMM SSV           filter:             139  (0.3284); expected (0.35)
+Windows   passing  local HMM Viterbi       filter:                  (off)
+Windows   passing  local HMM Viterbi  bias filter:                  (off)
+Windows   passing  local HMM Forward       filter:              77  (0.1619); expected (0.02)
+Windows   passing  local HMM Forward  bias filter:              77  (0.1619); expected (0.02)
+Windows   passing glocal HMM Forward       filter:              51  (0.1238); expected (0.02)
+Windows   passing glocal HMM Forward  bias filter:              51  (0.1238); expected (0.02)
+Envelopes passing glocal HMM envelope defn filter:              51  (0.1022); expected (0.02)
+Envelopes passing  local CM  CYK           filter:              50  (0.1019); expected (0.0001)
+Total CM hits reported:                                         24  (0.04871); includes 1 truncated hit(s)
+
+# CPU time: 0.24u 0.00s 00:00:00.24 Elapsed: 00:00:00.26
+# Alignment of 24 hits satisfying inclusion thresholds saved to: /projects/health_sciences/bms/biochemistry/gardner_group/nadia/UTR_optimization/A7_analysis/patent_cmsearch.sto
+//
+[ok]

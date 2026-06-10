@@ -296,7 +296,6 @@ def run_cmsearch(queries, cm_file, output_dir="."):
         cmd = [
             "cmsearch",
             "--notextw",
-            "-T",      "1000",          # score threshold (report all hits with score >= 1000)
             "-A",      sto_file,        # Stockholm alignment output
             "-o",      out_file,        # human-readable output
             "--tblout", tblout_file,    # tabular output
@@ -1244,7 +1243,7 @@ footer {{
       </div>
     </div>
     <p><strong>Secondary structure (RNAfold):</strong> MFE dot-bracket structures are predicted independently for the query and the best-matching patent sequence. Matching secondary structure topology can indicate functional equivalence even when sequence identity is below the threshold — and may be relevant to broader claim interpretation.</p>
-    <p><strong>Covariance model (cmsearch):</strong> If a .cm file is supplied via <code>--cm</code>, Infernal's cmsearch is used to score queries against a probabilistic model of the RNA's sequence <em>and</em> structure simultaneously. The run uses <code>-T 1000</code> to report all hits above score 1000; output is written to three persistent files alongside the HTML report. This is the most rigorous test for functional equivalence of non-coding RNAs.</p>
+    <p><strong>Covariance model (cmsearch):</strong> If a .cm file is supplied via <code>--cm</code>, Infernal's cmsearch is used to score queries against a probabilistic model of the RNA's sequence <em>and</em> structure simultaneously. Output is written to three persistent files alongside the HTML report. This is the most rigorous test for functional equivalence of non-coding RNAs.</p>
     <div class="note"><strong>Legal note:</strong> Patent {patent_id} claims protection at ≥80% identity. The legally binding interpretation depends on claim construction before a court. Consult a registered patent attorney for definitive opinions.</div>
   </div>
 </div>
@@ -1490,7 +1489,6 @@ def _build_cmsearch_panel(
     cm_cmd_html = (
         f'<span class="cm-bin">cmsearch</span>'
         f' <span class="cm-flag">--notextw</span>'
-        f' <span class="cm-flag">-T</span> <span class="cm-val">1000</span>'
         f' <span class="cm-flag">-A</span> <span class="cm-val">{sto_base}</span>'
         f' <span class="cm-flag">-o</span> <span class="cm-val">{out_base}</span>'
         f' <span class="cm-flag">--tblout</span> <span class="cm-val">{tbl_base}</span>'
@@ -1514,7 +1512,6 @@ def _build_cmsearch_panel(
     # ── hits table ─────────────────────────────────────────────────────────────
     if not cm_results:
         hits_html = ('<div class="cm-no-hits">No hits reported '
-                     '(score threshold: <code>-T 1000</code>). '
                      'All queries scored below the threshold.</div>')
     else:
         def score_cls(s):
@@ -1612,7 +1609,6 @@ def _build_cmsearch_panel(
 
         f'<div class="sec-title" style="padding-top:0;border-top:none;margin-bottom:10px;">'
         f'Hits — {n_hits} result{"s" if n_hits!=1 else ""} '
-        f'(score threshold: <code>-T 1000</code>)</div>'
         f'{hits_html}'
 
         f'{sto_section}'
