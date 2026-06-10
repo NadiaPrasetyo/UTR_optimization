@@ -342,6 +342,69 @@ def run_cmsearch(queries, cm_file, output_dir="."):
     return results, raw_out, tblout_file, sto_file
 
 
+def _sanitize_path(path: str) -> str:
+    """Return only the filename component — strip any absolute or relative directory path."""
+    return os.path.basename(path) if path else ""
+
+
+def parse_stockholm(sto_path: str) -> dict:
+    """
+    Parse a Stockholm 1.0 file.
+
+    Returns a dict with keys:
+      sequences : OrderedDict  name → gapped_seq (insertion columns as lowercase)
+      pp        : dict         name → per-position posterior probability string
+      ss_cons   : str          #=GC SS_cons line (dot-bracket + pseudoknot chars)
+      rf        : str          #=GC RF consensus sequence
+      col_count : int          alignment width (including gap/insert columns)
+    """
+    from collections import OrderedDict
+    seqs:    "OrderedDict[str, list]" = OrderedDict()
+    pp:      dict = {}
+    ss_cons: list = []
+    rf:      list = []
+
+    if not sto_path or not os.path.exists(sto_path):
+        return {}
+
+    with open(sto_path) as fh:
+        for line in fh:
+            line = line.rstrip("\n")
+            if not line or line.startswith("# STOCKHOLM") or line == "//":
+                continue
+            if line.startswith("#=GC SS_cons"):
+                ss_cons.append(line.split(None, 2)[2])
+            elif line.startswith("#=GC RF"):
+                rf.append(line.split(None, 2)[2])
+            elif line.startswith("#=GR"):
+                parts = line.split(None, 3)
+                if len(parts) >= 4 and parts[2] == "PP":
+                    name = parts[1]
+                    pp.setdefault(name, []).append(parts[3])
+            elif line.startswith("#"):
+                continue
+            else:
+                parts = line.split(None, 1)
+                if len(parts) == 2:
+                    name, seq = parts
+                    seqs.setdefault(name, []).append(seq)
+
+    # Concatenate wrapped blocks
+    seq_final = OrderedDict((k, "".join(v)) for k, v in seqs.items())
+    pp_final  = {k: "".join(v) for k, v in pp.items()}
+    ss        = "".join(ss_cons)
+    rf_seq    = "".join(rf)
+    col_count = max((len(s) for s in seq_final.values()), default=0)
+
+    return {
+        "sequences": seq_final,
+        "pp":        pp_final,
+        "ss_cons":   ss,
+        "rf":        rf_seq,
+        "col_count": col_count,
+    }
+
+
 def run_mafft(sequences):
     if len(sequences) < 2 or shutil.which("mafft") is None:
         return None
@@ -1039,6 +1102,57 @@ tr:hover td {{ background: var(--sur2); }}
 }}
 .cm-log.open {{ display: block; }}
 
+/* ── Stockholm alignment viewer ───────────────────────────────── */
+.sto-wrap {{
+  margin-top: 24px;
+}}
+.sto-legend {{
+  display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;
+  font-size: 10px; font-family: var(--mono); color: var(--dim);
+  align-items: center;
+}}
+.sto-legend-item {{ display: flex; align-items: center; gap: 4px; }}
+.sto-swatch {{
+  display: inline-block; width: 12px; height: 12px;
+  border-radius: 2px; border: 1px solid rgba(0,0,0,.08);
+}}
+/* Structure-conservation background colours (matching R2R / ARNA palette) */
+/* Paired stem bases: teal family */
+.sc-stem-hi  {{ background: #29a696; color: #fff; }}   /* highly conserved stem */
+.sc-stem-med {{ background: #60c8bd; color: #fff; }}   /* moderately conserved stem */
+.sc-stem-lo  {{ background: #b2e4e0; color: #1a1d26; }} /* low-conservation stem */
+/* Loop/unpaired: warm grey / green */
+.sc-loop-hi  {{ background: #4caf78; color: #fff; }}   /* conserved loop */
+.sc-loop-med {{ background: #a8d5b8; color: #1a1d26; }}
+.sc-loop-lo  {{ background: #e0f0e8; color: #1a1d26; }}
+/* Insert columns (lowercase in RF): subdued grey */
+.sc-ins      {{ background: transparent; color: #b0b8c4; font-style: italic; }}
+/* Gap characters */
+.sc-gap      {{ background: transparent; color: #d1d5db; }}
+/* Annotation rows (SS_cons, RF) */
+.sc-ann-stem {{ color: #29a696; font-weight: 700; }}
+.sc-ann-loop {{ color: #4caf78; font-weight: 600; }}
+.sc-ann-ins  {{ color: #b0b8c4; font-style: italic; }}
+.sc-ann-gap  {{ color: #d1d5db; }}
+/* Layout */
+.sto-block {{
+  font-family: var(--mono); font-size: 12px; line-height: 1.85;
+  overflow-x: auto; background: #f9fbf9;
+  border: 1px solid var(--brd); border-radius: 6px;
+  padding: 14px 16px;
+}}
+.sto-row {{ display: flex; align-items: baseline; white-space: nowrap; }}
+.sto-name {{
+  color: var(--dim); font-size: 10.5px; flex-shrink: 0;
+  min-width: 46ch; margin-right: 2ch; user-select: none;
+  overflow: hidden; text-overflow: ellipsis;
+}}
+.sto-name.ann {{ color: var(--acc); font-weight: 600; }}
+.sto-seq  {{ white-space: pre; letter-spacing: .04em; }}
+.sto-sep  {{
+  height: 1px; background: var(--brd); margin: 5px 0;
+}}
+
 .unavail {{
   font-size: 12px; color: var(--dim); font-style: italic;
   padding: 10px 0;
@@ -1178,6 +1292,180 @@ def _build_struct_panel(struct_map, queries):
             f'</div></div>')
 
 
+def _build_stockholm_html(sto_data: dict) -> str:
+    """
+    Render a parsed Stockholm alignment as coloured HTML.
+
+    Colouring scheme (structure-conservation):
+      • SS_cons character determines *type* (stem vs loop vs insert)
+      • Per-column conservation (fraction of identical non-gap residues) 
+        determines *intensity* (hi / med / lo)
+      Stem positions: teal palette   (#29a696 → #b2e4e0)
+      Loop positions: green palette  (#4caf78 → #e0f0e8)
+      Insert columns: italic grey
+      Gap characters: pale grey, no background
+    """
+    if not sto_data:
+        return '<div class="unavail">Stockholm alignment file not found or empty.</div>'
+
+    seqs     = sto_data["sequences"]      # OrderedDict name→gapped_seq
+    ss_cons  = sto_data["ss_cons"]        # dot-bracket string
+    rf       = sto_data["rf"]             # RF consensus
+    col_cnt  = sto_data["col_count"]
+
+    if not seqs:
+        return '<div class="unavail">No sequences found in Stockholm file.</div>'
+
+    # ── per-column analysis ────────────────────────────────────────────────────
+    # Determine whether each column is a match column (upper in RF) or insert
+    # (lower in RF). If RF is absent, treat all as match columns.
+    is_match_col = []
+    for ci in range(col_cnt):
+        if rf and ci < len(rf):
+            is_match_col.append(rf[ci] != "-" and not rf[ci].islower())
+        else:
+            is_match_col.append(True)
+
+    # SS_cons column type: stem = paired ('(', ')', '<', '>', '[', ']', '{', '}', 'A'-'Z' pairs)
+    STEM_CHARS = set("()[]<>{}AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz")
+    def is_stem(ch: str) -> bool:
+        return ch in STEM_CHARS and ch not in ".,:_-"
+
+    def col_ss(ci: int) -> str:
+        if ss_cons and ci < len(ss_cons):
+            return ss_cons[ci]
+        return "."
+
+    # Per-column nucleotide conservation (ignoring gaps)
+    seq_list = list(seqs.values())
+    n_seqs   = len(seq_list)
+
+    def col_conservation(ci: int) -> float:
+        chars = [s[ci].upper() for s in seq_list
+                 if ci < len(s) and s[ci] not in ".-"]
+        if not chars:
+            return 0.0
+        freq: dict = {}
+        for ch in chars:
+            freq[ch] = freq.get(ch, 0) + 1
+        return max(freq.values()) / len(chars)
+
+    # Cache conservation scores (only for match columns, inserts get sc-ins)
+    con_cache = {}
+    for ci in range(col_cnt):
+        if is_match_col[ci]:
+            con_cache[ci] = col_conservation(ci)
+
+    def char_class(ci: int, ch: str) -> str:
+        """Return CSS class for one character in one column."""
+        if ch in ".-":
+            return "sc-gap"
+        if not is_match_col[ci] or (rf and ci < len(rf) and rf[ci].islower()):
+            return "sc-ins"
+        con = con_cache.get(ci, 0.0)
+        ss  = col_ss(ci)
+        if is_stem(ss):
+            if con >= 0.80: return "sc-stem-hi"
+            if con >= 0.50: return "sc-stem-med"
+            return "sc-stem-lo"
+        else:
+            if con >= 0.80: return "sc-loop-hi"
+            if con >= 0.50: return "sc-loop-med"
+            return "sc-loop-lo"
+
+    def ann_class(ch: str, ci: int) -> str:
+        if ch in ".-_,: ":
+            return "sc-ann-gap"
+        if rf and ci < len(rf) and rf[ci].islower():
+            return "sc-ann-ins"
+        if is_stem(ch):
+            return "sc-ann-stem"
+        return "sc-ann-loop"
+
+    # ── render rows ────────────────────────────────────────────────────────────
+    MAX_LBL = 44  # chars for name column (match .sto-name min-width)
+
+    def render_seq(gapped: str, is_ann: bool = False, ann_type: str = "seq") -> str:
+        spans = []
+        for ci, ch in enumerate(gapped):
+            if is_ann:
+                cls = ann_class(ch, ci)
+            else:
+                cls = char_class(ci, ch)
+            spans.append(f'<span class="{cls}">{ch}</span>')
+        return "".join(spans)
+
+    rows_html = []
+
+    # Sequence rows
+    for name, gapped in seqs.items():
+        lbl      = name[:MAX_LBL]
+        seq_html = render_seq(gapped)
+        rows_html.append(
+            f'<div class="sto-row">'
+            f'<span class="sto-name" title="{name}">{lbl}</span>'
+            f'<span class="sto-seq">{seq_html}</span>'
+            f'</div>'
+        )
+
+    # Separator before annotation rows
+    rows_html.append('<div class="sto-sep"></div>')
+
+    # SS_cons row
+    if ss_cons:
+        ss_html = render_seq(ss_cons, is_ann=True, ann_type="ss")
+        rows_html.append(
+            f'<div class="sto-row">'
+            f'<span class="sto-name ann">#=GC SS_cons{" " * (MAX_LBL - 11)}</span>'
+            f'<span class="sto-seq">{ss_html}</span>'
+            f'</div>'
+        )
+
+    # RF row
+    if rf:
+        rf_html = render_seq(rf, is_ann=True, ann_type="rf")
+        rows_html.append(
+            f'<div class="sto-row">'
+            f'<span class="sto-name ann">#=GC RF{" " * (MAX_LBL - 7)}</span>'
+            f'<span class="sto-seq">{rf_html}</span>'
+            f'</div>'
+        )
+
+    # ── legend ─────────────────────────────────────────────────────────────────
+    legend_items = [
+        ("sc-stem-hi",  "Stem, high conservation"),
+        ("sc-stem-med", "Stem, moderate"),
+        ("sc-stem-lo",  "Stem, low"),
+        ("sc-loop-hi",  "Loop, high conservation"),
+        ("sc-loop-med", "Loop, moderate"),
+        ("sc-loop-lo",  "Loop, low"),
+        ("sc-ins",      "Insert column"),
+        ("sc-gap",      "Gap"),
+    ]
+    swatch_html = "".join(
+        f'<span class="sto-legend-item">'
+        f'<span class="sto-swatch {cls}">{"A" if "gap" not in cls and "ins" not in cls else "-"}</span>'
+        f'<span>{lbl}</span>'
+        f'</span>'
+        for cls, lbl in legend_items
+    )
+
+    n_seq    = len(seqs)
+    n_col    = col_cnt
+    n_match  = sum(1 for x in is_match_col if x)
+
+    return f"""
+<div class="sto-wrap">
+  <div style="font-family:var(--mono);font-size:9px;color:var(--dim);
+              letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;">
+    Stockholm alignment — {n_seq} sequence{"s" if n_seq!=1 else ""},
+    {n_col} alignment columns ({n_match} match, {n_col-n_match} insert)
+  </div>
+  <div class="sto-legend">{swatch_html}</div>
+  <div class="sto-block">{"".join(rows_html)}</div>
+</div>"""
+
+
 def _build_cmsearch_panel(
     cm_results: List[CmsearchResult],
     raw_out: str = "",
@@ -1185,23 +1473,28 @@ def _build_cmsearch_panel(
     sto_path: str = "",
     cm_file: str = "",
     output_dir: str = ".",
+    sto_data: Optional[dict] = None,
 ) -> str:
-    """Build the full cmsearch HTML panel with hits table, file chips, and log viewer."""
+    """Build the full cmsearch HTML panel: command, file chips, hits table,
+    coloured Stockholm alignment, and collapsible raw log."""
 
     n_hits = len(cm_results)
 
-    # ── command display ────────────────────────────────────────────────────────
-    tblout_disp = os.path.join(output_dir, "patent_cmsearch.tblout")
-    sto_disp    = os.path.join(output_dir, "patent_cmsearch.sto")
-    out_disp    = os.path.join(output_dir, "patent_cmsearch.out")
+    # ── sanitized display names (NO absolute paths in report) ─────────────────
+    cm_base  = _sanitize_path(cm_file)  or "&lt;model.cm&gt;"
+    out_base = "patent_cmsearch.out"
+    tbl_base = "patent_cmsearch.tblout"
+    sto_base = "patent_cmsearch.sto"
+
+    # ── command display (filenames only) ──────────────────────────────────────
     cm_cmd_html = (
         f'<span class="cm-bin">cmsearch</span>'
         f' <span class="cm-flag">--notextw</span>'
         f' <span class="cm-flag">-T</span> <span class="cm-val">1000</span>'
-        f' <span class="cm-flag">-A</span> <span class="cm-val">{sto_disp}</span>'
-        f' <span class="cm-flag">-o</span> <span class="cm-val">{out_disp}</span>'
-        f' <span class="cm-flag">--tblout</span> <span class="cm-val">{tblout_disp}</span>'
-        f' <span class="cm-val">{cm_file or "&lt;model.cm&gt;"}</span>'
+        f' <span class="cm-flag">-A</span> <span class="cm-val">{sto_base}</span>'
+        f' <span class="cm-flag">-o</span> <span class="cm-val">{out_base}</span>'
+        f' <span class="cm-flag">--tblout</span> <span class="cm-val">{tbl_base}</span>'
+        f' <span class="cm-val">{cm_base}</span>'
         f' <span class="cm-val">&lt;queries.fa&gt;</span>'
     )
 
@@ -1213,15 +1506,16 @@ def _build_cmsearch_panel(
                 f'<span class="chip-name">{name}</span></div></div>')
 
     files_html = (
-        chip("📄", "Human-readable output (-o)", os.path.basename(out_disp)) +
-        chip("📋", "Tabular hits (--tblout)",    os.path.basename(tblout_disp)) +
-        chip("🧬", "Stockholm alignment (-A)",   os.path.basename(sto_disp))
+        chip("📄", "Human-readable output (-o)",  out_base) +
+        chip("📋", "Tabular hits (--tblout)",      tbl_base) +
+        chip("🧬", "Stockholm alignment (-A)",     sto_base)
     )
 
     # ── hits table ─────────────────────────────────────────────────────────────
     if not cm_results:
-        hits_html = '<div class="cm-no-hits">No hits reported (score threshold: 1000). ' \
-                    'All queries scored below the threshold.</div>'
+        hits_html = ('<div class="cm-no-hits">No hits reported '
+                     '(score threshold: <code>-T 1000</code>). '
+                     'All queries scored below the threshold.</div>')
     else:
         def score_cls(s):
             if s >= 500: return "cm-score-hi"
@@ -1263,17 +1557,38 @@ def _build_cmsearch_panel(
             f'<tbody>{rows}</tbody></table></div></div>'
         )
 
+    # ── Stockholm alignment viewer ─────────────────────────────────────────────
+    sto_section = ""
+    if sto_data:
+        sto_inner = _build_stockholm_html(sto_data)
+        sto_section = f"""
+<div style="margin-top:28px;">
+  <div class="sec-title" style="padding-top:0;border-top:none;margin-bottom:4px;">
+    Stockholm alignment — structure-conservation colouring
+  </div>
+  <p style="font-size:11px;color:var(--dim);margin-bottom:10px;">
+    Colours reflect per-column nucleotide conservation within each structural
+    category (stem vs loop) as annotated by <code>SS_cons</code>.
+    Teal = stem (Watson-Crick paired); green = loop/unpaired; italic grey = insert column.
+  </p>
+  {sto_inner}
+</div>"""
+
     # ── log viewer ─────────────────────────────────────────────────────────────
     log_html = ""
     if raw_out:
-        escaped = (raw_out
+        # Strip all absolute paths — replace /any/path/to/filename.ext with filename.ext
+        # Also strip Windows-style absolute paths C:\...\file
+        sanitized_log = re.sub(r'(?:[A-Za-z]:\\|/)(?:[^\s/\\]+[/\\])+([^\s/\\]+)',
+                               r'\1', raw_out)
+        escaped = (sanitized_log
                    .replace("&", "&amp;")
                    .replace("<", "&lt;")
                    .replace(">", "&gt;"))
         log_html = (
             f'<div class="cm-log-toggle" onclick="toggleLog(this)">'
             f'  <span class="log-arrow">▾</span>'
-            f'  View full cmsearch log ({os.path.basename(out_disp)})'
+            f'  View full cmsearch log ({out_base})'
             f'</div>'
             f'<pre class="cm-log">{escaped}</pre>'
         )
@@ -1292,7 +1607,7 @@ def _build_cmsearch_panel(
         f'</div>'
 
         f'<div style="margin-bottom:8px;font-size:11px;color:var(--dim);">'
-        f'Output files written to <code>{output_dir}/</code>:</div>'
+        f'Output files written alongside the HTML report:</div>'
         f'<div class="cm-files">{files_html}</div>'
 
         f'<div class="sec-title" style="padding-top:0;border-top:none;margin-bottom:10px;">'
@@ -1300,7 +1615,9 @@ def _build_cmsearch_panel(
         f'(score threshold: <code>-T 1000</code>)</div>'
         f'{hits_html}'
 
-        f'{log_html}'
+        f'{sto_section}'
+
+        f'<div style="margin-top:28px;">{log_html}</div>'
 
         f'</div></div>'
     )
@@ -1344,6 +1661,7 @@ def generate_html(
         cm_badge = f'<span class="badge bn">{n_cm}</span>'
         cm_tab = (f'<button class="tab" onclick="showTab(\'cm\',this)">'
                   f'CM alignment {cm_badge}</button>')
+        sto_data = parse_stockholm(cm_sto) if cm_sto else None
         cm_panel = _build_cmsearch_panel(
             cm_results,
             raw_out=cm_raw_out,
@@ -1351,6 +1669,7 @@ def generate_html(
             sto_path=cm_sto,
             cm_file=cm_file,
             output_dir=cm_output_dir,
+            sto_data=sto_data,
         )
 
     return _HTML.format(
@@ -1386,6 +1705,8 @@ def main():
     p.add_argument("--output",      default="patent_alignment_report.html")
     p.add_argument("--threshold",   type=float, default=0.80)
     p.add_argument("--cm",          help="Infernal covariance-model file (.cm)")
+    p.add_argument("--sto",         help="Pre-existing Stockholm alignment (.sto) to include "
+                                         "in the CM panel without re-running cmsearch")
     p.add_argument("--no-html",     action="store_true")
     p.add_argument("--no-msa",      action="store_true")
     p.add_argument("--no-rnafold",  action="store_true")
@@ -1433,6 +1754,12 @@ def main():
         if result_tuple:
             cm_results, cm_raw_out, cm_tblout, cm_sto = result_tuple
             print(f"  {len(cm_results)} cmsearch hit(s) found.")
+
+    # --sto: load a pre-existing Stockholm file (overrides the one from cmsearch)
+    if args.sto:
+        cm_sto = args.sto
+        if cm_results is None:
+            cm_results = []   # enable the CM panel even without running cmsearch
 
     if not args.no_html:
         html = generate_html(
