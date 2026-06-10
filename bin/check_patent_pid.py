@@ -1,36 +1,6 @@
 #!/usr/bin/env python3
 """
 checkPatent.py — Alignment checker against patent WO2026038929A1 sequences.
-
-Sequence alignment  : Pure-Python Smith-Waterman (no BLAST needed).
-                      If Biopython is installed (pip install biopython) the
-                      parasail or pairwise2 backend is used automatically.
-Secondary structure : RNAfold  (ViennaRNA) for dot-bracket prediction.
-                      cmsearch (Infernal) for covariance-model alignment if a
-                      .cm model file is supplied via --cm.
-Multiple alignment  : MAFFT (optional, for the MSA section in the report).
-
-Requirements (all optional — the script degrades gracefully):
-  mafft          — apt/brew install mafft
-  RNAfold        — apt/brew install vienna-rna
-  cmsearch       — apt/brew install infernal
-  biopython      — pip install biopython   (faster SW kernel)
-
-Usage:
-    python checkPatent.py <query_seq> [query_seq2 ...]
-    python checkPatent.py --fasta queries.fa
-    python checkPatent.py --seqs "SEQ1,SEQ2" --names "name1,name2"
-
-Options:
-    --fasta FILE        Read query sequences from a FASTA file
-    --seqs  STR         Comma-separated sequences
-    --names STR         Comma-separated names for --seqs (optional)
-    --output FILE       HTML report output path (default: patent_alignment_report.html)
-    --threshold FLOAT   Identity threshold (default: 0.80)
-    --cm FILE           Infernal covariance-model file (.cm) for cmsearch
-    --no-html           Skip HTML report generation
-    --no-msa            Skip MAFFT MSA section in HTML (faster)
-    --no-rnafold        Skip RNAfold secondary-structure prediction
 """
 
 import sys
@@ -44,7 +14,6 @@ import re
 from dataclasses import dataclass, field
 from typing import List, Tuple, Optional, Dict
 
-# ─── Patent sequences (WO2026038929A1) ────────────────────────────────────────
 PATENT_SEQUENCES = [
     {"id": "A7_30nt", "start": 9651, "end": 9680, "seq": "CAGACCCTGGTCCGGGGCAATGGGACCACT"},
     {"id": "A7_32nt", "start": 9650, "end": 9681, "seq": "TCAGACCCTGGTCCGGGGCAAATGGGACCACTG"},
@@ -58,24 +27,16 @@ PATENT_SEQUENCES = [
 PATENT_ID  = "WO2026038929A1"
 PATENT_URL = "https://patents.google.com/patent/WO2026038929A1/en"
 
-# ─── Smith-Waterman (pure Python, no external deps) ──────────────────────────
 MATCH    =  2
 MISMATCH = -1
 GAP_OPEN = -2
-GAP_EXT  = -1   # (affine gaps not implemented in pure-Python fallback; used as gap penalty per position)
+GAP_EXT  = -1
 
 
-def _sw_pure(seq_a: str, seq_b: str) -> Tuple[str, str, str, int, int, int, int]:
-    """
-    Pure-Python Smith-Waterman.
-    Returns (aligned_a, aligned_b, midline, score, a_start, b_start, matches).
-    Coordinates are 0-based inclusive start of the local alignment in the
-    *original* (ungapped) sequences.
-    """
+def _sw_pure(seq_a, seq_b):
     a, b = seq_a.upper(), seq_b.upper()
     m, n = len(a), len(b)
     H = [[0] * (n + 1) for _ in range(m + 1)]
-
     best_score, best_i, best_j = 0, 0, 0
     for i in range(1, m + 1):
         for j in range(1, n + 1):
@@ -86,8 +47,6 @@ def _sw_pure(seq_a: str, seq_b: str) -> Tuple[str, str, str, int, int, int, int]
             if H[i][j] > best_score:
                 best_score = H[i][j]
                 best_i, best_j = i, j
-
-    # Traceback
     al_a, al_b, al_mid = [], [], []
     i, j = best_i, best_j
     while i > 0 and j > 0 and H[i][j] > 0:
@@ -103,20 +62,17 @@ def _sw_pure(seq_a: str, seq_b: str) -> Tuple[str, str, str, int, int, int, int]
             al_a.append(a[i-1]); al_b.append("-"); al_mid.append(" "); i -= 1
         else:
             al_a.append("-"); al_b.append(b[j-1]); al_mid.append(" "); j -= 1
-
     al_a.reverse(); al_b.reverse(); al_mid.reverse()
     aligned_a = "".join(al_a)
     aligned_b = "".join(al_b)
     midline   = "".join(al_mid)
     matches   = midline.count("|")
-    # 1-based start of aligned region
     a_start = best_i - len(aligned_a.replace("-", "")) + 1
     b_start = best_j - len(aligned_b.replace("-", "")) + 1
     return aligned_a, aligned_b, midline, best_score, a_start, b_start, matches
 
 
-def _sw_biopython(seq_a: str, seq_b: str):
-    """Use Biopython's pairwise2 as a faster SW backend."""
+def _sw_biopython(seq_a, seq_b):
     from Bio import pairwise2
     alns = pairwise2.align.localms(seq_a.upper(), seq_b.upper(),
                                    MATCH, MISMATCH, GAP_OPEN, GAP_EXT)
@@ -133,7 +89,7 @@ def _sw_biopython(seq_a: str, seq_b: str):
     return a_aln, b_aln, midline, int(best.score), max(1, a_start), max(1, b_start), matches
 
 
-def smith_waterman(seq_a: str, seq_b: str):
+def smith_waterman(seq_a, seq_b):
     try:
         result = _sw_biopython(seq_a, seq_b)
         if result:
@@ -143,7 +99,6 @@ def smith_waterman(seq_a: str, seq_b: str):
     return _sw_pure(seq_a, seq_b)
 
 
-# ─── Alignment data class ─────────────────────────────────────────────────────
 @dataclass
 class AlignmentResult:
     query_name: str
@@ -174,35 +129,35 @@ class AlignmentResult:
 class StructureResult:
     name:      str
     seq:       str
-    structure: str          # dot-bracket
-    mfe:       float        # kcal/mol
-    error:     str = ""     # if RNAfold failed
+    structure: str
+    mfe:       float
+    error:     str = ""
 
 
 @dataclass
 class CmsearchResult:
-    query_name: str
-    target_seq: str    # patent seq id
-    score:      float
-    evalue:     str
-    gc:         float
-    alignment:  str    # raw text block from cmsearch --noali stripped output
+    query_name:  str
+    target_name: str
+    target_accession: str
+    score:       float
+    evalue:      str
+    bias:        float
+    strand:      str
+    seq_from:    int
+    seq_to:      int
+    gc:          float
+    description: str
+    alignment:   str = ""
 
 
-# ─── Smith-Waterman runner ────────────────────────────────────────────────────
-def run_all_sw(
-    queries: List[Tuple[str, str]],
-    threshold: float = 0.80,
-) -> List[AlignmentResult]:
+def run_all_sw(queries, threshold=0.80):
     results = []
     for query_name, query_seq in queries:
         for pat in PATENT_SEQUENCES:
             qs, rs = query_seq.upper(), pat["seq"].upper()
             shorter = min(len(qs), len(rs))
             longer  = max(len(qs), len(rs))
-
             al_q, al_r, midline, score, q_s, r_s, matches = smith_waterman(qs, rs)
-
             aln_len    = len(al_q)
             gaps       = al_q.count("-") + al_r.count("-")
             mismatches = aln_len - matches - gaps
@@ -211,7 +166,6 @@ def run_all_sw(
             id_longer  = matches / longer   if longer   else 0.0
             q_end = q_s + len(al_q.replace("-", "")) - 1
             r_end = r_s + len(al_r.replace("-", "")) - 1
-
             results.append(AlignmentResult(
                 query_name=query_name, query_seq=qs,
                 ref_name=pat["id"], ref_seq=rs,
@@ -232,9 +186,7 @@ def run_all_sw(
     return results
 
 
-# ─── RNAfold secondary structure ─────────────────────────────────────────────
-def _rnafold_one(name: str, seq: str) -> StructureResult:
-    """Run RNAfold on a single sequence. Returns dot-bracket + MFE."""
+def _rnafold_one(name, seq):
     if shutil.which("RNAfold") is None:
         return StructureResult(name=name, seq=seq, structure="", mfe=0.0,
                                error="RNAfold not found on PATH")
@@ -248,24 +200,18 @@ def _rnafold_one(name: str, seq: str) -> StructureResult:
             return StructureResult(name=name, seq=seq, structure="", mfe=0.0,
                                    error=r.stderr.strip())
         lines = [l for l in r.stdout.splitlines() if l.strip()]
-        # Output: >name / sequence / structure  (mfe)
         struct_line = lines[-1] if lines else ""
         m = re.match(r'^([().]+)\s+\(?\s*(-?[\d.]+)', struct_line)
         if m:
             return StructureResult(name=name, seq=seq,
                                    structure=m.group(1),
                                    mfe=float(m.group(2)))
-        return StructureResult(name=name, seq=seq, structure=struct_line,
-                               mfe=0.0)
+        return StructureResult(name=name, seq=seq, structure=struct_line, mfe=0.0)
     except Exception as e:
-        return StructureResult(name=name, seq=seq, structure="", mfe=0.0,
-                               error=str(e))
+        return StructureResult(name=name, seq=seq, structure="", mfe=0.0, error=str(e))
 
 
-def run_rnafold(
-    queries: List[Tuple[str, str]],
-) -> Dict[str, StructureResult]:
-    """Returns {name: StructureResult} for queries + all patent seqs."""
+def run_rnafold(queries):
     results = {}
     all_seqs = list(queries) + [(p["id"], p["seq"]) for p in PATENT_SEQUENCES]
     for name, seq in all_seqs:
@@ -273,62 +219,130 @@ def run_rnafold(
     return results
 
 
-# ─── cmsearch (Infernal) ──────────────────────────────────────────────────────
-def run_cmsearch(
-    queries: List[Tuple[str, str]],
-    cm_file: str,
-) -> List[CmsearchResult]:
+def _parse_tblout(tblout_path: str) -> List[dict]:
+    """Parse Infernal tblout format into list of hit dicts."""
+    hits = []
+    if not os.path.exists(tblout_path):
+        return hits
+    with open(tblout_path) as fh:
+        for line in fh:
+            if line.startswith("#") or not line.strip():
+                continue
+            # tblout columns (space-separated, description may contain spaces):
+            # target_name  accession  query_name  accession  mdl  mdl_from  mdl_to
+            # seq_from  seq_to  strand  trunc  pass  gc  bias  score  E-value  inc  description...
+            parts = line.split()
+            if len(parts) < 17:
+                continue
+            try:
+                hits.append({
+                    "target_name":       parts[0],
+                    "target_accession":  parts[1],
+                    "query_name":        parts[2],
+                    "query_accession":   parts[3],
+                    "mdl":               parts[4],
+                    "mdl_from":          int(parts[5]),
+                    "mdl_to":            int(parts[6]),
+                    "seq_from":          int(parts[7]),
+                    "seq_to":            int(parts[8]),
+                    "strand":            parts[9],
+                    "trunc":             parts[10],
+                    "pass_":             parts[11],
+                    "gc":                float(parts[12]),
+                    "bias":              float(parts[13]),
+                    "score":             float(parts[14]),
+                    "evalue":            parts[15],
+                    "inc":               parts[16],
+                    "description":       " ".join(parts[17:]) if len(parts) > 17 else "",
+                })
+            except (ValueError, IndexError):
+                continue
+    return hits
+
+
+def run_cmsearch(queries, cm_file, output_dir="."):
     """
-    Run cmsearch with the user-supplied .cm file against a FASTA of the patent
-    sequences. Each query is run separately so we can track names.
+    Run cmsearch for each query against patent sequences.
+
+    Parameters
+    ----------
+    queries    : list of (name, seq) tuples
+    cm_file    : path to Infernal .cm file
+    output_dir : directory where persistent output files are written
+
+    Persistent output files (in output_dir):
+      patent_cmsearch.out     — full human-readable cmsearch output  (-o)
+      patent_cmsearch.tblout  — tabular hits                         (--tblout)
+      patent_cmsearch.sto     — Stockholm alignment of all hits      (-A)
     """
     if shutil.which("cmsearch") is None:
-        print("Warning: cmsearch not found on PATH — skipping CM alignment.",
-              file=sys.stderr)
+        print("Warning: cmsearch not found on PATH — skipping CM alignment.", file=sys.stderr)
         return []
-    results = []
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Write patent seqs as subject FASTA
-        sub_fa = os.path.join(tmpdir, "patent.fa")
-        with open(sub_fa, "w") as fh:
-            for p in PATENT_SEQUENCES:
-                fh.write(f">{p['id']}\n{p['seq']}\n")
 
-        for qname, qseq in queries:
-            qfa = os.path.join(tmpdir, "query.fa")
-            with open(qfa, "w") as fh:
+    os.makedirs(output_dir, exist_ok=True)
+    out_file    = os.path.join(output_dir, "patent_cmsearch.out")
+    tblout_file = os.path.join(output_dir, "patent_cmsearch.tblout")
+    sto_file    = os.path.join(output_dir, "patent_cmsearch.sto")
+
+    results: List[CmsearchResult] = []
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Build a single FASTA of all query sequences
+        query_fa = os.path.join(tmpdir, "queries.fa")
+        with open(query_fa, "w") as fh:
+            for qname, qseq in queries:
                 fh.write(f">{qname}\n{qseq}\n")
 
-            out = os.path.join(tmpdir, "cm_out.txt")
-            cmd = ["cmsearch", "--notextw", "-o", out, cm_file, qfa]
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-            if r.returncode != 0:
-                print(f"cmsearch error for {qname}:\n{r.stderr}", file=sys.stderr)
-                continue
+        cmd = [
+            "cmsearch",
+            "--notextw",
+            "-T",      "1000",          # score threshold (report all hits with score >= 1000)
+            "-A",      sto_file,        # Stockholm alignment output
+            "-o",      out_file,        # human-readable output
+            "--tblout", tblout_file,    # tabular output
+            cm_file,
+            query_fa,
+        ]
+        print(f"  cmsearch command: {' '.join(cmd)}", file=sys.stderr)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if r.returncode != 0:
+            print(f"cmsearch error:\n{r.stderr}", file=sys.stderr)
+            # Still attempt to parse any partial tblout
+        else:
+            print(f"  cmsearch output → {out_file}", file=sys.stderr)
+            print(f"  tblout          → {tblout_file}", file=sys.stderr)
+            print(f"  Stockholm aln   → {sto_file}", file=sys.stderr)
 
-            # Parse tabular hits from the text output
+        # Parse tblout for structured results
+        hits = _parse_tblout(tblout_file)
+        for h in hits:
+            results.append(CmsearchResult(
+                query_name=h["query_name"],
+                target_name=h["target_name"],
+                target_accession=h["target_accession"],
+                score=h["score"],
+                evalue=h["evalue"],
+                bias=h["bias"],
+                strand=h["strand"],
+                seq_from=h["seq_from"],
+                seq_to=h["seq_to"],
+                gc=h["gc"],
+                description=h["description"],
+            ))
+
+        # Attach raw out-file text for the HTML log viewer
+        raw_out = ""
+        if os.path.exists(out_file):
             try:
-                with open(out) as fh:
-                    raw = fh.read()
-                for m in re.finditer(
-                    r'^\s*\d+\s+[\?\!]\s+(\S+)\s+\S+\s+(\S+)\s+(\S+)\s+\S+\s+\S+\s+\S+\s+(\S+)',
-                    raw, re.MULTILINE
-                ):
-                    results.append(CmsearchResult(
-                        query_name=qname,
-                        target_seq=m.group(1),
-                        score=float(m.group(2)),
-                        evalue=m.group(3),
-                        gc=float(m.group(4)) if m.group(4) != "-" else 0.0,
-                        alignment="",
-                    ))
-            except Exception as e:
-                print(f"cmsearch parse error: {e}", file=sys.stderr)
-    return results
+                with open(out_file) as fh:
+                    raw_out = fh.read()
+            except Exception:
+                pass
+
+    return results, raw_out, tblout_file, sto_file
 
 
-# ─── MAFFT MSA ────────────────────────────────────────────────────────────────
-def run_mafft(sequences: List[Tuple[str, str]]) -> Optional[List[Tuple[str, str]]]:
+def run_mafft(sequences):
     if len(sequences) < 2 or shutil.which("mafft") is None:
         return None
     try:
@@ -356,8 +370,7 @@ def run_mafft(sequences: List[Tuple[str, str]]) -> Optional[List[Tuple[str, str]
         return None
 
 
-# ─── FASTA parser ─────────────────────────────────────────────────────────────
-def parse_fasta(path: str) -> List[Tuple[str, str]]:
+def parse_fasta(path):
     seqs, name, seq = [], None, []
     with open(path) as fh:
         for line in fh:
@@ -373,8 +386,7 @@ def parse_fasta(path: str) -> List[Tuple[str, str]]:
     return seqs
 
 
-# ─── Terminal report ──────────────────────────────────────────────────────────
-def print_report(results: List[AlignmentResult], threshold: float):
+def print_report(results, threshold):
     queries = list(dict.fromkeys(r.query_name for r in results))
     print(f"\n{'='*80}")
     print(f"  Patent alignment report — {PATENT_ID}")
@@ -387,13 +399,11 @@ def print_report(results: List[AlignmentResult], threshold: float):
         flag = "⚠ ABOVE THRESHOLD" if best.above_threshold else "✓ below threshold"
         print(f"Query: {qname}  [{flag}]")
         print(f"  Seq : {best.query_seq[:70]}{'...' if len(best.query_seq)>70 else ''}")
-        print(f"  Best match → {best.ref_name}  "
-              f"(genome {best.ref_genome_start}-{best.ref_genome_end})")
+        print(f"  Best match → {best.ref_name}  (genome {best.ref_genome_start}-{best.ref_genome_end})")
         if best.no_hit:
             print("    No alignment found.\n"); continue
         print(f"    SW score                 : {best.sw_score:.1f}")
-        print(f"    Aligned region           : "
-              f"query[{best.q_start}:{best.q_end}] vs ref[{best.r_start}:{best.r_end}]  (1-based)")
+        print(f"    Aligned region           : query[{best.q_start}:{best.q_end}] vs ref[{best.r_start}:{best.r_end}]  (1-based)")
         print(f"    Matches / Mismatches / Gaps: {best.matches} / {best.mismatches} / {best.gaps}")
         print(f"    Identity (/ aln length)  : {best.identity_over_alignment*100:.1f}%")
         print(f"    Identity (/ shorter seq) : {best.identity_over_shorter*100:.1f}%")
@@ -403,23 +413,18 @@ def print_report(results: List[AlignmentResult], threshold: float):
             print(f"    Qry  {best.aligned_query[k:k+w]}")
             print(f"         {best.midline[k:k+w]}")
             print(f"    Ref  {best.aligned_ref[k:k+w]}\n")
-        print(f"  {'Patent seq':<12} {'SW score':>10}  {'Id/aln':>7}  "
-              f"{'Id/short':>9}  {'Id/long':>9}")
+        print(f"  {'Patent seq':<12} {'SW score':>10}  {'Id/aln':>7}  {'Id/short':>9}  {'Id/long':>9}")
         print(f"  {'-'*55}")
         for r in sorted(grp, key=lambda x: x.identity_over_shorter, reverse=True):
             marker = " ⚠" if r.above_threshold else ""
             if r.no_hit:
                 print(f"  {r.ref_name:<12} {'(no hit)':>10}  {'0.0%':>7}  {'0.0%':>9}  {'0.0%':>9}")
             else:
-                print(f"  {r.ref_name:<12} {r.sw_score:>10.1f}  "
-                      f"{r.identity_over_alignment*100:>6.1f}%  "
-                      f"{r.identity_over_shorter*100:>8.1f}%  "
-                      f"{r.identity_over_longer*100:>8.1f}%{marker}")
+                print(f"  {r.ref_name:<12} {r.sw_score:>10.1f}  {r.identity_over_alignment*100:>6.1f}%  {r.identity_over_shorter*100:>8.1f}%  {r.identity_over_longer*100:>8.1f}%{marker}")
         print()
 
 
-# ─── HTML helpers ─────────────────────────────────────────────────────────────
-def _build_seq_html(seq: str, aln_start: int, aln_end: int) -> str:
+def _build_seq_html(seq, aln_start, aln_end):
     parts = []
     for i, nt in enumerate(seq, start=1):
         cls = "nt-hi" if aln_start <= i <= aln_end else "nt-dim"
@@ -427,7 +432,7 @@ def _build_seq_html(seq: str, aln_start: int, aln_end: int) -> str:
     return "".join(parts)
 
 
-def _build_aln_html(aq: str, ar: str, midline: str, chunk: int = 60) -> str:
+def _build_aln_html(aq, ar, midline, chunk=60):
     blocks = []
     for k in range(0, len(aq), chunk):
         qa = aq[k:k+chunk]; ra = ar[k:k+chunk]; mid = midline[k:k+chunk]
@@ -451,8 +456,7 @@ def _build_aln_html(aq: str, ar: str, midline: str, chunk: int = 60) -> str:
     return "\n".join(blocks)
 
 
-def _dot_bracket_html(struct: str, seq: str) -> str:
-    """Colour dot-bracket: ( and ) paired (blue), . unpaired (grey), seq below."""
+def _dot_bracket_html(struct, seq):
     s_html = ""
     for ch in struct:
         if ch == "(":   s_html += f'<span class="db-op">{ch}</span>'
@@ -465,7 +469,7 @@ def _dot_bracket_html(struct: str, seq: str) -> str:
             f'<div class="db-line db-seq">{seq_html}</div>')
 
 
-def _structure_card(sr: StructureResult) -> str:
+def _structure_card(sr):
     if sr.error:
         return (f'<div class="struct-card struct-err">'
                 f'<div class="sc-name">{sr.name}</div>'
@@ -483,10 +487,41 @@ def _build_msa_html(query_name: str, query_seq: str) -> str:
     if not aligned:
         return ("<div class='unavail'>MAFFT not available — install with "
                 "<code>apt install mafft</code> or <code>brew install mafft</code>.</div>")
-    lines = [f"{name:<16}  {gapped}" for name, gapped in aligned]
+
+    MAX_LBL = 16
+    labels  = [name[:MAX_LBL].ljust(MAX_LBL) for name, _ in aligned]
+    seqs_al = [gapped for _, gapped in aligned]
+    col_len = max(len(s) for s in seqs_al) if seqs_al else 0
+
+    consensus = []
+    for ci in range(col_len):
+        chars = [s[ci].upper() for s in seqs_al if ci < len(s) and s[ci] != "-"]
+        if not chars:
+            consensus.append(None); continue
+        freq: dict = {}
+        for ch in chars: freq[ch] = freq.get(ch, 0) + 1
+        consensus.append(max(freq, key=freq.get))
+
+    NT_CLS = {"A": "msa-A", "T": "msa-T", "U": "msa-T", "G": "msa-G", "C": "msa-C"}
+    lines_html = []
+    for lbl, gapped in zip(labels, seqs_al):
+        spans = []
+        for ci, ch in enumerate(gapped):
+            if ch == "-":
+                spans.append('<span class="msa-gap">-</span>')
+            else:
+                nc = NT_CLS.get(ch.upper(), "msa-nt")
+                if consensus[ci] and ch.upper() == consensus[ci]:
+                    spans.append(f'<span class="msa-match {nc}">{ch}</span>')
+                else:
+                    spans.append(f'<span class="msa-mism {nc}">{ch}</span>')
+        lines_html.append(
+            f'<div class="msa-row"><span class="msa-lbl">{lbl}</span>'
+            f'<span class="msa-seq">{"".join(spans)}</span></div>'
+        )
     return ('<div class="section-block">'
             '<div class="sec-title">Multiple-sequence alignment (MAFFT)</div>'
-            '<div class="aln-block pre">' + "\n".join(lines) + "</div></div>")
+            '<div class="msa-block">' + '\n'.join(lines_html) + '</div></div>')
 
 
 def _heatmap_row_color(pct: float) -> str:
@@ -528,7 +563,6 @@ def _build_query_section(
     def mvc(v: float) -> str:
         return "red" if v >= threshold else "green"
 
-    # ── alignment block
     if best.no_hit:
         aln_html = "<div class='unavail'>No alignment found.</div>"
         full_q = f'<span class="nt-dim">{best.query_seq}</span>'
@@ -551,7 +585,6 @@ def _build_query_section(
   </div>
 </div>"""
 
-    # ── per-ref table rows
     rows = ""
     for r in sorted(grp, key=lambda x: x.identity_over_shorter, reverse=True):
         is_best = ' class="best-row"' if r.ref_name == best.ref_name else ""
@@ -571,7 +604,6 @@ def _build_query_section(
               <td><div class="bar-bg"><div class="bar-fg" style="width:{bw}%;background:{bc}"></div></div></td>
               <td class="dim">{r.matches}/{r.mismatches}/{r.gaps}</td></tr>"""
 
-    # ── secondary structure section
     struct_html = ""
     if struct_map:
         query_sr = struct_map.get(best.query_name)
@@ -679,7 +711,6 @@ code {{ font-family: var(--mono); font-size: 0.9em; background: var(--sur2);
 .mono {{ font-family: var(--mono); }}
 .dim  {{ color: var(--dim); }}
 
-/* ── Header ─────────────────────────────────────────────────── */
 header {{
   background: var(--sur);
   border-bottom: 1px solid var(--brd);
@@ -702,7 +733,6 @@ h1 {{
 }}
 .hdr-meta span {{ display: flex; align-items: center; gap: 4px; }}
 
-/* ── Summary bar ─────────────────────────────────────────────── */
 .sumbar {{
   display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   border-bottom: 1px solid var(--brd);
@@ -721,7 +751,6 @@ h1 {{
 .sv.warn   {{ color: #b45309; }}
 .sk {{ color: var(--dim); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }}
 
-/* ── Tabs ────────────────────────────────────────────────────── */
 .tabs {{
   display: flex; background: var(--sur);
   border-bottom: 2px solid var(--brd); padding: 0 24px;
@@ -742,12 +771,11 @@ h1 {{
 }}
 .bd {{ background: #fee2e2; color: var(--danger); }}
 .bk {{ background: #dcfce7; color: var(--ok); }}
+.bn {{ background: #e0e7ff; color: #3730a3; }}
 
-/* ── Panels ──────────────────────────────────────────────────── */
 .pnl {{ display: none; }}
 .pnl.on {{ display: block; }}
 
-/* ── Query section ───────────────────────────────────────────── */
 .qs {{
   margin: 20px 28px;
   border: 1px solid var(--brd);
@@ -781,7 +809,6 @@ h1 {{
 .qb {{ display: none; }}
 .qb.open {{ display: block; }}
 
-/* ── Seq bar ─────────────────────────────────────────────────── */
 .seq-bar {{
   padding: 12px 18px; background: var(--sur2);
   border-bottom: 1px solid var(--brd);
@@ -790,7 +817,6 @@ h1 {{
 .seq-label {{ min-width: 96px; color: var(--dim); font-size: 11px; }}
 .seq-val {{ font-size: 12.5px; word-break: break-all; flex: 1; line-height: 1.8; }}
 
-/* ── Callout ─────────────────────────────────────────────────── */
 .callout {{
   margin: 16px 18px;
   border: 1px solid #bfdbfe;
@@ -819,7 +845,6 @@ h1 {{
 .mv.accent  {{ color: var(--acc); }}
 .mv.neutral {{ color: var(--txt); }}
 
-/* ── Section blocks ──────────────────────────────────────────── */
 .section-block {{ margin: 0 18px 20px; }}
 .sec-title {{
   font-family: var(--mono); font-size: 9px; color: var(--dim);
@@ -827,7 +852,6 @@ h1 {{
   padding-top: 16px; border-top: 1px solid var(--brd);
 }}
 
-/* ── Alignment block ─────────────────────────────────────────── */
 .aln-block {{
   font-family: var(--mono); font-size: 12.5px; line-height: 1.9;
   overflow-x: auto; background: var(--sur2);
@@ -844,7 +868,6 @@ h1 {{
 .mid-miss  {{ color: #9ba3af; }}
 .mid-gap   {{ color: #92400e; }}
 
-/* ── Full-seq highlight ──────────────────────────────────────── */
 .legend {{
   display: flex; gap: 14px; margin-bottom: 6px;
   font-size: 10px; color: var(--dim); font-family: var(--mono);
@@ -865,7 +888,6 @@ h1 {{
 .nt-hi  {{ background: #dbeafe; color: #1d4ed8; border-radius: 2px; }}
 .nt-dim {{ color: #9ba3af; }}
 
-/* ── Secondary structure ─────────────────────────────────────── */
 .struct-grid {{
   display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px;
   margin-bottom: 10px;
@@ -903,7 +925,6 @@ h1 {{
   border: 1px solid var(--brd); border-radius: 4px;
 }}
 
-/* ── Table ───────────────────────────────────────────────────── */
 .tbl-wrap {{ overflow-x: auto; }}
 table {{ width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }}
 th {{
@@ -918,7 +939,6 @@ tr:hover td {{ background: var(--sur2); }}
 .bar-bg {{ width: 90px; height: 5px; background: var(--brd); border-radius: 3px; }}
 .bar-fg {{ height: 5px; border-radius: 3px; }}
 
-/* ── Heatmap ─────────────────────────────────────────────────── */
 .hm-section {{ margin: 28px 28px; }}
 .hm-section h3 {{
   font-family: var(--mono); font-size: 10px; color: var(--dim);
@@ -933,7 +953,92 @@ tr:hover td {{ background: var(--sur2); }}
 .hm-hi60 {{ background: #eff6ff; color: #1d4ed8; }}
 .hm-lo   {{ background: var(--sur); color: var(--dim); }}
 
-/* ── Utilities ───────────────────────────────────────────────── */
+/* ── MAFFT MSA block ──────────────────────────────────────────── */
+.msa-block {{
+  font-family: var(--mono); font-size: 12px; line-height: 1.75;
+  overflow-x: auto; background: var(--sur2);
+  border: 1px solid var(--brd); border-radius: 5px; padding: 12px 14px;
+}}
+.msa-row  {{ display: flex; align-items: baseline; }}
+.msa-lbl  {{ color: var(--dim); min-width: 18ch; flex-shrink: 0;
+             margin-right: 1.5ch; user-select: none; font-size: 11px; }}
+.msa-seq  {{ white-space: pre; word-break: normal; }}
+.msa-gap  {{ color: #d1d5db; }}
+.msa-match {{ font-weight: 600; border-radius: 2px; }}
+.msa-mism  {{ opacity: 0.50; }}
+.msa-A  {{ color: #166534; }}
+.msa-T  {{ color: #991b1b; }}
+.msa-G  {{ color: #b45309; }}
+.msa-C  {{ color: #1d4ed8; }}
+.msa-nt {{ color: var(--txt); }}
+
+/* ── cmsearch panel ───────────────────────────────────────────── */
+.cm-section {{ margin: 24px 28px; }}
+.cm-header {{
+  display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap;
+}}
+.cm-title {{
+  font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--txt);
+}}
+.cm-cmd-block {{
+  margin-bottom: 20px;
+  background: #1e1e2e; border-radius: 6px; padding: 13px 16px;
+  border: 1px solid #313244;
+}}
+.cm-cmd-label {{
+  font-family: var(--mono); font-size: 9px; color: #6c7086;
+  letter-spacing: .1em; text-transform: uppercase; margin-bottom: 6px;
+}}
+.cm-cmd {{
+  font-family: var(--mono); font-size: 12px; color: #cdd6f4;
+  word-break: break-all; line-height: 1.7;
+}}
+.cm-cmd .cm-flag  {{ color: #89b4fa; }}
+.cm-cmd .cm-val   {{ color: #a6e3a1; }}
+.cm-cmd .cm-bin   {{ color: #f5c2e7; font-weight: 600; }}
+.cm-files {{
+  display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;
+}}
+.cm-file-chip {{
+  display: flex; align-items: center; gap: 6px;
+  background: var(--sur); border: 1px solid var(--brd);
+  border-radius: 5px; padding: 7px 12px;
+  font-family: var(--mono); font-size: 11px; color: var(--dim);
+}}
+.cm-file-chip .chip-icon {{ font-size: 14px; }}
+.cm-file-chip .chip-label {{ color: var(--dim2); font-size: 9px; text-transform: uppercase;
+  letter-spacing: .07em; display: block; margin-bottom: 1px; }}
+.cm-file-chip .chip-name {{ color: var(--txt); }}
+.cm-no-hits {{
+  padding: 28px 20px; text-align: center; color: var(--dim);
+  font-family: var(--mono); font-size: 12px;
+  background: var(--sur2); border: 1px dashed var(--brd); border-radius: 6px;
+}}
+.cm-hits-table {{ margin-bottom: 24px; }}
+.cm-score-hi {{ color: #166534; font-weight: 600; }}
+.cm-score-med {{ color: #92400e; }}
+.cm-score-lo {{ color: var(--dim); }}
+.cm-strand-plus  {{ color: #1d4ed8; font-weight: 600; }}
+.cm-strand-minus {{ color: #7c3aed; font-weight: 600; }}
+.cm-evalue-sig   {{ color: var(--danger); font-weight: 600; }}
+.cm-evalue-ns    {{ color: var(--dim); }}
+/* log viewer */
+.cm-log-toggle {{
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  font-family: var(--mono); font-size: 10px; color: var(--acc);
+  letter-spacing: .05em; text-transform: uppercase; user-select: none;
+  margin-bottom: 8px; padding: 6px 0;
+}}
+.cm-log-toggle:hover {{ color: #1e3a8a; }}
+.cm-log {{
+  font-family: var(--mono); font-size: 11px; line-height: 1.6;
+  background: #1e1e2e; color: #cdd6f4;
+  border: 1px solid #313244; border-radius: 6px;
+  padding: 14px 16px; overflow-x: auto; white-space: pre;
+  max-height: 420px; overflow-y: auto; display: none;
+}}
+.cm-log.open {{ display: block; }}
+
 .unavail {{
   font-size: 12px; color: var(--dim); font-style: italic;
   padding: 10px 0;
@@ -986,6 +1091,7 @@ footer {{
     <span class="badge {ab_badge_cls}">{n_above}</span></button>
   <button class="tab" onclick="showTab('hm',this)">Identity heatmap</button>
   {struct_tab}
+  {cm_tab}
   <button class="tab" onclick="showTab('ab',this)">Metrics guide</button>
 </div>
 
@@ -999,6 +1105,8 @@ footer {{
 </div>
 
 {struct_panel}
+
+{cm_panel}
 
 <div id="t-ab" class="pnl">
   <div class="about">
@@ -1022,7 +1130,7 @@ footer {{
       </div>
     </div>
     <p><strong>Secondary structure (RNAfold):</strong> MFE dot-bracket structures are predicted independently for the query and the best-matching patent sequence. Matching secondary structure topology can indicate functional equivalence even when sequence identity is below the threshold — and may be relevant to broader claim interpretation.</p>
-    <p><strong>Covariance model (cmsearch):</strong> If a .cm file is supplied via <code>--cm</code>, Infernal's cmsearch is used to score queries against a probabilistic model of the RNA's sequence <em>and</em> structure simultaneously. This is the most rigorous test for functional equivalence of non-coding RNAs.</p>
+    <p><strong>Covariance model (cmsearch):</strong> If a .cm file is supplied via <code>--cm</code>, Infernal's cmsearch is used to score queries against a probabilistic model of the RNA's sequence <em>and</em> structure simultaneously. The run uses <code>-T 1000</code> to report all hits above score 1000; output is written to three persistent files alongside the HTML report. This is the most rigorous test for functional equivalence of non-coding RNAs.</p>
     <div class="note"><strong>Legal note:</strong> Patent {patent_id} claims protection at ≥80% identity. The legally binding interpretation depends on claim construction before a court. Consult a registered patent attorney for definitive opinions.</div>
   </div>
 </div>
@@ -1044,16 +1152,18 @@ function toggle(el) {{
   b.classList.toggle('open');
   el.classList.toggle('open');
 }}
+function toggleLog(el) {{
+  var log = el.nextElementSibling;
+  log.classList.toggle('open');
+  el.querySelector('.log-arrow').textContent = log.classList.contains('open') ? '▴' : '▾';
+}}
 </script>
 </body>
 </html>"""
 
 
-def _build_struct_panel(struct_map: Dict[str, StructureResult],
-                        queries: List[Tuple[str, str]]) -> str:
-    """Build the secondary structure overview tab panel."""
+def _build_struct_panel(struct_map, queries):
     cards = ""
-    # All patent seqs first, then queries
     for p in PATENT_SEQUENCES:
         sr = struct_map.get(p["id"])
         if sr: cards += _structure_card(sr)
@@ -1068,33 +1178,145 @@ def _build_struct_panel(struct_map: Dict[str, StructureResult],
             f'</div></div>')
 
 
-def _build_cmsearch_panel(cm_results: List[CmsearchResult]) -> str:
+def _build_cmsearch_panel(
+    cm_results: List[CmsearchResult],
+    raw_out: str = "",
+    tblout_path: str = "",
+    sto_path: str = "",
+    cm_file: str = "",
+    output_dir: str = ".",
+) -> str:
+    """Build the full cmsearch HTML panel with hits table, file chips, and log viewer."""
+
+    n_hits = len(cm_results)
+
+    # ── command display ────────────────────────────────────────────────────────
+    tblout_disp = os.path.join(output_dir, "patent_cmsearch.tblout")
+    sto_disp    = os.path.join(output_dir, "patent_cmsearch.sto")
+    out_disp    = os.path.join(output_dir, "patent_cmsearch.out")
+    cm_cmd_html = (
+        f'<span class="cm-bin">cmsearch</span>'
+        f' <span class="cm-flag">--notextw</span>'
+        f' <span class="cm-flag">-T</span> <span class="cm-val">1000</span>'
+        f' <span class="cm-flag">-A</span> <span class="cm-val">{sto_disp}</span>'
+        f' <span class="cm-flag">-o</span> <span class="cm-val">{out_disp}</span>'
+        f' <span class="cm-flag">--tblout</span> <span class="cm-val">{tblout_disp}</span>'
+        f' <span class="cm-val">{cm_file or "&lt;model.cm&gt;"}</span>'
+        f' <span class="cm-val">&lt;queries.fa&gt;</span>'
+    )
+
+    # ── output file chips ──────────────────────────────────────────────────────
+    def chip(icon, label, name):
+        return (f'<div class="cm-file-chip">'
+                f'<span class="chip-icon">{icon}</span>'
+                f'<div><span class="chip-label">{label}</span>'
+                f'<span class="chip-name">{name}</span></div></div>')
+
+    files_html = (
+        chip("📄", "Human-readable output (-o)", os.path.basename(out_disp)) +
+        chip("📋", "Tabular hits (--tblout)",    os.path.basename(tblout_disp)) +
+        chip("🧬", "Stockholm alignment (-A)",   os.path.basename(sto_disp))
+    )
+
+    # ── hits table ─────────────────────────────────────────────────────────────
     if not cm_results:
-        return ""
-    rows = ""
-    for r in sorted(cm_results, key=lambda x: x.score, reverse=True):
-        rows += (f"<tr><td class='mono'>{r.query_name}</td>"
-                 f"<td class='mono'>{r.target_seq}</td>"
-                 f"<td class='mono'>{r.score:.1f}</td>"
-                 f"<td class='mono'>{r.evalue}</td>"
-                 f"<td class='mono'>{r.gc*100:.0f}%</td></tr>")
-    return (f'<div id="t-cm" class="pnl">'
-            f'<div style="margin:24px 28px">'
-            f'<div class="sec-title" style="padding-top:0;border-top:none">'
-            f'Covariance model alignment (cmsearch)</div>'
-            f'<div class="tbl-wrap"><table>'
-            f'<thead><tr><th>Query</th><th>Target</th>'
-            f'<th>CM score</th><th>E-value</th><th>GC%</th></tr></thead>'
-            f'<tbody>{rows}</tbody></table></div>'
-            f'</div></div>')
+        hits_html = '<div class="cm-no-hits">No hits reported (score threshold: 1000). ' \
+                    'All queries scored below the threshold.</div>'
+    else:
+        def score_cls(s):
+            if s >= 500: return "cm-score-hi"
+            if s >= 100: return "cm-score-med"
+            return "cm-score-lo"
+
+        def evalue_cls(e):
+            try:
+                return "cm-evalue-sig" if float(e) < 0.01 else "cm-evalue-ns"
+            except ValueError:
+                return "cm-evalue-ns"
+
+        def strand_cls(s):
+            return "cm-strand-plus" if s == "+" else "cm-strand-minus"
+
+        rows = ""
+        for h in sorted(cm_results, key=lambda x: x.score, reverse=True):
+            rows += (
+                f"<tr>"
+                f"<td class='mono'>{h.query_name}</td>"
+                f"<td class='mono'>{h.target_name}</td>"
+                f"<td class='mono dim'>{h.target_accession}</td>"
+                f"<td class='mono {score_cls(h.score)}'>{h.score:.1f}</td>"
+                f"<td class='mono {evalue_cls(h.evalue)}'>{h.evalue}</td>"
+                f"<td class='mono dim'>{h.bias:.1f}</td>"
+                f"<td class='mono {strand_cls(h.strand)}'>{h.strand}</td>"
+                f"<td class='mono dim'>{h.seq_from}–{h.seq_to}</td>"
+                f"<td class='mono dim'>{h.gc*100:.0f}%</td>"
+                f"<td class='dim' style='font-size:11px'>{h.description or '—'}</td>"
+                f"</tr>"
+            )
+        hits_html = (
+            '<div class="cm-hits-table"><div class="tbl-wrap"><table>'
+            '<thead><tr>'
+            '<th>Query</th><th>Target</th><th>Accession</th>'
+            '<th>CM score</th><th>E-value</th><th>Bias</th>'
+            '<th>Strand</th><th>Coords</th><th>GC%</th><th>Description</th>'
+            '</tr></thead>'
+            f'<tbody>{rows}</tbody></table></div></div>'
+        )
+
+    # ── log viewer ─────────────────────────────────────────────────────────────
+    log_html = ""
+    if raw_out:
+        escaped = (raw_out
+                   .replace("&", "&amp;")
+                   .replace("<", "&lt;")
+                   .replace(">", "&gt;"))
+        log_html = (
+            f'<div class="cm-log-toggle" onclick="toggleLog(this)">'
+            f'  <span class="log-arrow">▾</span>'
+            f'  View full cmsearch log ({os.path.basename(out_disp)})'
+            f'</div>'
+            f'<pre class="cm-log">{escaped}</pre>'
+        )
+
+    return (
+        f'<div id="t-cm" class="pnl">'
+        f'<div class="cm-section">'
+
+        f'<div class="cm-header">'
+        f'  <span class="cm-title">Covariance model alignment — Infernal cmsearch</span>'
+        f'</div>'
+
+        f'<div class="cm-cmd-block">'
+        f'  <div class="cm-cmd-label">Command</div>'
+        f'  <div class="cm-cmd">{cm_cmd_html}</div>'
+        f'</div>'
+
+        f'<div style="margin-bottom:8px;font-size:11px;color:var(--dim);">'
+        f'Output files written to <code>{output_dir}/</code>:</div>'
+        f'<div class="cm-files">{files_html}</div>'
+
+        f'<div class="sec-title" style="padding-top:0;border-top:none;margin-bottom:10px;">'
+        f'Hits — {n_hits} result{"s" if n_hits!=1 else ""} '
+        f'(score threshold: <code>-T 1000</code>)</div>'
+        f'{hits_html}'
+
+        f'{log_html}'
+
+        f'</div></div>'
+    )
 
 
 def generate_html(
     results: List[AlignmentResult],
     threshold: float,
     queries: List[Tuple[str, str]],
-    struct_map: Optional[Dict[str, StructureResult]] = None,
-    cm_results: Optional[List[CmsearchResult]] = None,
+    struct_map=None,
+    cm_results=None,
+    cm_raw_out: str = "",
+    cm_tblout: str = "",
+    cm_sto: str = "",
+    cm_file: str = "",
+    cm_output_dir: str = ".",
     include_msa: bool = True,
 ) -> str:
     q_names   = list(dict.fromkeys(r.query_name for r in results))
@@ -1108,21 +1330,28 @@ def generate_html(
         sections += _build_query_section(grp, threshold, struct_map=struct_map,
                                          include_msa=include_msa)
 
-    # Extra tabs
     rnafold_note  = " + RNAfold"  if struct_map else ""
     cmsearch_note = " + cmsearch" if cm_results  else ""
 
-    struct_tab = ""
-    struct_panel = ""
+    struct_tab = struct_panel = ""
     if struct_map:
         struct_tab   = '<button class="tab" onclick="showTab(\'ss\',this)">Secondary structure</button>'
         struct_panel = _build_struct_panel(struct_map, queries)
 
-    cm_tab = ""
-    cm_panel = ""
-    if cm_results:
-        cm_tab   = '<button class="tab" onclick="showTab(\'cm\',this)">CM alignment</button>'
-        cm_panel = _build_cmsearch_panel(cm_results)
+    cm_tab = cm_panel = ""
+    if cm_results is not None:
+        n_cm = len(cm_results)
+        cm_badge = f'<span class="badge bn">{n_cm}</span>'
+        cm_tab = (f'<button class="tab" onclick="showTab(\'cm\',this)">'
+                  f'CM alignment {cm_badge}</button>')
+        cm_panel = _build_cmsearch_panel(
+            cm_results,
+            raw_out=cm_raw_out,
+            tblout_path=cm_tblout,
+            sto_path=cm_sto,
+            cm_file=cm_file,
+            output_dir=cm_output_dir,
+        )
 
     return _HTML.format(
         patent_id=PATENT_ID, patent_url=PATENT_URL,
@@ -1137,18 +1366,18 @@ def generate_html(
         heatmap=_build_heatmap(results),
         rnafold_note=rnafold_note,
         cmsearch_note=cmsearch_note,
-        struct_tab=struct_tab + cm_tab,
-        struct_panel=struct_panel + cm_panel,
+        struct_tab=struct_tab,
+        struct_panel=struct_panel,
+        cm_tab=cm_tab,
+        cm_panel=cm_panel,
         match=MATCH, mismatch=MISMATCH, gap=GAP_OPEN,
     )
 
 
-# ─── CLI ──────────────────────────────────────────────────────────────────────
 def main():
     p = argparse.ArgumentParser(
         description="Check query sequences against patent WO2026038929A1.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
     )
     p.add_argument("positional", nargs="*", help="Raw DNA sequences")
     p.add_argument("--fasta",       help="FASTA file of queries")
@@ -1159,8 +1388,7 @@ def main():
     p.add_argument("--cm",          help="Infernal covariance-model file (.cm)")
     p.add_argument("--no-html",     action="store_true")
     p.add_argument("--no-msa",      action="store_true")
-    p.add_argument("--no-rnafold",  action="store_true",
-                   help="Skip RNAfold secondary-structure prediction")
+    p.add_argument("--no-rnafold",  action="store_true")
     args = p.parse_args()
 
     queries: List[Tuple[str, str]] = []
@@ -1188,22 +1416,34 @@ def main():
     if not args.no_rnafold:
         print("Running RNAfold…")
         struct_map = run_rnafold(queries)
-        # Report any errors
         for sr in struct_map.values():
             if sr.error:
                 print(f"  RNAfold [{sr.name}]: {sr.error}", file=sys.stderr)
                 break
 
     cm_results = None
+    cm_raw_out = ""
+    cm_tblout  = ""
+    cm_sto     = ""
+    cm_output_dir = os.path.dirname(os.path.abspath(args.output))
+
     if args.cm:
         print(f"Running cmsearch with {args.cm}…")
-        cm_results = run_cmsearch(queries, args.cm)
+        result_tuple = run_cmsearch(queries, args.cm, output_dir=cm_output_dir)
+        if result_tuple:
+            cm_results, cm_raw_out, cm_tblout, cm_sto = result_tuple
+            print(f"  {len(cm_results)} cmsearch hit(s) found.")
 
     if not args.no_html:
         html = generate_html(
             results, args.threshold, queries,
             struct_map=struct_map,
             cm_results=cm_results,
+            cm_raw_out=cm_raw_out,
+            cm_tblout=cm_tblout,
+            cm_sto=cm_sto,
+            cm_file=args.cm or "",
+            cm_output_dir=cm_output_dir,
             include_msa=not args.no_msa,
         )
         with open(args.output, "w") as fh:
