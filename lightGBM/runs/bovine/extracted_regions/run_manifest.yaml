@@ -3,7 +3,7 @@ codon_flank_length: 30
 dataset_name: bovine
 dataset_yaml: /projects/health_sciences/bms/biochemistry/gardner_group/nadia/mRNA_stability/configs/datasets/bovine.yaml
 filter_short_utrs: false
-gene_list: data/bovine/bovine_gene_list.txt
+gene_list: data/bovine/assembly_gene_ids.txt
 genome_fasta: data/bovine/Bos_taurus.ARS-UCD2.0.dna.toplevel.fa
 isoform_priority_tags:
 - appris_principal_1
@@ -12,7 +12,7 @@ isoform_priority_tags:
 - Ensembl_canonical
 - MANE_Select
 min_utr_length: 30
-n_requested_genes: 30
+n_requested_genes: 7526
 output_mode: multifasta
 python_executable: /home/prana47p/miniconda3/bin/python3
 regions_to_extract:
@@ -24,7 +24,7 @@ regions_to_extract:
 - stop_codon_region
 - tail_region
 - UTR_pair
-run_timestamp: '2026-05-26T13:14:24.528092'
+run_timestamp: '2026-05-27T11:08:47.013427'
 tail_length: 100
 utr_pair_constraint_style: cross_pair
 utr_pair_linker_char: N
