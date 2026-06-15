@@ -73,20 +73,74 @@ def _sw_pure(seq_a, seq_b):
 
 
 def _sw_biopython(seq_a, seq_b):
-    from Bio import pairwise2
-    alns = pairwise2.align.localms(seq_a.upper(), seq_b.upper(),
-                                   MATCH, MISMATCH, GAP_OPEN, GAP_EXT)
-    if not alns:
+    """Smith-Waterman via Bio.Align.PairwiseAligner (Biopython ≥ 1.80)."""
+    from Bio.Align import PairwiseAligner
+    aligner = PairwiseAligner()
+    aligner.mode            = "local"
+    aligner.match_score     = MATCH
+    aligner.mismatch_score  = MISMATCH
+    aligner.open_gap_score  = GAP_OPEN
+    aligner.extend_gap_score = GAP_EXT
+
+    a, b = seq_a.upper(), seq_b.upper()
+    alignments = aligner.align(a, b)
+    try:
+        best = next(iter(alignments))
+    except StopIteration:
         return None
-    best = alns[0]
-    a_aln = best.seqA[int(best.start):int(best.end)]
-    b_aln = best.seqB[int(best.start):int(best.end)]
-    midline = "".join("|" if x == y and x != "-" else ("." if x != "-" and y != "-" else " ")
-                      for x, y in zip(a_aln, b_aln))
+
+    # Extract the aligned subsequences (with gap characters)
+    # PairwiseAligner.align() returns Alignment objects; format gives the
+    # standard three-line representation we can parse.
+    fmt_lines = str(best).splitlines()
+    # Lines: query, midline, target  (groups of 3 separated by blank lines)
+    q_parts, m_parts, t_parts = [], [], []
+    i = 0
+    while i < len(fmt_lines):
+        line = fmt_lines[i]
+        if line.startswith("target"):
+            # new-style: "target  N  ACGT...  M"
+            t_parts.append(line.split()[2] if len(line.split()) >= 3 else "")
+            if i + 1 < len(fmt_lines):
+                m_parts.append(fmt_lines[i + 1].strip())
+            if i + 2 < len(fmt_lines):
+                q_line = fmt_lines[i + 2]
+                q_parts.append(q_line.split()[2] if len(q_line.split()) >= 3 else "")
+            i += 3
+        else:
+            i += 1
+
+    al_q = "".join(q_parts)
+    al_r = "".join(t_parts)
+    mid  = "".join(m_parts)
+
+    # Fallback: if parsing failed, use coordinates directly
+    if not al_q or not al_r:
+        q_start, q_end = best.aligned[0][0][0], best.aligned[0][-1][1]
+        r_start, r_end = best.aligned[1][0][0], best.aligned[1][-1][1]
+        al_q = a[q_start:q_end]
+        al_r = b[r_start:r_end]
+        mid  = "".join("|" if x == y else "." for x, y in zip(al_q, al_r))
+
+    # Normalise midline to use "|" for matches, "." for mismatches, " " for gaps
+    norm_mid = []
+    for qc, rc, mc in zip(al_q, al_r, mid if mid else [""] * len(al_q)):
+        if qc == "-" or rc == "-":
+            norm_mid.append(" ")
+        elif qc.upper() == rc.upper():
+            norm_mid.append("|")
+        else:
+            norm_mid.append(".")
+    midline = "".join(norm_mid)
     matches = midline.count("|")
-    a_start = int(best.start) - a_aln[:a_aln.find(a_aln.lstrip("-"))].count("-") + 1
-    b_start = int(best.start) - b_aln[:b_aln.find(b_aln.lstrip("-"))].count("-") + 1
-    return a_aln, b_aln, midline, int(best.score), max(1, a_start), max(1, b_start), matches
+
+    score = int(best.score)
+
+    # 1-based start positions
+    q_s = best.aligned[0][0][0] + 1 if best.aligned[0] else 1
+    r_s = best.aligned[1][0][0] + 1 if best.aligned[1] else 1
+
+    return al_q, al_r, midline, score, max(1, q_s), max(1, r_s), matches
 
 
 def smith_waterman(seq_a, seq_b):
@@ -228,9 +282,6 @@ def _parse_tblout(tblout_path: str) -> List[dict]:
         for line in fh:
             if line.startswith("#") or not line.strip():
                 continue
-            # tblout columns (space-separated, description may contain spaces):
-            # target_name  accession  query_name  accession  mdl  mdl_from  mdl_to
-            # seq_from  seq_to  strand  trunc  pass  gc  bias  score  E-value  inc  description...
             parts = line.split()
             if len(parts) < 17:
                 continue
@@ -287,7 +338,6 @@ def run_cmsearch(queries, cm_file, output_dir="."):
     results: List[CmsearchResult] = []
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Build a single FASTA of all query sequences
         query_fa = os.path.join(tmpdir, "queries.fa")
         with open(query_fa, "w") as fh:
             for qname, qseq in queries:
@@ -296,10 +346,10 @@ def run_cmsearch(queries, cm_file, output_dir="."):
         cmd = [
             "cmsearch",
             "--notextw",
-            "-A",      sto_file,        # Stockholm alignment output
-            "-o",      out_file,        # human-readable output
-            "--tblout", tblout_file,    # tabular output
-            "-E",      "1000",           # E-value threshold
+            "-A",      sto_file,
+            "-o",      out_file,
+            "--tblout", tblout_file,
+            "-E",      "1000",
             cm_file,
             query_fa,
         ]
@@ -307,13 +357,11 @@ def run_cmsearch(queries, cm_file, output_dir="."):
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
         if r.returncode != 0:
             print(f"cmsearch error:\n{r.stderr}", file=sys.stderr)
-            # Still attempt to parse any partial tblout
         else:
             print(f"  cmsearch output → {out_file}", file=sys.stderr)
             print(f"  tblout          → {tblout_file}", file=sys.stderr)
             print(f"  Stockholm aln   → {sto_file}", file=sys.stderr)
 
-        # Parse tblout for structured results
         hits = _parse_tblout(tblout_file)
         for h in hits:
             results.append(CmsearchResult(
@@ -330,7 +378,6 @@ def run_cmsearch(queries, cm_file, output_dir="."):
                 description=h["description"],
             ))
 
-        # Attach raw out-file text for the HTML log viewer
         raw_out = ""
         if os.path.exists(out_file):
             try:
@@ -389,7 +436,6 @@ def parse_stockholm(sto_path: str) -> dict:
                     name, seq = parts
                     seqs.setdefault(name, []).append(seq)
 
-    # Concatenate wrapped blocks
     seq_final = OrderedDict((k, "".join(v)) for k, v in seqs.items())
     pp_final  = {k: "".join(v) for k, v in pp.items()}
     ss        = "".join(ss_cons)
@@ -594,14 +640,16 @@ def _heatmap_row_color(pct: float) -> str:
     return "hm-lo"
 
 
-def _build_heatmap(results: List[AlignmentResult]) -> str:
+def _build_heatmap(results: List[AlignmentResult],
+                   cm_hit_queries: Optional[set] = None) -> str:
     queries = list(dict.fromkeys(r.query_name for r in results))
     refs    = [p["id"] for p in PATENT_SEQUENCES]
     idx     = {(r.query_name, r.ref_name): r for r in results}
     hdr  = "<tr><th></th>" + "".join(f"<th>{ref}</th>" for ref in refs) + "</tr>"
     rows = ""
     for q in queries:
-        cells = f"<td class='hm-label'>{q}</td>"
+        lbl_cls = "hm-label cm-hit" if (cm_hit_queries and q in cm_hit_queries) else "hm-label"
+        cells = f"<td class='{lbl_cls}'>{q}</td>"
         for ref in refs:
             r   = idx.get((q, ref))
             pct = r.identity_over_shorter if r and not r.no_hit else 0.0
@@ -617,6 +665,7 @@ def _build_query_section(
     threshold: float,
     struct_map: Optional[Dict[str, StructureResult]] = None,
     include_msa: bool = True,
+    cm_hit_queries: Optional[set] = None,
 ) -> str:
     best   = max(grp, key=lambda r: r.identity_over_shorter)
     above  = any(r.above_threshold for r in grp)
@@ -684,10 +733,12 @@ def _build_query_section(
 
     msa_block = _build_msa_html(best.query_name, best.query_seq) if include_msa else ""
 
+    qname_cls = "qname mono cm-hit" if (cm_hit_queries and best.query_name in cm_hit_queries) else "qname mono"
+
     return f"""
 <div class="qs">
   <div class="qh" onclick="toggle(this)">
-    <span class="qname mono">{best.query_name}</span>
+    <span class="{qname_cls}">{best.query_name}</span>
     <span class="pill {pill_cls}">{"⚠ " if above else "✓ "}{pill_txt}</span>
     <span class="dim qs-meta">best match: {best.ref_name}</span>
     <span class="chev">▾</span>
@@ -1011,6 +1062,9 @@ tr:hover td {{ background: var(--sur2); }}
 .hm th {{ color: var(--dim); padding: 5px 10px; font-weight: 400; border-bottom: 1px solid var(--brd); }}
 .hm td {{ padding: 7px 12px; text-align: center; border: 1px solid var(--brd); min-width: 74px; }}
 .hm-label {{ text-align: left !important; color: var(--txt); padding-right: 20px !important; }}
+.hm-label.cm-hit {{ color: var(--acc); font-weight: 600; }}
+.qname.cm-hit {{ color: var(--acc); }}
+td.cm-hit {{ color: var(--acc); font-weight: 600; }}
 .hm-hi90 {{ background: #dcfce7; color: #166534; font-weight: 600; }}
 .hm-hi80 {{ background: #fef3c7; color: #92400e; font-weight: 600; }}
 .hm-hi60 {{ background: #eff6ff; color: #1d4ed8; }}
@@ -1116,25 +1170,18 @@ tr:hover td {{ background: var(--sur2); }}
   display: inline-block; width: 12px; height: 12px;
   border-radius: 2px; border: 1px solid rgba(0,0,0,.08);
 }}
-/* Structure-conservation background colours (matching R2R / ARNA palette) */
-/* Paired stem bases: teal family */
-.sc-stem-hi  {{ background: #29a696; color: #fff; }}   /* highly conserved stem */
-.sc-stem-med {{ background: #60c8bd; color: #fff; }}   /* moderately conserved stem */
-.sc-stem-lo  {{ background: #b2e4e0; color: #1a1d26; }} /* low-conservation stem */
-/* Loop/unpaired: warm grey / green */
-.sc-loop-hi  {{ background: #4caf78; color: #fff; }}   /* conserved loop */
+.sc-stem-hi  {{ background: #29a696; color: #fff; }}
+.sc-stem-med {{ background: #60c8bd; color: #fff; }}
+.sc-stem-lo  {{ background: #b2e4e0; color: #1a1d26; }}
+.sc-loop-hi  {{ background: #4caf78; color: #fff; }}
 .sc-loop-med {{ background: #a8d5b8; color: #1a1d26; }}
 .sc-loop-lo  {{ background: #e0f0e8; color: #1a1d26; }}
-/* Insert columns (lowercase in RF): subdued grey */
 .sc-ins      {{ background: transparent; color: #b0b8c4; font-style: italic; }}
-/* Gap characters */
 .sc-gap      {{ background: transparent; color: #d1d5db; }}
-/* Annotation rows (SS_cons, RF) */
 .sc-ann-stem {{ color: #29a696; font-weight: 700; }}
 .sc-ann-loop {{ color: #4caf78; font-weight: 600; }}
 .sc-ann-ins  {{ color: #b0b8c4; font-style: italic; }}
 .sc-ann-gap  {{ color: #d1d5db; }}
-/* Layout */
 .sto-block {{
   font-family: var(--mono); font-size: 12px; line-height: 1.85;
   overflow-x: auto; background: #f9fbf9;
@@ -1157,12 +1204,15 @@ tr:hover td {{ background: var(--sur2); }}
   font-size: 12px; color: var(--dim); font-style: italic;
   padding: 10px 0;
 }}
+
+/* ── Metrics guide ────────────────────────────────────────────── */
 .about {{ max-width: 680px; margin: 32px 36px; }}
 .about h2 {{
   font-family: var(--mono); font-size: 16px; font-weight: 500;
   margin-bottom: 18px; color: var(--txt);
 }}
 .about p {{ color: var(--dim); margin-bottom: 20px; font-size: 13px; line-height: 1.75; }}
+.about .mgrid {{ margin-bottom: 20px; }}
 .about .mc {{ margin-bottom: 10px; }}
 .note {{
   margin-top: 20px; padding: 13px 15px;
@@ -1226,7 +1276,7 @@ footer {{
   <div class="about">
     <h2>Sequence &amp; structure metrics</h2>
     <p>Three sequence-identity metrics are reported. They share the same numerator (matched nucleotides from the Smith-Waterman local alignment) but differ in the denominator, which can produce meaningfully different values when query and reference differ in length.</p>
-    <div class="mgrid" style="margin-bottom:20px">
+    <div class="mgrid">
       <div class="mc">
         <div class="mv accent">Id / aln len</div>
         <div class="mk" style="margin:5px 0">matches ÷ alignment_length</div>
@@ -1295,30 +1345,18 @@ def _build_struct_panel(struct_map, queries):
 def _build_stockholm_html(sto_data: dict) -> str:
     """
     Render a parsed Stockholm alignment as coloured HTML.
-
-    Colouring scheme (structure-conservation):
-      • SS_cons character determines *type* (stem vs loop vs insert)
-      • Per-column conservation (fraction of identical non-gap residues) 
-        determines *intensity* (hi / med / lo)
-      Stem positions: teal palette   (#29a696 → #b2e4e0)
-      Loop positions: green palette  (#4caf78 → #e0f0e8)
-      Insert columns: italic grey
-      Gap characters: pale grey, no background
     """
     if not sto_data:
         return '<div class="unavail">Stockholm alignment file not found or empty.</div>'
 
-    seqs     = sto_data["sequences"]      # OrderedDict name→gapped_seq
-    ss_cons  = sto_data["ss_cons"]        # dot-bracket string
-    rf       = sto_data["rf"]             # RF consensus
+    seqs     = sto_data["sequences"]
+    ss_cons  = sto_data["ss_cons"]
+    rf       = sto_data["rf"]
     col_cnt  = sto_data["col_count"]
 
     if not seqs:
         return '<div class="unavail">No sequences found in Stockholm file.</div>'
 
-    # ── per-column analysis ────────────────────────────────────────────────────
-    # Determine whether each column is a match column (upper in RF) or insert
-    # (lower in RF). If RF is absent, treat all as match columns.
     is_match_col = []
     for ci in range(col_cnt):
         if rf and ci < len(rf):
@@ -1326,7 +1364,6 @@ def _build_stockholm_html(sto_data: dict) -> str:
         else:
             is_match_col.append(True)
 
-    # SS_cons column type: stem = paired ('(', ')', '<', '>', '[', ']', '{', '}', 'A'-'Z' pairs)
     STEM_CHARS = set("()[]<>{}AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz")
     def is_stem(ch: str) -> bool:
         return ch in STEM_CHARS and ch not in ".,:_-"
@@ -1336,9 +1373,7 @@ def _build_stockholm_html(sto_data: dict) -> str:
             return ss_cons[ci]
         return "."
 
-    # Per-column nucleotide conservation (ignoring gaps)
     seq_list = list(seqs.values())
-    n_seqs   = len(seq_list)
 
     def col_conservation(ci: int) -> float:
         chars = [s[ci].upper() for s in seq_list
@@ -1350,14 +1385,12 @@ def _build_stockholm_html(sto_data: dict) -> str:
             freq[ch] = freq.get(ch, 0) + 1
         return max(freq.values()) / len(chars)
 
-    # Cache conservation scores (only for match columns, inserts get sc-ins)
     con_cache = {}
     for ci in range(col_cnt):
         if is_match_col[ci]:
             con_cache[ci] = col_conservation(ci)
 
     def char_class(ci: int, ch: str) -> str:
-        """Return CSS class for one character in one column."""
         if ch in ".-":
             return "sc-gap"
         if not is_match_col[ci] or (rf and ci < len(rf) and rf[ci].islower()):
@@ -1382,8 +1415,7 @@ def _build_stockholm_html(sto_data: dict) -> str:
             return "sc-ann-stem"
         return "sc-ann-loop"
 
-    # ── render rows ────────────────────────────────────────────────────────────
-    MAX_LBL = 44  # chars for name column (match .sto-name min-width)
+    MAX_LBL = 44
 
     def render_seq(gapped: str, is_ann: bool = False, ann_type: str = "seq") -> str:
         spans = []
@@ -1397,7 +1429,6 @@ def _build_stockholm_html(sto_data: dict) -> str:
 
     rows_html = []
 
-    # Sequence rows
     for name, gapped in seqs.items():
         lbl      = name[:MAX_LBL]
         seq_html = render_seq(gapped)
@@ -1408,10 +1439,8 @@ def _build_stockholm_html(sto_data: dict) -> str:
             f'</div>'
         )
 
-    # Separator before annotation rows
     rows_html.append('<div class="sto-sep"></div>')
 
-    # SS_cons row
     if ss_cons:
         ss_html = render_seq(ss_cons, is_ann=True, ann_type="ss")
         rows_html.append(
@@ -1421,7 +1450,6 @@ def _build_stockholm_html(sto_data: dict) -> str:
             f'</div>'
         )
 
-    # RF row
     if rf:
         rf_html = render_seq(rf, is_ann=True, ann_type="rf")
         rows_html.append(
@@ -1431,7 +1459,6 @@ def _build_stockholm_html(sto_data: dict) -> str:
             f'</div>'
         )
 
-    # ── legend ─────────────────────────────────────────────────────────────────
     legend_items = [
         ("sc-stem-hi",  "Stem, high conservation"),
         ("sc-stem-med", "Stem, moderate"),
@@ -1475,18 +1502,15 @@ def _build_cmsearch_panel(
     output_dir: str = ".",
     sto_data: Optional[dict] = None,
 ) -> str:
-    """Build the full cmsearch HTML panel: command, file chips, hits table,
-    coloured Stockholm alignment, and collapsible raw log."""
+    """Build the full cmsearch HTML panel."""
 
     n_hits = len(cm_results)
 
-    # ── sanitized display names (NO absolute paths in report) ─────────────────
     cm_base  = _sanitize_path(cm_file)  or "&lt;model.cm&gt;"
     out_base = "patent_cmsearch.out"
     tbl_base = "patent_cmsearch.tblout"
     sto_base = "patent_cmsearch.sto"
 
-    # ── command display (filenames only) ──────────────────────────────────────
     cm_cmd_html = (
         f'<span class="cm-bin">cmsearch</span>'
         f' <span class="cm-flag">--notextw</span>'
@@ -1498,7 +1522,6 @@ def _build_cmsearch_panel(
         f' <span class="cm-val">&lt;queries.fa&gt;</span>'
     )
 
-    # ── output file chips ──────────────────────────────────────────────────────
     def chip(icon, label, name):
         return (f'<div class="cm-file-chip">'
                 f'<span class="chip-icon">{icon}</span>'
@@ -1511,9 +1534,8 @@ def _build_cmsearch_panel(
         chip("🧬", "Stockholm alignment (-A)",     sto_base)
     )
 
-    # ── hits table ─────────────────────────────────────────────────────────────
     if not cm_results:
-        hits_html = ('<div class="cm-no-hits">No hits reported '
+        hits_html = ('<div class="cm-no-hits">No hits reported. '
                      'All queries scored below the threshold.</div>')
     else:
         def score_cls(s):
@@ -1534,7 +1556,7 @@ def _build_cmsearch_panel(
         for h in sorted(cm_results, key=lambda x: x.score, reverse=True):
             rows += (
                 f"<tr>"
-                f"<td class='mono'>{h.query_name}</td>"
+                f"<td class='mono cm-hit'>{h.query_name}</td>"
                 f"<td class='mono'>{h.target_name}</td>"
                 f"<td class='mono dim'>{h.target_accession}</td>"
                 f"<td class='mono {score_cls(h.score)}'>{h.score:.1f}</td>"
@@ -1556,7 +1578,6 @@ def _build_cmsearch_panel(
             f'<tbody>{rows}</tbody></table></div></div>'
         )
 
-    # ── Stockholm alignment viewer ─────────────────────────────────────────────
     sto_section = ""
     if sto_data:
         sto_inner = _build_stockholm_html(sto_data)
@@ -1573,11 +1594,8 @@ def _build_cmsearch_panel(
   {sto_inner}
 </div>"""
 
-    # ── log viewer ─────────────────────────────────────────────────────────────
     log_html = ""
     if raw_out:
-        # Strip all absolute paths — replace /any/path/to/filename.ext with filename.ext
-        # Also strip Windows-style absolute paths C:\...\file
         sanitized_log = re.sub(r'(?:[A-Za-z]:\\|/)(?:[^\s/\\]+[/\\])+([^\s/\\]+)',
                                r'\1', raw_out)
         escaped = (sanitized_log
@@ -1592,17 +1610,18 @@ def _build_cmsearch_panel(
             f'<pre class="cm-log">{escaped}</pre>'
         )
 
+    # NOTE: every opened <div> is explicitly closed below
     return (
         f'<div id="t-cm" class="pnl">'
         f'<div class="cm-section">'
 
         f'<div class="cm-header">'
-        f'  <span class="cm-title">Covariance model alignment — Infernal cmsearch</span>'
+        f'<span class="cm-title">Covariance model alignment — Infernal cmsearch</span>'
         f'</div>'
 
         f'<div class="cm-cmd-block">'
-        f'  <div class="cm-cmd-label">Command</div>'
-        f'  <div class="cm-cmd">{cm_cmd_html}</div>'
+        f'<div class="cm-cmd-label">Command</div>'
+        f'<div class="cm-cmd">{cm_cmd_html}</div>'
         f'</div>'
 
         f'<div style="margin-bottom:8px;font-size:11px;color:var(--dim);">'
@@ -1610,14 +1629,17 @@ def _build_cmsearch_panel(
         f'<div class="cm-files">{files_html}</div>'
 
         f'<div class="sec-title" style="padding-top:0;border-top:none;margin-bottom:10px;">'
-        f'Hits — {n_hits} result{"s" if n_hits!=1 else ""} '
+        f'Hits — {n_hits} result{"s" if n_hits != 1 else ""}'
+        f'</div>'          # ← was missing in the original
+
         f'{hits_html}'
 
         f'{sto_section}'
 
         f'<div style="margin-top:28px;">{log_html}</div>'
 
-        f'</div></div>'
+        f'</div>'   # .cm-section
+        f'</div>'   # #t-cm .pnl
     )
 
 
@@ -1639,11 +1661,15 @@ def generate_html(
     n_above   = len(above_set)
     n_below   = len(q_names) - n_above
 
+    # Queries that have at least one cmsearch hit — highlighted blue everywhere
+    cm_hit_queries: set = {h.query_name for h in cm_results} if cm_results else set()
+
     sections = ""
     for qname in q_names:
         grp = [r for r in results if r.query_name == qname]
         sections += _build_query_section(grp, threshold, struct_map=struct_map,
-                                         include_msa=include_msa)
+                                         include_msa=include_msa,
+                                         cm_hit_queries=cm_hit_queries)
 
     rnafold_note  = " + RNAfold"  if struct_map else ""
     cmsearch_note = " + cmsearch" if cm_results  else ""
@@ -1680,7 +1706,7 @@ def generate_html(
         bc="ok" if n_below == len(q_names) else "warn",
         ab_badge_cls="bd" if n_above else "bk",
         query_sections=sections,
-        heatmap=_build_heatmap(results),
+        heatmap=_build_heatmap(results, cm_hit_queries=cm_hit_queries),
         rnafold_note=rnafold_note,
         cmsearch_note=cmsearch_note,
         struct_tab=struct_tab,
@@ -1753,11 +1779,10 @@ def main():
             cm_results, cm_raw_out, cm_tblout, cm_sto = result_tuple
             print(f"  {len(cm_results)} cmsearch hit(s) found.")
 
-    # --sto: load a pre-existing Stockholm file (overrides the one from cmsearch)
     if args.sto:
         cm_sto = args.sto
         if cm_results is None:
-            cm_results = []   # enable the CM panel even without running cmsearch
+            cm_results = []
 
     if not args.no_html:
         html = generate_html(
