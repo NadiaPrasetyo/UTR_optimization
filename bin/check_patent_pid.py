@@ -299,6 +299,7 @@ def run_cmsearch(queries, cm_file, output_dir="."):
             "-A",      sto_file,        # Stockholm alignment output
             "-o",      out_file,        # human-readable output
             "--tblout", tblout_file,    # tabular output
+            "-E",      "1000",           # E-value threshold
             cm_file,
             query_fa,
         ]
@@ -1492,6 +1493,7 @@ def _build_cmsearch_panel(
         f' <span class="cm-flag">-A</span> <span class="cm-val">{sto_base}</span>'
         f' <span class="cm-flag">-o</span> <span class="cm-val">{out_base}</span>'
         f' <span class="cm-flag">--tblout</span> <span class="cm-val">{tbl_base}</span>'
+        f' <span class="cm-flag">-E</span> <span class="cm-val">1000</span>'
         f' <span class="cm-val">{cm_base}</span>'
         f' <span class="cm-val">&lt;queries.fa&gt;</span>'
     )
