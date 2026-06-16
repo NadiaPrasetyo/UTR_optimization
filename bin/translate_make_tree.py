@@ -32,7 +32,7 @@ def visualize_tree(tree_file, highlight_accessions=None):
             if clade.name and any(acc in clade.name for acc in highlight_accessions):
                 clade.color = "red"
 
-    fig, ax = plt.subplots(figsize=(30, 100))  # tall figure for large trees
+    fig, ax = plt.subplots(figsize=(30, 500))  # tall figure for large trees
     Phylo.draw(tree, axes=ax, do_show=False)
     plt.tight_layout()
 
@@ -42,6 +42,15 @@ def visualize_tree(tree_file, highlight_accessions=None):
     plt.close(fig)  # Free memory
 
     print(f"Tree saved to: {output_path}")
+
+def deduplicate_aa_seq(records):
+    seen = set()
+    unique_records = []
+    for record in records:
+        if record.id not in seen:
+            unique_records.append(record)
+            seen.add(record.id)
+    return unique_records
 
 def translate_sequences(input_file):
     records = []
@@ -71,6 +80,9 @@ def main():
         return
     # Translate sequences
     records = translate_sequences(args.input)
+
+    # Deduplicate sequences
+    records = deduplicate_aa_seq(records)
 
     # Write temporary FASTA file
     temp_fa = "temp.fa"
