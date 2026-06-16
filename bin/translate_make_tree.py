@@ -8,10 +8,14 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.colors as colors
 from Bio import Phylo
+import sys
 
 def visualize_tree(tree_file, highlight_accessions=None):
+    # Increase recursion limit for large trees
+    sys.setrecursionlimit(10000)
+
     tree = Phylo.read(tree_file, "newick")
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(12, 20))  # taller figure for large trees
 
     # Color highlighted clades
     if highlight_accessions:
@@ -19,8 +23,9 @@ def visualize_tree(tree_file, highlight_accessions=None):
             if clade.name and any(acc in clade.name for acc in highlight_accessions):
                 clade.color = "red"
 
-    Phylo.draw(tree, axes=ax)
+    Phylo.draw(tree, axes=ax, do_show=False)
     plt.tight_layout()
+    plt.savefig(tree_file.replace(".tree", ".pdf"), bbox_inches="tight")  # save to file too
     plt.show()
 
 def translate_sequences(input_file):
