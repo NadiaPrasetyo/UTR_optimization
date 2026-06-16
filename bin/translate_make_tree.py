@@ -18,6 +18,7 @@ def visualize_tree(tree_file, highlight_accessions=None):
         tree_file: Path to the .tree (Newick format) file.
         highlight_accessions: Optional list of accession strings to highlight in red.
     """
+    import matplotlib
     matplotlib.use("Agg")  # Non-interactive backend — must be set before importing pyplot
 
     sys.setrecursionlimit(10000)

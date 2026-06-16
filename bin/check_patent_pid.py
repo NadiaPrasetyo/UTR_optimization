@@ -203,6 +203,7 @@ class StructureResult:
 class CmsearchResult:
     query_name:  str
     target_name: str
+    cm_sig_name: str
     target_accession: str
     score:       float
     evalue:      str
@@ -378,12 +379,11 @@ def run_cmsearch(queries, cm_file, output_dir="."):
 
         hits = _parse_tblout(tblout_file)
         for h in hits:
-            if h["evalue"] <= 0.01:
-                cm_sig_name = h["target_name"]
+            
             results.append(CmsearchResult(
                 query_name=h["query_name"],
                 target_name=h["target_name"],
-                cm_sig_name = cm_sig_name,
+                cm_sig_name = h["target_name"] if float(h["evalue"]) <= 0.1 else None,
                 target_accession=h["target_accession"],
                 score=h["score"],
                 evalue=h["evalue"],
