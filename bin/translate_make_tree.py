@@ -25,7 +25,7 @@ def visualize_tree(tree_file, highlight_accessions=None):
 
     Phylo.draw(tree, axes=ax, do_show=False)
     plt.tight_layout()
-    plt.savefig(tree_file.replace(".tree", ".pdf"), bbox_inches="tight", height=250)  # save to file too
+    plt.savefig(tree_file.replace(".tree", ".pdf"), bbox_inches="tight", height=500)  # save to file too
 
 
 def translate_sequences(input_file):
@@ -43,6 +43,7 @@ def main():
     parser.add_argument("-i", "--input",    required=True,  help="Input FASTA file with full genome sequences to be translated")
     parser.add_argument("-o", "--output",   required=True,  help="Output alignment and tree file prefix")
     parser.add_argument("--highlight",      nargs="+",      help="Accession IDs to highlight in the tree", default=[])
+    parser.add_argument("--tree",           help="Visualize existing tree")
     args = parser.parse_args()
 
     # Ensure output directory exists
@@ -50,6 +51,9 @@ def main():
     if out_dir and not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
+    if args.tree:
+        visualize_tree(args.tree, highlight_accessions=args.highlight)
+        return
     # Translate sequences
     records = translate_sequences(args.input)
 
