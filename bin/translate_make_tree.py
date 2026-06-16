@@ -11,22 +11,37 @@ from Bio import Phylo
 import sys
 
 def visualize_tree(tree_file, highlight_accessions=None):
+    """
+    Visualize a Newick phylogenetic tree and save it as a PDF.
+
+    Args:
+        tree_file: Path to the .tree (Newick format) file.
+        highlight_accessions: Optional list of accession strings to highlight in red.
+    """
+    import os
+
     # Increase recursion limit for large trees
     sys.setrecursionlimit(10000)
+    print(f"Visualizing tree: {tree_file}")
 
     tree = Phylo.read(tree_file, "newick")
-    fig, ax = plt.subplots(figsize=(12, 20))  # taller figure for large trees
 
-    # Color highlighted clades
+    # Highlight matching clades before drawing
     if highlight_accessions:
         for clade in tree.find_clades():
             if clade.name and any(acc in clade.name for acc in highlight_accessions):
                 clade.color = "red"
 
+    fig, ax = plt.subplots(figsize=(30, 100))  # tall figure for large trees
     Phylo.draw(tree, axes=ax, do_show=False)
     plt.tight_layout()
-    plt.savefig(tree_file.replace(".tree", ".pdf"), bbox_inches="tight", height=500)  # save to file too
 
+    # Derive output path safely, regardless of file extension
+    output_path = os.path.splitext(tree_file)[0] + ".pdf"
+    plt.savefig(output_path, bbox_inches="tight")
+    plt.close(fig)  # Free memory
+
+    print(f"Tree saved to: {output_path}")
 
 def translate_sequences(input_file):
     records = []

@@ -33,8 +33,19 @@ GAP_OPEN = -2
 GAP_EXT  = -1
 
 
+def normalize_seq(seq: str) -> str:
+    """Uppercase and replace U with T so RNA and DNA sequences align consistently."""
+    return seq.upper().replace("U", "T")
+
+
+# Normalize patent sequences once at import time so every downstream comparison
+# is already in DNA (T) space.
+for _ps in PATENT_SEQUENCES:
+    _ps["seq"] = normalize_seq(_ps["seq"])
+
+
 def _sw_pure(seq_a, seq_b):
-    a, b = seq_a.upper(), seq_b.upper()
+    a, b = normalize_seq(seq_a), normalize_seq(seq_b)
     m, n = len(a), len(b)
     H = [[0] * (n + 1) for _ in range(m + 1)]
     best_score, best_i, best_j = 0, 0, 0
@@ -82,7 +93,7 @@ def _sw_biopython(seq_a, seq_b):
     aligner.open_gap_score  = GAP_OPEN
     aligner.extend_gap_score = GAP_EXT
 
-    a, b = seq_a.upper(), seq_b.upper()
+    a, b = normalize_seq(seq_a), normalize_seq(seq_b)
     alignments = aligner.align(a, b)
     try:
         best = next(iter(alignments))
@@ -207,8 +218,11 @@ class CmsearchResult:
 def run_all_sw(queries, threshold=0.80):
     results = []
     for query_name, query_seq in queries:
+        # query_seq is already normalized by the time it reaches here,
+        # but normalize defensively in case callers bypass parse helpers.
+        qs = normalize_seq(query_seq)
         for pat in PATENT_SEQUENCES:
-            qs, rs = query_seq.upper(), pat["seq"].upper()
+            rs = pat["seq"]  # already normalized at import time
             shorter = min(len(qs), len(rs))
             longer  = max(len(qs), len(rs))
             al_q, al_r, midline, score, q_s, r_s, matches = smith_waterman(qs, rs)
@@ -471,7 +485,7 @@ def run_mafft(sequences):
                     aligned.append((cur_name, "".join(cur_seq)))
                 cur_name = line[1:].split()[0]; cur_seq = []
             else:
-                cur_seq.append(line.strip().upper())
+                cur_seq.append(normalize_seq(line.strip()))
         if cur_name:
             aligned.append((cur_name, "".join(cur_seq)))
         return aligned
@@ -486,12 +500,12 @@ def parse_fasta(path):
             line = line.strip()
             if line.startswith(">"):
                 if name:
-                    seqs.append((name, "".join(seq)))
+                    seqs.append((name, normalize_seq("".join(seq))))
                 name = line[1:].split()[0]; seq = []
             else:
-                seq.append(line.replace(" ", "").upper())
+                seq.append(line.replace(" ", ""))
     if name:
-        seqs.append((name, "".join(seq)))
+        seqs.append((name, normalize_seq("".join(seq))))
     return seqs
 
 
@@ -501,6 +515,7 @@ def print_report(results, threshold):
     print(f"  Patent alignment report — {PATENT_ID}")
     print(f"  Aligner  : Smith-Waterman (local, affine gaps)")
     print(f"  Threshold: {threshold*100:.0f}%  |  Metric: max(id/alignment, id/shorter)")
+    print(f"  Note     : U residues normalized to T before alignment")
     print(f"{'='*80}\n")
     for qname in queries:
         grp  = [r for r in results if r.query_name == qname]
@@ -1238,6 +1253,7 @@ footer {{
       <span>Patent: <a href="{patent_url}" target="_blank">{patent_id}</a></span>
       <span>Threshold: {thr_pct}% identity</span>
       <span>Aligner: Smith-Waterman{rnafold_note}{cmsearch_note}</span>
+      <span>U→T normalised</span>
       <span>{generated}</span>
     </div>
   </div>
@@ -1293,6 +1309,7 @@ footer {{
         <div style="color:var(--dim);font-size:12px">Worst-case. Penalises when one sequence is much longer than the other.</div>
       </div>
     </div>
+    <p><strong>U→T normalisation:</strong> All sequences (queries and patent references) are converted to DNA alphabet (U replaced with T) before alignment. This ensures RNA and DNA forms of equivalent sequences are not penalised by spurious U/T mismatches.</p>
     <p><strong>Secondary structure (RNAfold):</strong> MFE dot-bracket structures are predicted independently for the query and the best-matching patent sequence. Matching secondary structure topology can indicate functional equivalence even when sequence identity is below the threshold — and may be relevant to broader claim interpretation.</p>
     <p><strong>Covariance model (cmsearch):</strong> If a .cm file is supplied via <code>--cm</code>, Infernal's cmsearch is used to score queries against a probabilistic model of the RNA's sequence <em>and</em> structure simultaneously. Output is written to three persistent files alongside the HTML report. This is the most rigorous test for functional equivalence of non-coding RNAs.</p>
     <div class="note"><strong>Legal note:</strong> Patent {patent_id} claims protection at ≥80% identity. The legally binding interpretation depends on claim construction before a court. Consult a registered patent attorney for definitive opinions.</div>
@@ -1301,7 +1318,7 @@ footer {{
 
 <footer>
   <span>checkPatent.py · {patent_id}</span>
-  <span>Smith-Waterman · match={match} mismatch={mismatch} gap={gap}</span>
+  <span>Smith-Waterman · match={match} mismatch={mismatch} gap={gap} · U→T normalised</span>
 </footer>
 
 <script>
@@ -1502,8 +1519,6 @@ def _build_cmsearch_panel(
     output_dir: str = ".",
     sto_data: Optional[dict] = None,
 ) -> str:
-    """Build the full cmsearch HTML panel."""
-
     n_hits = len(cm_results)
 
     cm_base  = _sanitize_path(cm_file)  or "&lt;model.cm&gt;"
@@ -1610,7 +1625,6 @@ def _build_cmsearch_panel(
             f'<pre class="cm-log">{escaped}</pre>'
         )
 
-    # NOTE: every opened <div> is explicitly closed below
     return (
         f'<div id="t-cm" class="pnl">'
         f'<div class="cm-section">'
@@ -1630,7 +1644,7 @@ def _build_cmsearch_panel(
 
         f'<div class="sec-title" style="padding-top:0;border-top:none;margin-bottom:10px;">'
         f'Hits — {n_hits} result{"s" if n_hits != 1 else ""}'
-        f'</div>'          # ← was missing in the original
+        f'</div>'
 
         f'{hits_html}'
 
@@ -1638,8 +1652,8 @@ def _build_cmsearch_panel(
 
         f'<div style="margin-top:28px;">{log_html}</div>'
 
-        f'</div>'   # .cm-section
-        f'</div>'   # #t-cm .pnl
+        f'</div>'
+        f'</div>'
     )
 
 
@@ -1661,7 +1675,6 @@ def generate_html(
     n_above   = len(above_set)
     n_below   = len(q_names) - n_above
 
-    # Queries that have at least one cmsearch hit — highlighted blue everywhere
     cm_hit_queries: set = {h.target_name for h in cm_results} if cm_results else set()
 
     sections = ""
@@ -1722,9 +1735,9 @@ def main():
         description="Check query sequences against patent WO2026038929A1.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("positional", nargs="*", help="Raw DNA sequences")
-    p.add_argument("--fasta",       help="FASTA file of queries")
-    p.add_argument("--seqs",        help="Comma-separated sequences")
+    p.add_argument("positional", nargs="*", help="Raw DNA/RNA sequences")
+    p.add_argument("--fasta",       help="FASTA file of queries (DNA or RNA)")
+    p.add_argument("--seqs",        help="Comma-separated sequences (DNA or RNA)")
     p.add_argument("--names",       help="Comma-separated names for --seqs")
     p.add_argument("--output",      default="patent_alignment_report.html")
     p.add_argument("--threshold",   type=float, default=0.80)
@@ -1738,21 +1751,21 @@ def main():
 
     queries: List[Tuple[str, str]] = []
     if args.fasta:
-        queries += parse_fasta(args.fasta)
+        queries += parse_fasta(args.fasta)   # normalize_seq called inside
     if args.seqs:
-        ss = [s.strip().upper() for s in args.seqs.split(",")]
+        ss = [normalize_seq(s.strip()) for s in args.seqs.split(",")]
         ns = [n.strip() for n in args.names.split(",")] if args.names else []
         for i, s in enumerate(ss):
             queries.append((ns[i] if i < len(ns) else f"query_{i+1}", s))
     for s in args.positional:
-        queries.append((f"query_{len(queries)+1}", s.upper()))
+        queries.append((f"query_{len(queries)+1}", normalize_seq(s)))
 
     if not queries:
         print("Error: no sequences provided. Use positional args, --fasta, or --seqs.")
         sys.exit(1)
 
     print(f"\nChecking {len(queries)} quer{'y' if len(queries)==1 else 'ies'} "
-          f"against {len(PATENT_SEQUENCES)} patent sequences (Smith-Waterman)…")
+          f"against {len(PATENT_SEQUENCES)} patent sequences (Smith-Waterman, U→T normalised)…")
 
     results = run_all_sw(queries, threshold=args.threshold)
     print_report(results, args.threshold)
