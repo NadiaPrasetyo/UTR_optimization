@@ -12,38 +12,55 @@ import sys
 
 def visualize_tree(tree_file, highlight_accessions=None):
     """
-    Visualize a Newick phylogenetic tree and save it as a PDF.
+    Visualize a Newick phylogenetic tree and save it as an SVG.
 
     Args:
         tree_file: Path to the .tree (Newick format) file.
-        highlight_accessions: Optional list of accession strings to highlight in red.
+        highlight_accessions: Optional list of accession strings to highlight
+                              with a turquoise label background.
     """
+    import os
     import matplotlib
-    matplotlib.use("Agg")  # Non-interactive backend — must be set before importing pyplot
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_svg import FigureCanvasSVG
 
     sys.setrecursionlimit(10000)
     print(f"Visualizing tree: {tree_file}")
 
     tree = Phylo.read(tree_file, "newick")
 
+    # Build a set of names to highlight for fast lookup
+    highlight_set = set()
     if highlight_accessions:
         for clade in tree.find_clades():
             if clade.name and any(acc in clade.name for acc in highlight_accessions):
                 clade.color = "red"
+                highlight_set.add(clade.name)
 
     num_tips = tree.count_terminals()
     fig_height = max(20, num_tips * 0.3)
     print(f"Tree has {num_tips} tips — setting figure height to {fig_height:.0f} inches")
 
-    # Use PDF backend directly to stream vector output without rasterizing in RAM
-    output_path = os.path.splitext(tree_file)[0] + ".pdf"
-    from matplotlib.backends.backend_pdf import PdfPages
-    with PdfPages(output_path) as pdf:
-        fig, ax = plt.subplots(figsize=(16, fig_height))
-        Phylo.draw(tree, axes=ax, do_show=False)
-        plt.tight_layout()
-        pdf.savefig(fig, bbox_inches="tight")
-        plt.close(fig)
+    fig, ax = plt.subplots(figsize=(16, fig_height))
+    Phylo.draw(tree, axes=ax, do_show=False)
+
+    # Add turquoise background boxes behind highlighted tip labels
+    if highlight_set:
+        for text in ax.texts:
+            if text.get_text().strip() in highlight_set:
+                text.set_backgroundcolor("#00CED1")  # dark turquoise
+                text.get_bbox_patch().set_boxstyle("round,pad=0.15")
+                text.get_bbox_patch().set_edgecolor("none")
+                text.set_color("black")              # ensure legible on turquoise
+
+    plt.tight_layout()
+
+    output_path = os.path.splitext(tree_file)[0] + ".svg"
+    canvas = FigureCanvasSVG(fig)
+    with open(output_path, "w") as f:
+        canvas.print_svg(f)
+    plt.close(fig)
 
     print(f"Tree saved to: {output_path}")
 
