@@ -1556,8 +1556,8 @@ def _build_cmsearch_panel(
         for h in sorted(cm_results, key=lambda x: x.score, reverse=True):
             rows += (
                 f"<tr>"
-                f"<td class='mono cm-hit'>{h.query_name}</td>"
-                f"<td class='mono'>{h.target_name}</td>"
+                f"<td class='mono'>{h.query_name}</td>"
+                f"<td class='mono cm-hit'>{h.target_name}</td>"
                 f"<td class='mono dim'>{h.target_accession}</td>"
                 f"<td class='mono {score_cls(h.score)}'>{h.score:.1f}</td>"
                 f"<td class='mono {evalue_cls(h.evalue)}'>{h.evalue}</td>"
@@ -1662,7 +1662,7 @@ def generate_html(
     n_below   = len(q_names) - n_above
 
     # Queries that have at least one cmsearch hit — highlighted blue everywhere
-    cm_hit_queries: set = {h.query_name for h in cm_results} if cm_results else set()
+    cm_hit_queries: set = {h.target_name for h in cm_results} if cm_results else set()
 
     sections = ""
     for qname in q_names:
