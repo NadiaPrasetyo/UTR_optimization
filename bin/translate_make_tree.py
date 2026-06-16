@@ -25,8 +25,8 @@ def visualize_tree(tree_file, highlight_accessions=None):
 
     Phylo.draw(tree, axes=ax, do_show=False)
     plt.tight_layout()
-    plt.savefig(tree_file.replace(".tree", ".pdf"), bbox_inches="tight")  # save to file too
-    plt.show()
+    plt.savefig(tree_file.replace(".tree", ".pdf"), bbox_inches="tight", height=250)  # save to file too
+
 
 def translate_sequences(input_file):
     records = []
