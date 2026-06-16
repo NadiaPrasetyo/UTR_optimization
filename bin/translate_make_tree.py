@@ -18,7 +18,7 @@ def visualize_tree(tree_file, highlight_accessions=None):
         tree_file: Path to the .tree (Newick format) file.
         highlight_accessions: Optional list of accession strings to highlight in red.
     """
-    import os
+    matplotlib.use("Agg")  # Non-interactive backend — must be set before importing pyplot
 
     sys.setrecursionlimit(10000)
     print(f"Visualizing tree: {tree_file}")
@@ -30,18 +30,19 @@ def visualize_tree(tree_file, highlight_accessions=None):
             if clade.name and any(acc in clade.name for acc in highlight_accessions):
                 clade.color = "red"
 
-    # Scale height by number of tips — ~0.3 inches per leaf, minimum 20
     num_tips = tree.count_terminals()
     fig_height = max(20, num_tips * 0.3)
     print(f"Tree has {num_tips} tips — setting figure height to {fig_height:.0f} inches")
 
-    fig, ax = plt.subplots(figsize=(16, fig_height))
-    Phylo.draw(tree, axes=ax, do_show=False)
-    plt.tight_layout()
-
+    # Use PDF backend directly to stream vector output without rasterizing in RAM
     output_path = os.path.splitext(tree_file)[0] + ".pdf"
-    plt.savefig(output_path, bbox_inches="tight")
-    plt.close(fig)
+    from matplotlib.backends.backend_pdf import PdfPages
+    with PdfPages(output_path) as pdf:
+        fig, ax = plt.subplots(figsize=(16, fig_height))
+        Phylo.draw(tree, axes=ax, do_show=False)
+        plt.tight_layout()
+        pdf.savefig(fig, bbox_inches="tight")
+        plt.close(fig)
 
     print(f"Tree saved to: {output_path}")
 
