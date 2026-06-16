@@ -378,9 +378,12 @@ def run_cmsearch(queries, cm_file, output_dir="."):
 
         hits = _parse_tblout(tblout_file)
         for h in hits:
+            if h["evalue"] <= 0.01:
+                cm_sig_name = h["target_name"]
             results.append(CmsearchResult(
                 query_name=h["query_name"],
                 target_name=h["target_name"],
+                cm_sig_name = cm_sig_name,
                 target_accession=h["target_accession"],
                 score=h["score"],
                 evalue=h["evalue"],
@@ -1675,7 +1678,7 @@ def generate_html(
     n_above   = len(above_set)
     n_below   = len(q_names) - n_above
 
-    cm_hit_queries: set = {h.target_name for h in cm_results} if cm_results else set()
+    cm_hit_queries: set = {h.cm_sig_name for h in cm_results} if cm_results else set()
 
     sections = ""
     for qname in q_names:
