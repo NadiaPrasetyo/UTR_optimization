@@ -20,26 +20,28 @@ def visualize_tree(tree_file, highlight_accessions=None):
     """
     import os
 
-    # Increase recursion limit for large trees
     sys.setrecursionlimit(10000)
     print(f"Visualizing tree: {tree_file}")
 
     tree = Phylo.read(tree_file, "newick")
 
-    # Highlight matching clades before drawing
     if highlight_accessions:
         for clade in tree.find_clades():
             if clade.name and any(acc in clade.name for acc in highlight_accessions):
                 clade.color = "red"
 
-    fig, ax = plt.subplots(figsize=(30, 500))  # tall figure for large trees
+    # Scale height by number of tips — ~0.3 inches per leaf, minimum 20
+    num_tips = tree.count_terminals()
+    fig_height = max(20, num_tips * 0.3)
+    print(f"Tree has {num_tips} tips — setting figure height to {fig_height:.0f} inches")
+
+    fig, ax = plt.subplots(figsize=(16, fig_height))
     Phylo.draw(tree, axes=ax, do_show=False)
     plt.tight_layout()
 
-    # Derive output path safely, regardless of file extension
     output_path = os.path.splitext(tree_file)[0] + ".pdf"
     plt.savefig(output_path, bbox_inches="tight")
-    plt.close(fig)  # Free memory
+    plt.close(fig)
 
     print(f"Tree saved to: {output_path}")
 
