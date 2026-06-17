@@ -37,7 +37,8 @@ def visualize_tree(tree_file, highlight_accessions=None):
             if len(parts) >= 3:
                 if parts[1] == "NC":
                     clade.name = "NC_" + parts[2] + "." + parts[3]
-                clade.name = parts[1] + "." + parts[2]
+                else:
+                    clade.name = parts[1] + "." + parts[2]
 
     # Build a set of names to highlight for fast lookup
     highlight_set = set()
