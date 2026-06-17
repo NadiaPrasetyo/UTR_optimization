@@ -30,6 +30,10 @@ def visualize_tree(tree_file, highlight_accessions=None):
 
     tree = Phylo.read(tree_file, "newick")
 
+    # rename the clades and nodes
+    for clade in tree.find_clades():
+        clade.name = clade.name.split("_")[1]+"." + clade.name.split("_")[2]
+
     # Build a set of names to highlight for fast lookup
     highlight_set = set()
     if highlight_accessions:
