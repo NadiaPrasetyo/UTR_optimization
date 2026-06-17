@@ -13,7 +13,6 @@ import sys
 def visualize_tree(tree_file, highlight_accessions=None):
     """
     Visualize a Newick phylogenetic tree and save it as an SVG.
-
     Args:
         tree_file: Path to the .tree (Newick format) file.
         highlight_accessions: Optional list of accession strings to highlight
@@ -30,9 +29,13 @@ def visualize_tree(tree_file, highlight_accessions=None):
 
     tree = Phylo.read(tree_file, "newick")
 
-    # rename the clades and nodes
+    # Rename tips only — internal nodes have name=None, skip those
+    # Also guard against names that don't have enough underscore-delimited parts
     for clade in tree.find_clades():
-        clade.name = clade.name.split("_")[1]+"." + clade.name.split("_")[2]
+        if clade.name:
+            parts = clade.name.split("_")
+            if len(parts) >= 3:
+                clade.name = parts[1] + "." + parts[2]
 
     # Build a set of names to highlight for fast lookup
     highlight_set = set()
@@ -53,10 +56,10 @@ def visualize_tree(tree_file, highlight_accessions=None):
     if highlight_set:
         for text in ax.texts:
             if text.get_text().strip() in highlight_set:
-                text.set_backgroundcolor("#00CED1")  # dark turquoise
+                text.set_backgroundcolor("#00CED1")
                 text.get_bbox_patch().set_boxstyle("round,pad=0.15")
                 text.get_bbox_patch().set_edgecolor("none")
-                text.set_color("black")              # ensure legible on turquoise
+                text.set_color("black")
 
     plt.tight_layout()
 
