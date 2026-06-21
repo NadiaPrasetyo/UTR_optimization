@@ -134,11 +134,12 @@ def run_rscape(input_file, output_file, use_cacofold=False, verbose=False):
         cmd.append("-s")
     cmd.append(input_file)
 
+    os.makedirs(out_dir, exist_ok=True)
     subprocess.run(
         cmd,
         check=True,
         stdout=None if verbose else subprocess.DEVNULL,
-        stderr=None if verbose else subprocess.DEVNULL,
+        stderr=None,   # always show R-scape stderr so errors are visible
     )
 
     if use_cacofold:
