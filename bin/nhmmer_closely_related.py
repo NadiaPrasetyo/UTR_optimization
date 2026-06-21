@@ -58,9 +58,14 @@ def run_rnaalifold(input_file, output_file, verbose=False):
 
 def fasta_aln_to_stockholm(aln_file, sto_file, ss_cons=None, verbose=False):
     """
-    Convert a FASTA-format MSA to Stockholm using esl-reformat, then
-    optionally inject a consensus secondary structure annotation (#=GC SS_cons)
-    before the closing '//' line.
+    Convert a FASTA-format MSA to Stockholm format and optionally embed a
+    consensus secondary structure annotation (#=GC SS_cons).
+
+    Writes a single unwrapped block (all sequences on one line each) so that
+    the #=GC SS_cons annotation sits unambiguously in the same block as the
+    sequence rows -- multi-block wrapped output from esl-reformat causes R-scape
+    to reject the SS_cons line with "unexpected #=GC SS_cons; earlier block(s)
+    in different order".
 
     Parameters
     ----------
@@ -70,37 +75,35 @@ def fasta_aln_to_stockholm(aln_file, sto_file, ss_cons=None, verbose=False):
         Destination path for the Stockholm file.
     ss_cons  : str or None
         Dot-bracket consensus structure from RNAalifold.  When provided its
-        length is validated against the alignment before insertion.
+        length is validated against the alignment length.
         Pass None to produce a bare Stockholm file (e.g. for --cacofold).
     """
-    print(f"  Converting {aln_file} to Stockholm format with esl-reformat...")
-    subprocess.run(
-        ["esl-reformat", "-o", sto_file, "stockholm", aln_file],
-        check=True,
-        stdout=None if verbose else subprocess.DEVNULL,
-        stderr=None if verbose else subprocess.DEVNULL,
-    )
+    records = list(SeqIO.parse(aln_file, "fasta"))
+    if not records:
+        raise ValueError(f"No sequences found in {aln_file}")
 
+    aln_len = len(records[0].seq)
+
+    if ss_cons is not None and len(ss_cons) != aln_len:
+        raise ValueError(
+            f"Structure length ({len(ss_cons)}) does not match "
+            f"alignment length ({aln_len}). "
+            "RNAalifold may have been run on a different alignment."
+        )
+
+    # Pad names so sequence columns are aligned (purely cosmetic)
+    col_width = max(len(r.id) for r in records)
     if ss_cons is not None:
-        # Validate structure length against alignment length
-        records = list(SeqIO.parse(aln_file, "fasta"))
-        aln_len = len(records[0].seq)
-        if len(ss_cons) != aln_len:
-            raise ValueError(
-                f"Structure length ({len(ss_cons)}) does not match "
-                f"alignment length ({aln_len}). "
-                "RNAalifold may have been run on a different alignment."
-            )
+        col_width = max(col_width, len("#=GC SS_cons"))
 
-        # Insert '#=GC SS_cons <structure>' before the closing '//'
-        with open(sto_file, "r") as fh:
-            lines = fh.readlines()
-        with open(sto_file, "w") as fh:
-            for line in lines:
-                if line.strip() == "//":
-                    fh.write(f"#=GC SS_cons {ss_cons}\n")
-                fh.write(line)
-        print(f"  SS_cons annotation injected into: {sto_file}")
+    print(f"  Writing Stockholm MSA to {sto_file}...")
+    with open(sto_file, "w") as fh:
+        fh.write("# STOCKHOLM 1.0\n\n")
+        for r in records:
+            fh.write(f"{r.id:<{col_width}}  {r.seq}\n")
+        if ss_cons is not None:
+            fh.write(f"{'#=GC SS_cons':<{col_width}}  {ss_cons}\n")
+        fh.write("//\n")
 
     print(f"  Stockholm MSA saved to: {sto_file}")
     return sto_file
