@@ -268,4 +268,8 @@ if __name__ == "__main__":
         help="Keep temporary files and show tool output",
     )
     args = parser.parse_args()
+    
+    if not os.path.exists(os.path.dirname(args.output_file)):
+        os.makedirs(os.path.dirname(args.output_file))
+        
     main(args.input_file, args.output_file, args.cacofold, args.verbose)
