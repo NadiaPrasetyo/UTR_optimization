@@ -86,7 +86,7 @@ def deduplicate_aa_seq(records):
 def translate_sequences(input_file):
     records = []
     for record in SeqIO.parse(input_file, "fasta"):
-        seq = record.seq.translate(to_stop=True)
+        seq = record.seq.translate(to_stop=False)
         record.id = record.id.split(" ")[0]
         record.description = ""
         record.seq = seq

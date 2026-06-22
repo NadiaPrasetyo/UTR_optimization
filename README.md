@@ -83,3 +83,11 @@ eTIS Strength:
     eTIS strength = 100 − (predicted leaky scanning / maximum predicted leaky scanning) × 100
     In our dataset, the maximum predicted leaky scanning value corresponded to a value of
     16.010647.
+
+
+## CMFinder:
+
+    Zizhen Yao, Zasha Weinberg, Walter L. Ruzzo, CMfinder—a covariance model based RNA motif finding algorithm, Bioinformatics, Volume 22, Issue 4, February 2006, Pages 445–452, https://doi.org/10.1093/bioinformatics/btk008
+
+Available from: https://sourceforge.net/projects/weinberg-cmfinder/
+
