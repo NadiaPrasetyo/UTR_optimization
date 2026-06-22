@@ -29,7 +29,7 @@ def run_rnaalifold(input_file, output_file, verbose=False):
     """
     print(f"Running RNAalifold on {input_file}...")
     result = subprocess.run(
-        ["RNAalifold", "--aln", input_file],
+        ["RNAalifold", -f, "s", input_file],
         capture_output=True,
         text=True,
         check=True,
@@ -271,5 +271,5 @@ if __name__ == "__main__":
     
     if not os.path.exists(os.path.dirname(args.output_file)):
         os.makedirs(os.path.dirname(args.output_file))
-        
+
     main(args.input_file, args.output_file, args.cacofold, args.verbose)
