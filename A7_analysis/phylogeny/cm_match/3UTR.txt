@@ -1,0 +1,628 @@
+# nhmmer :: search a DNA model or alignment against a DNA database
+# HMMER 3.1b2 (February 2015); http://hmmer.org/
+# Copyright (C) 2015 Howard Hughes Medical Institute.
+# Freely distributed under the GNU General Public License (GPLv3).
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query file:                      A7_analysis/phylogeny/cm_match_3utr_query.hmm
+# target sequence database:        A7_analysis/phylogeny/cm_match_3utr.fasta
+# output directed to file:         A7_analysis/phylogeny/cm_match/3UTR.txt
+# MSA of all hits saved to file:   A7_analysis/phylogeny/cm_match/3UTR.sto
+# hits tabular output:             A7_analysis/phylogeny/cm_match/3UTR.tblout
+# number of worker threads:        128
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       cm_match_3utr_query  [M=637]
+Scores for complete hits:
+    E-value  score  bias  Sequence     start    end  Description
+    ------- ------ -----  --------     -----  -----  -----------
+     1e-196  644.3  29.8  MH806866.1       2    636  
+   7.3e-177  579.0  21.8  OR590795.1       2    635  
+   1.7e-169  554.8  21.8  MW684814.1       2    636  
+    1.7e-82  268.5  20.5  PP228890.1       2    640  
+    1.7e-82  268.5  20.5  PP228891.1       2    640  
+    1.7e-82  268.5  20.5  PP228897.1       2    640  
+    2.3e-80  261.5  18.8  MG846465.1       2    610  
+    2.2e-78  255.0  22.1  MH125198.1       2    665  
+    5.7e-78  253.7  20.7  KF961187.1       3    661  
+    1.5e-60  196.4   9.5  PX095761.1       3    608  
+    2.7e-26   83.6   8.7  NC_038957.1      5    286  
+    4.5e-26   82.9   7.8  OR364988.1       5    287  
+    1.3e-25   81.4   6.7  KC811837.1       5    287  
+    3.2e-23   73.5   4.5  OP169446.1       6    280  
+
+
+Annotation for each hit  (and alignments):
+>> MH806866.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  644.3  29.8    1e-196         2       636 ..         2       636 ..         1       637 []       637    1.00
+
+  Alignment:
+  score: 644.3 bits
+  cm_match_3utr_query   2 ttatgggaattacagtttcttcaaattataatattgtaaataattttgcttctgccggtgctacaattactgctgttacttttcagactg 91 
+                          ttatgggaattacagtttcttcaaattataatattgtaaataattttgcttctgccggtgctacaattactgctgttacttttcagactg
+           MH806866.1   2 TTATGGGAATTACAGTTTCTTCAAATTATAATATTGTAAATAATTTTGCTTCTGCCGGTGCTACAATTACTGCTGTTACTTTTCAGACTG 91 
+                          789*************************************************************************************** PP
+
+  cm_match_3utr_query  92 cttcaattatcatgatttctattggtgctcttgttttaattgtgcttgcaggtgtggtaatttattatttttggaagaagcatcgtcgtg 181
+                          cttcaattatcatgatttctattggtgctcttgttttaattgtgcttgcaggtgtggtaatttattatttttggaagaagcatcgtcgtg
+           MH806866.1  92 CTTCAATTATCATGATTTCTATTGGTGCTCTTGTTTTAATTGTGCTTGCAGGTGTGGTAATTTATTATTTTTGGAAGAAGCATCGTCGTG 181
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 182 gtcggaattctagaaagagggaggagaagattctggcacgactaattgaaaaggggcttgtgtcccccgatactcgtcttccagatgatg 271
+                          gtcggaattctagaaagagggaggagaagattctggcacgactaattgaaaaggggcttgtgtcccccgatactcgtcttccagatgatg
+           MH806866.1 182 GTCGGAATTCTAGAAAGAGGGAGGAGAAGATTCTGGCACGACTAATTGAAAAGGGGCTTGTGTCCCCCGATACTCGTCTTCCAGATGATG 271
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 272 gaaacgaggtaattgaaagtataaagctctagctcaggagttgaaactgagtagccgttggaatcggctatataaattatctaaccctct 361
+                          gaaacgaggtaattgaaagtataaagctctagctcaggagttgaaactgagtagccgttggaatcggctatataaattatctaaccctct
+           MH806866.1 272 GAAACGAGGTAATTGAAAGTATAAAGCTCTAGCTCAGGAGTTGAAACTGAGTAGCCGTTGGAATCGGCTATATAAATTATCTAACCCTCT 361
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 362 agctcaggaggatttaaactgagtacccgttggaatcgggtatataaattatccatttagttgttaagttttagtttacaattcttgctt 451
+                          agctcaggaggatttaaactgagtacccgttggaatcgggtatataaattatccatttagttgttaagttttagtttacaattcttgctt
+           MH806866.1 362 AGCTCAGGAGGATTTAAACTGAGTACCCGTTGGAATCGGGTATATAAATTATCCATTTAGTTGTTAAGTTTTAGTTTACAATTCTTGCTT 451
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 452 aaaataatttagttaagttagtttagtgtaaaagttaagtttagtaagctttgccctcaacccttaaggttgttgtagcttgattaagcg 541
+                          aaaataatttagttaagttagtttagtgtaaaagttaagtttagtaagctttgccctcaacccttaaggttgttgtagcttgattaagcg
+           MH806866.1 452 AAAATAATTTAGTTAAGTTAGTTTAGTGTAAAAGTTAAGTTTAGTAAGCTTTGCCCTCAACCCTTAAGGTTGTTGTAGCTTGATTAAGCG 541
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 542 aacgaaatgggacgtatgatccatcttggagtgggtcagaccctggtccggggcaatgggaccactgtttcgcgtttaatcctcaccgct 631
+                          aacgaaatgggacgtatgatccatcttggagtgggtcagaccctggtccggggcaatgggaccactgtttcgcgtttaatcctcaccgct
+           MH806866.1 542 AACGAAATGGGACGTATGATCCATCTTGGAGTGGGTCAGACCCTGGTCCGGGGCAATGGGACCACTGTTTCGCGTTTAATCCTCACCGCT 631
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 632 tagga 636
+                          tagga
+           MH806866.1 632 TAGGA 636
+                          **997 PP
+
+>> OR590795.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  579.0  21.8  7.3e-177         2       636 ..         2       635 ..         1       636 [.       661    0.99
+
+  Alignment:
+  score: 579.0 bits
+  cm_match_3utr_query   2 ttatgggaattacagtttcttcaaattataatattgtaaataattttgcttctgccggtgctacaattactgctgttacttttcagactg 91 
+                          ttatgggaattacagtttc tcaaatta aatat gt aataattttgcttctgc ggtgctacaattactgctgt acttttca actg
+           OR590795.1   2 TTATGGGAATTACAGTTTCATCAAATTACAATATCGTGAATAATTTTGCTTCTGCTGGTGCTACAATTACTGCTGTAACTTTTCAAACTG 91 
+                          789*************************************************************************************** PP
+
+  cm_match_3utr_query  92 cttcaattatcatgatttctattggtgctcttgttttaattgtgcttgcaggtgtggtaatttattatttttggaagaagcatcgtcgtg 181
+                          cttcaatt t atgatttc at ggtgctcttgtttt attgtgcttgcaggtgt gtaatttattatttttggaagaa catcgtcgtg
+           OR590795.1  92 CTTCAATTGTTATGATTTCCATAGGTGCTCTTGTTTTGATTGTGCTTGCAGGTGTAGTAATTTATTATTTTTGGAAGAAACATCGTCGTG 181
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 182 gtcggaattctagaaagagggaggagaagattctggcacgactaattgaaaaggggcttgtgtcccccgatactcgtcttccagatgatg 271
+                          g cggaa  ctagaaagagggaggagaagatt tggc cgactaattgaaaaggggcttgtgtcccccgatactcgtcttcc gatgatg
+           OR590795.1 182 GCCGGAACACTAGAAAGAGGGAGGAGAAGATTTTGGCGCGACTAATTGAAAAGGGGCTTGTGTCCCCCGATACTCGTCTTCCTGATGATG 271
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 272 gaaacgaggtaattgaaagtataaagctctagctcaggagttgaaactgagtagccgttggaatcggctatataaattatctaaccctct 361
+                          gaaacg ggtaattgaaagtataaagctctagctcaggagttgaaactgagtagccgttggaatcggctatataaattatc aaccctct
+           OR590795.1 272 GAAACGGGGTAATTGAAAGTATAAAGCTCTAGCTCAGGAGTTGAAACTGAGTAGCCGTTGGAATCGGCTATATAAATTATCCAACCCTCT 361
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 362 agctcaggaggatttaaactgagtacccgttggaatcgggtatataaattatccatttagttgttaagttttagtttacaattcttgctt 451
+                          agctcaggaggatttaaactgag acccgttggaatcgggtata aaattatccatttagt gttaagt ttagttta a ttct   tt
+           OR590795.1 362 AGCTCAGGAGGATTTAAACTGAGCACCCGTTGGAATCGGGTATACAAATTATCCATTTAGTCGTTAAGTATTAGTTTA-AGTTCTGCTTT 450
+                          ***************************************************************************997.67888888899 PP
+
+  cm_match_3utr_query 452 aaaataatttagttaagttagtttagtgtaaaagttaagtttagtaagctttgccctcaacccttaaggttgttgtagcttgattaagcg 541
+                          a aataatttag taagttagttt  tgtaaaagttaagtttagtaagctttgccctcaacccttaaggttgttgtagcttgatta gcg
+           OR590795.1 451 AGAATAATTTAGATAAGTTAGTTTGCTGTAAAAGTTAAGTTTAGTAAGCTTTGCCCTCAACCCTTAAGGTTGTTGTAGCTTGATTAGGCG 540
+                          99**************************************************************************************** PP
+
+  cm_match_3utr_query 542 aacgaaatgggacgtatgatccatcttggagtgggtcagaccctggtccggggcaatgggaccactgtttcgcgtttaatcctcaccgct 631
+                          aacgaaatgggacgtatgatccatcttggagtgggtcagaccctggtccggggcaat ggaccactgtttcgcgtttaatcctcaccgct
+           OR590795.1 541 AACGAAATGGGACGTATGATCCATCTTGGAGTGGGTCAGACCCTGGTCCGGGGCAATAGGACCACTGTTTCGCGTTTAATCCTCACCGCT 630
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 632 tagga 636
+                          tagga
+           OR590795.1 631 TAGGA 635
+                          **997 PP
+
+>> MW684814.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  554.8  21.8  1.7e-169         2       635 ..         2       636 .]         1       636 []       636    0.99
+
+  Alignment:
+  score: 554.8 bits
+  cm_match_3utr_query   2 ttatgggaattacagtttcttcaaattataatattgtaaataattttgcttctgccggtgctacaattactgctgttacttttcagactg 91 
+                          ttatggg attacagt tc tc aatta aatattgtaaataattttgcttctgc ggtgctacaattactgc gttac tttca actg
+           MW684814.1   2 TTATGGGTATTACAGTCTCATCCAATTACAATATTGTAAATAATTTTGCTTCTGCTGGTGCTACAATTACTGCCGTTACCTTTCAAACTG 91 
+                          7899************************************************************************************** PP
+
+  cm_match_3utr_query  92 cttcaattatcatgatttctattggtgctcttgttttaattgtgcttgcaggtgtggtaatttattatttttggaagaagcatcgtcgtg 181
+                          cttc attat    atttctat ggtgctct gt tt  t gt  ttgc ggtgt gtaatttatta ttttggaagaa catcgtcgtg
+           MW684814.1  92 CTTCTATTATTGCAATTTCTATAGGTGCTCTAGTGTTGTTAGTCTTTGCTGGTGTTGTAATTTATTACTTTTGGAAGAAACATCGTCGTG 181
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 182 gtcggaattctagaaagagggaggagaagattctggcacgactaattgaaaaggggcttgtgtcccccgatactcgtcttccagatgatg 271
+                          g cggaattctag a gag ga gagaagattctggcacgact attgaaaaggggcttgtgtcccccgatactcgtcttcc gatg tg
+           MW684814.1 182 GCCGGAATTCTAGGAGGAGAGAAGAGAAGATTCTGGCACGACTCATTGAAAAGGGGCTTGTGTCCCCCGATACTCGTCTTCCTGATGGTG 271
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 272 gaaacgaggtaattgaaagtataaagctctagctcaggagttgaaactgagtagccgttggaatcggctatataaattatctaaccctct 361
+                          gaaacgaggtaattgaaagt taaagctctagctcaggagttgaaactgagtagccg tggaatcggctatataaattatc aaccctct
+           MW684814.1 272 GAAACGAGGTAATTGAAAGTGTAAAGCTCTAGCTCAGGAGTTGAAACTGAGTAGCCGCTGGAATCGGCTATATAAATTATCCAACCCTCT 361
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 362 agctcaggaggatttaaactgagtacccgttggaatcgggtatataaattatccatttagttgttaagttttagttta.caattcttgct 450
+                          agctcaggaggatttaaactgagtacccgttggaatcgggtatataaattatcca ttag tgttaagttttagttt   aa t ttgct
+           MW684814.1 362 AGCTCAGGAGGATTTAAACTGAGTACCCGTTGGAATCGGGTATATAAATTATCCACTTAGCTGTTAAGTTTTAGTTTGtTAAGTTTTGCT 451
+                          **************************************************************************988625788999**** PP
+
+  cm_match_3utr_query 451 taaaataatttagttaagttagtttagtgtaaaagttaagtttagtaagctttgccctcaacccttaaggttgttgtagcttgattaagc 540
+                          t aaat attta ttaagttagtttagtgtaaaagtta gtttagtaagctttgccctcaacccttaaggttgttgtagcttgattaagc
+           MW684814.1 452 TTAAATCATTTAATTAAGTTAGTTTAGTGTAAAAGTTAGGTTTAGTAAGCTTTGCCCTCAACCCTTAAGGTTGTTGTAGCTTGATTAAGC 541
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 541 gaacgaaatgggacgtatgatccatcttggagtgggtcagaccctggtccggggcaatgggaccactgtttcgcgtttaatcctcaccgc 630
+                          gaacgaaatgggacgtatgatccatcttggagtgggtcagaccctggtccggggcaat ggaccactgtttcgcgtttaatcctcaccgc
+           MW684814.1 542 GAACGAAATGGGACGTATGATCCATCTTGGAGTGGGTCAGACCCTGGTCCGGGGCAATAGGACCACTGTTTCGCGTTTAATCCTCACCGC 631
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 631 ttagg 635
+                          ttagg
+           MW684814.1 632 TTAGG 636
+                          *9986 PP
+
+>> PP228890.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  268.5  20.5   1.7e-82         3       636 ..         2       640 ..         1       641 [.       670    0.78
+
+  Alignment:
+  score: 268.5 bits
+  cm_match_3utr_query   3 tatgggaattacagtttcttcaa...attataatattgtaaataattttgcttctg...ccggtgctacaattactgctgttacttttca 86 
+                          tatggg a ta  g t  t caa   attat a attgt aataat t gct   g   ccgg gc aca    ctgctgttactttt a
+           PP228890.1   2 TATGGGTAATATTGCTAGTACAAataATTATCACATTGTGAATAATCTGGCTATGGgaaCCGGCGCAACAGCCGCTGCTGTTACTTTTAA 91 
+                          5677777777777777777777611156788899**************999876554558****************************** PP
+
+  cm_match_3utr_query  87 gactgcttcaattatcatgatttctattggtgctcttgttttaattgtgcttgcaggtgtggtaatttattatttttggaagaagcatcg 176
+                           ac  ct   att t  tgatt c attggtgctcttgtt t  t  t  t    ggtg   t atttattatttttgga gaa    cg
+           PP228890.1  92 TACGACTATGATTGTTCTGATTACAATTGGTGCTCTTGTTCTTGTGATTTTGTGTGGTGCTATTATTTATTATTTTTGGAGGAAAAGGCG 181
+                          **************************************9876544433333334567777778899****************99999999 PP
+
+  cm_match_3utr_query 177 tcgtggtcggaattctagaaagagggaggagaagattctggcacgactaattgaaaaggggcttgtgtcccccgatactcgtcttccaga 266
+                           cg    c    t   a aaagagggag   aagat  t g  cga t  t              tg   c  g t  tc  c tccaga
+           PP228890.1 182 ACGCTCACTTCGTCGCAAAAAGAGGGAGAGAAAGATCTTTGAGCGAGTTCTCA------------TGCAGCGTGCTCATCTCCCTCCAGA 259
+                          9988777766777778899*********9999***999999888886654433............3333333344445666778899999 PP
+
+  cm_match_3utr_query 267 tgatggaaacgaggtaattgaaagtataaagctc...tagctcaggagttgaaactgagtagccgttggaatcggctatataaa...tta 350
+                          t atg    cg   t   tgaa   at  a        a  tc    gt ga   t    a c g tg a  cgg tat  a     tta
+           PP228890.1 260 TCATGCCCGCGCTTTTGCTGAATCCATCTATGCGggtAATATCC---GTCGA---TCGACAACTGATGAAGACGGTTATGAAGTtgtTTA 343
+                          99999888888777777777765555433211110001111111...22221...22234556677788888888887754432111233 PP
+
+  cm_match_3utr_query 351 tct.aaccctctagctcaggaggatttaaactgagtacccgttggaatcgggtatataaattatccatttagttgttaagttttagttta 439
+                          t   a   ctctagctcaggag  t taaactgagta ccgttggaatcgg tatataaattatccatt   ttgttaagttttagt t 
+           PP228890.1 344 TTGaATGTCTCTAGCTCAGGAG--TGTAAACTGAGTAGCCGTTGGAATCGGCTATATAAATTATCCATTAGTTTGTTAAGTTTTAGTCTT 431
+                          3331345799**********98..6789******************************************9**************98764 PP
+
+  cm_match_3utr_query 440 caattc.....ttgcttaaaa.......taatttagttaagttagtttagtgtaaaagttaagtttagtaagctttgccctcaaccctta 517
+                             tt      tt  ttaa         t   tt  ttaag  a  ttagtgtaaaagttaagtttagtaagctttgccctcaaccctta
+           PP228890.1 432 AGCTTTattagTTTGTTAAGTttttgttTTGCTTTATTAAGAAATCTTAGTGTAAAAGTTAAGTTTAGTAAGCTTTGCCCTCAACCCTTA 521
+                          3332220100011122222211110000112233456788899999******************************************** PP
+
+  cm_match_3utr_query 518 aggttgttgtagcttgattaagcgaacgaaatgggacgtatgatccatcttggagtgggtcagaccctggtccggggcaatgggaccact 607
+                          aggttgttgtagcttgattaagcgaacgaaatgggacg atgatccatctt gagtgg tcagaccctggtccggggcaat ggaccact
+           PP228890.1 522 AGGTTGTTGTAGCTTGATTAAGCGAACGAAATGGGACGCATGATCCATCTTAGAGTGGATCAGACCCTGGTCCGGGGCAATAGGACCACT 611
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 608 gtttcgcgtttaatcctcaccgcttagga 636
+                          gtttcgcgtttaatcctcaccgcttagga
+           PP228890.1 612 GTTTCGCGTTTAATCCTCACCGCTTAGGA 640
+                          **************************997 PP
+
+>> PP228891.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  268.5  20.5   1.7e-82         3       636 ..         2       640 ..         1       641 [.       670    0.78
+
+  Alignment:
+  score: 268.5 bits
+  cm_match_3utr_query   3 tatgggaattacagtttcttcaa...attataatattgtaaataattttgcttctg...ccggtgctacaattactgctgttacttttca 86 
+                          tatggg a ta  g t  t caa   attat a attgt aataat t gct   g   ccgg gc aca    ctgctgttactttt a
+           PP228891.1   2 TATGGGTAATATTGCTAGTACAAataATTATCACATTGTGAATAATCTGGCTATGGgaaCCGGCGCAACAGCCGCTGCTGTTACTTTTAA 91 
+                          5677777777777777777777611156788899**************999876554558****************************** PP
+
+  cm_match_3utr_query  87 gactgcttcaattatcatgatttctattggtgctcttgttttaattgtgcttgcaggtgtggtaatttattatttttggaagaagcatcg 176
+                           ac  ct   att t  tgatt c attggtgctcttgtt t  t  t  t    ggtg   t atttattatttttgga gaa    cg
+           PP228891.1  92 TACGACTATGATTGTTCTGATTACAATTGGTGCTCTTGTTCTTGTGATTTTGTGTGGTGCTATTATTTATTATTTTTGGAGGAAAAGGCG 181
+                          **************************************9876544433333334567777778899****************99999999 PP
+
+  cm_match_3utr_query 177 tcgtggtcggaattctagaaagagggaggagaagattctggcacgactaattgaaaaggggcttgtgtcccccgatactcgtcttccaga 266
+                           cg    c    t   a aaagagggag   aagat  t g  cga t  t              tg   c  g t  tc  c tccaga
+           PP228891.1 182 ACGCTCACTTCGTCGCAAAAAGAGGGAGAGAAAGATCTTTGAGCGAGTTCTCA------------TGCAGCGTGCTCATCTCCCTCCAGA 259
+                          9988777766777778899*********9999***999999888886654433............3333333344445666778899999 PP
+
+  cm_match_3utr_query 267 tgatggaaacgaggtaattgaaagtataaagctc...tagctcaggagttgaaactgagtagccgttggaatcggctatataaa...tta 350
+                          t atg    cg   t   tgaa   at  a        a  tc    gt ga   t    a c g tg a  cgg tat  a     tta
+           PP228891.1 260 TCATGCCCGCGCTTTTGCTGAATCCATCTATGCGggtAATATCC---GTCGA---TCGACAACTGATGAAGACGGTTATGAAGTtgtTTA 343
+                          99999888888777777777765555433211110001111111...22221...22234556677788888888887754432111233 PP
+
+  cm_match_3utr_query 351 tct.aaccctctagctcaggaggatttaaactgagtacccgttggaatcgggtatataaattatccatttagttgttaagttttagttta 439
+                          t   a   ctctagctcaggag  t taaactgagta ccgttggaatcgg tatataaattatccatt   ttgttaagttttagt t 
+           PP228891.1 344 TTGaATGTCTCTAGCTCAGGAG--TGTAAACTGAGTAGCCGTTGGAATCGGCTATATAAATTATCCATTAGTTTGTTAAGTTTTAGTCTT 431
+                          3331345799**********98..6789******************************************9**************98764 PP
+
+  cm_match_3utr_query 440 caattc.....ttgcttaaaa.......taatttagttaagttagtttagtgtaaaagttaagtttagtaagctttgccctcaaccctta 517
+                             tt      tt  ttaa         t   tt  ttaag  a  ttagtgtaaaagttaagtttagtaagctttgccctcaaccctta
+           PP228891.1 432 AGCTTTattagTTTGTTAAGTttttgttTTGCTTTATTAAGAAATCTTAGTGTAAAAGTTAAGTTTAGTAAGCTTTGCCCTCAACCCTTA 521
+                          3332220100011122222211110000112233456788899999******************************************** PP
+
+  cm_match_3utr_query 518 aggttgttgtagcttgattaagcgaacgaaatgggacgtatgatccatcttggagtgggtcagaccctggtccggggcaatgggaccact 607
+                          aggttgttgtagcttgattaagcgaacgaaatgggacg atgatccatctt gagtgg tcagaccctggtccggggcaat ggaccact
+           PP228891.1 522 AGGTTGTTGTAGCTTGATTAAGCGAACGAAATGGGACGCATGATCCATCTTAGAGTGGATCAGACCCTGGTCCGGGGCAATAGGACCACT 611
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 608 gtttcgcgtttaatcctcaccgcttagga 636
+                          gtttcgcgtttaatcctcaccgcttagga
+           PP228891.1 612 GTTTCGCGTTTAATCCTCACCGCTTAGGA 640
+                          **************************997 PP
+
+>> PP228897.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  268.5  20.5   1.7e-82         3       636 ..         2       640 ..         1       641 [.       670    0.78
+
+  Alignment:
+  score: 268.5 bits
+  cm_match_3utr_query   3 tatgggaattacagtttcttcaa...attataatattgtaaataattttgcttctg...ccggtgctacaattactgctgttacttttca 86 
+                          tatggg a ta  g t  t caa   attat a attgt aataat t gct   g   ccgg gc aca    ctgctgttactttt a
+           PP228897.1   2 TATGGGTAATATTGCTAGTACAAataATTATCACATTGTGAATAATCTGGCTATGGgaaCCGGCGCAACAGCCGCTGCTGTTACTTTTAA 91 
+                          5677777777777777777777611156788899**************999876554558****************************** PP
+
+  cm_match_3utr_query  87 gactgcttcaattatcatgatttctattggtgctcttgttttaattgtgcttgcaggtgtggtaatttattatttttggaagaagcatcg 176
+                           ac  ct   att t  tgatt c attggtgctcttgtt t  t  t  t    ggtg   t atttattatttttgga gaa    cg
+           PP228897.1  92 TACGACTATGATTGTTCTGATTACAATTGGTGCTCTTGTTCTTGTGATTTTGTGTGGTGCTATTATTTATTATTTTTGGAGGAAAAGGCG 181
+                          **************************************9876544433333334567777778899****************99999999 PP
+
+  cm_match_3utr_query 177 tcgtggtcggaattctagaaagagggaggagaagattctggcacgactaattgaaaaggggcttgtgtcccccgatactcgtcttccaga 266
+                           cg    c    t   a aaagagggag   aagat  t g  cga t  t              tg   c  g t  tc  c tccaga
+           PP228897.1 182 ACGCTCACTTCGTCGCAAAAAGAGGGAGAGAAAGATCTTTGAGCGAGTTCTCA------------TGCAGCGTGCTCATCTCCCTCCAGA 259
+                          9988777766777778899*********9999***999999888886654433............3333333344445666778899999 PP
+
+  cm_match_3utr_query 267 tgatggaaacgaggtaattgaaagtataaagctc...tagctcaggagttgaaactgagtagccgttggaatcggctatataaa...tta 350
+                          t atg    cg   t   tgaa   at  a        a  tc    gt ga   t    a c g tg a  cgg tat  a     tta
+           PP228897.1 260 TCATGCCCGCGCTTTTGCTGAATCCATCTATGCGggtAATATCC---GTCGA---TCGACAACTGATGAAGACGGTTATGAAGTtgtTTA 343
+                          99999888888777777777765555433211110001111111...22221...22234556677788888888887754432111233 PP
+
+  cm_match_3utr_query 351 tct.aaccctctagctcaggaggatttaaactgagtacccgttggaatcgggtatataaattatccatttagttgttaagttttagttta 439
+                          t   a   ctctagctcaggag  t taaactgagta ccgttggaatcgg tatataaattatccatt   ttgttaagttttagt t 
+           PP228897.1 344 TTGaATGTCTCTAGCTCAGGAG--TGTAAACTGAGTAGCCGTTGGAATCGGCTATATAAATTATCCATTAGTTTGTTAAGTTTTAGTCTT 431
+                          3331345799**********98..6789******************************************9**************98764 PP
+
+  cm_match_3utr_query 440 caattc.....ttgcttaaaa.......taatttagttaagttagtttagtgtaaaagttaagtttagtaagctttgccctcaaccctta 517
+                             tt      tt  ttaa         t   tt  ttaag  a  ttagtgtaaaagttaagtttagtaagctttgccctcaaccctta
+           PP228897.1 432 AGCTTTattagTTTGTTAAGTttttgttTTGCTTTATTAAGAAATCTTAGTGTAAAAGTTAAGTTTAGTAAGCTTTGCCCTCAACCCTTA 521
+                          3332220100011122222211110000112233456788899999******************************************** PP
+
+  cm_match_3utr_query 518 aggttgttgtagcttgattaagcgaacgaaatgggacgtatgatccatcttggagtgggtcagaccctggtccggggcaatgggaccact 607
+                          aggttgttgtagcttgattaagcgaacgaaatgggacg atgatccatctt gagtgg tcagaccctggtccggggcaat ggaccact
+           PP228897.1 522 AGGTTGTTGTAGCTTGATTAAGCGAACGAAATGGGACGCATGATCCATCTTAGAGTGGATCAGACCCTGGTCCGGGGCAATAGGACCACT 611
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 608 gtttcgcgtttaatcctcaccgcttagga 636
+                          gtttcgcgtttaatcctcaccgcttagga
+           PP228897.1 612 GTTTCGCGTTTAATCCTCACCGCTTAGGA 640
+                          **************************997 PP
+
+>> MG846465.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  261.5  18.8   2.3e-80         3       636 ..         2       610 ..         1       611 [.       692    0.82
+
+  Alignment:
+  score: 261.5 bits
+  cm_match_3utr_query   3 tatgggaattacagtttcttcaaat...tataatattgtaaataattttgcttctg...ccggtgctacaattactgctgttacttttca 86 
+                          tatggg a ta  g t  t caaat   ta  atattgt aataat t gct   g   c gg gc ac     ctgc gttacttt  a
+           MG846465.1   2 TATGGGTAATATTGCTAGTACAAATaacTACCATATTGTGAATAATCTGGCTATGGgaaCTGGCGCAACTGCCGCTGCCGTTACTTTCAA 91 
+                          5778888888888888778887765222678899**************999976653336788889999999999999************ PP
+
+  cm_match_3utr_query  87 gactgcttcaattatcatgatttctattggtgctcttgttttaattgtgcttgcaggtgtggtaatttattatttttggaagaagcatcg 176
+                           ac  ct   att t  tgatt ctattggtgc cttgtttt  t  t  t    ggtgt  t atttattatttttgga  a     cg
+           MG846465.1  92 TACGACTATGATTGTTCTGATTACTATTGGTGCCCTTGTTTTGGTGATTTTATGTGGTGTTATTATTTATTATTTTTGGAGAAGAAGGCG 181
+                          ****************************************99877666666666788888889999**********99875544444677 PP
+
+  cm_match_3utr_query 177 tcgtggtcggaattctagaaagagggaggagaagattctggcacgactaattgaaaaggggcttgtgtcccccgatactcgtcttccaga 266
+                           cg   tc    t   a aaagagggag agaagat  t g  cg  t  tt    a   gc  gtg cc c       c  c tcc ga
+           MG846465.1 182 ACGCTCTCTTCGTCGCAAAAAGAGGGAGAAGAAGATCTTTGAGCGCGTTCTTATGCA---GC--GTGCCCAC-------CTCCCTCCTGA 259
+                          7777777776777778899*****************999888888766665543333...33..33433333.......33467888999 PP
+
+  cm_match_3utr_query 267 tgatggaaacgaggtaattgaaagtataaa...gctctagctcaggagttgaaactgagtagccgttggaatcggctatataaattatct 353
+                          t atg    cg   t   tgaa  t t  a   g  c a  tc       g    t a  a c g tg a  cgg tat  aa ttat t
+           MG846465.1 260 TCATGCCCGCGCTTTTGCTGAATCTGTTTAtgcGGGCAATATCC------GTCGATCAACAACTGATGAAGACGGTTATG-AAGTTATGT 342
+                          99999988888877777888776555433211111222222232......222334455666777788888899988875.344555444 PP
+
+  cm_match_3utr_query 354 .....aaccctctagctcaggaggatttaaactgagtacccgttggaatcgggtatataaattatccatttagttgttaagttttagttt 438
+                               a   ctctagctcaggag  t taaactgagta ccgttggaatcgg tatataaattatccatt   ttgttaagttttagttt
+           MG846465.1 343 attgaATGTCTCTAGCTCAGGAG--TGTAAACTGAGTAGCCGTTGGAATCGGCTATATAAATTATCCATTAGTTTGTTAAGTTTTAGTTT 430
+                          11111345799**********98..6789**********************************************************987 PP
+
+  cm_match_3utr_query 439 acaattcttgcttaaaataatttagttaagttagtttagtgtaaaagttaagtttagtaagctttgccctcaacccttaaggttgttgta 528
+                             a t ttg ttaaa                  tttagtgtaaaagttaagtttagtaagctttgccctcaacccttaaggttg tgta
+           MG846465.1 431 T--AGTTTTGTTTAAAT----------------CTTTAGTGTAAAAGTTAAGTTTAGTAAGCTTTGCCCTCAACCCTTAAGGTTGCTGTA 502
+                          4..44556666665542................368899*************************************************** PP
+
+  cm_match_3utr_query 529 gcttgattaagcgaacgaaatgggacgtatgatccatcttggagtgggtcagaccctggtccggggcaatgggaccactgtttcgcgttt 618
+                          gcttgattaagcgaacgaaatgggacgtatgatccatctt gagtgg tcagaccctggtccggggcaat gg ccactgtttcgcgttt
+           MG846465.1 503 GCTTGATTAAGCGAACGAAATGGGACGTATGATCCATCTTAGAGTGGATCAGACCCTGGTCCGGGGCAATAGGGCCACTGTTTCGCGTTT 592
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 619 aatcctcaccgcttagga 636
+                          aatcctcaccgcttagga
+           MG846465.1 593 AATCCTCACCGCTTAGGA 610
+                          ***************998 PP
+
+>> MH125198.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  255.0  22.1   2.2e-78         3       636 ..         2       665 ..         1       666 [.       696    0.73
+
+  Alignment:
+  score: 255.0 bits
+  cm_match_3utr_query   3 tatgggaattacagtttcttcaaat...tataatattgtaaataattttgcttctg...ccggtgctacaattactgctgttacttttca 86 
+                          tatggg a ta  g t  t caaat   tat a attgt aataat t gct   g   c gg gc ac     ctgctgttacttt  a
+           MH125198.1   2 TATGGGTAATATTGCTAGTACAAATaacTATCACATTGTGAATAATCTGGCTATGGgaaCTGGCGCAACTGCCGCTGCTGTTACTTTCAA 91 
+                          5677777777777777777777654222788999**************999976653446788999999999999*************** PP
+
+  cm_match_3utr_query  87 gactgcttcaattatcatgatttctattggtgctcttgtttt...aattgtgcttgcaggtgtggtaatttattatttttggaagaagca 173
+                           ac  ct   att t  t att c attggtgc cttgtt t   aatt tg      ggtgt  t  tttattatttttgga  aa   
+           MH125198.1  92 CACGACTATGATTGTTCTTATTACAATTGGTGCCCTTGTTCTtgtAATTTTGT---GTGGTGTTATTGTTTATTATTTTTGGAGAAAAAG 178
+                          ************************************99887511145554444...44678888888899************98888888 PP
+
+  cm_match_3utr_query 174 tcgtcgtggtcggaattctagaaagagggaggagaagattctggcacgactaat..tgaaaaggggcttgtgtcccccgatact.cgtct 260
+                           cg cg    c    t   a aaagaggga    aagat  t g  cg  t  t  tg  aa g gct gt tccc c a ac  cg c 
+           MH125198.1 179 GCGACGCTCACTTCGTCGCAAAAAGAGGGAAAGAAAGATCTTTGAGCGTGTTCTcaTG-CAACGTGCTCGTCTCCCTCCAGACCaCGCCC 267
+                          88888876666666677778899******99999999999888877776443331133.3456778999988888877766654133332 PP
+
+  cm_match_3utr_query 261 tccaga.tgatggaaacgaggtaattgaaagtataaagctctagctcaggagttgaaactgagtagccgttggaatcggctatataaatt 349
+                           c     tg t gaa c   gt   tg   gta   a c  t g tca                a c g tg a  cgg tat  aa tt
+           MH125198.1 268 GCGCTTtTGCT-GAATC--TGTTTATGCGGGTAA-TATCCGTCGGTCAA--------------CAACTGATGAAGACGGTTATG-AAGTT 338
+                          22211102222.22222..222222333333332.22333334444433..............344555566677777777764.33444 PP
+
+  cm_match_3utr_query 350 atct.....aaccctctagctcaggaggatttaaactgagtacccgttggaatcgggtatataaattatccatttagttgttaagtttta 434
+                          at t     a  cctctagctcaggag  t taaactgagta ccgttggaatcgg tatataaattatccatt   ttgttaagtttta
+           MH125198.1 339 ATGTattgaATGCCTCTAGCTCAGGAG--TGTAAACTGAGTAGCCGTTGGAATCGGCTATATAAATTATCCATTAGTTTGTTAAGTTTTA 426
+                          44331111145799***********98..6789*****************************************999*********9999 PP
+
+  cm_match_3utr_query 435 gttt................acaatt.....cttgcttaa.......aa......taatttag...ttaagttagtttagtgtaaaagtt 487
+                          gttt                a aa t      t gctt a       aa      t atttag   ttaag  a tttagtgtaaaagtt
+           MH125198.1 427 GTTTtagttttattagtttaATAAGTttcatTTAGCTTTAttagtttAAtaagttTCATTTAGcttTTAAGAAATTTTAGTGTAAAAGTT 516
+                          986511111111111111111111111111111122111111111111100111122333343222457778888999************ PP
+
+  cm_match_3utr_query 488 aagtttagtaagctttgccctcaacccttaaggttgttgtagcttgattaagcgaacgaaatgggacgtatgatccatcttggagtgggt 577
+                          aagtttagtaagctttgccctcaacccttaaggttgttgtagcttgattaagcgaacgaaatgggacgtatgatccatctt gagtgg t
+           MH125198.1 517 AAGTTTAGTAAGCTTTGCCCTCAACCCTTAAGGTTGTTGTAGCTTGATTAAGCGAACGAAATGGGACGTATGATCCATCTTAGAGTGGAT 606
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 578 cagaccctggtccggggcaatgggaccactgtttcgcgtttaatcctcaccgcttagga 636
+                          cagaccctggtccggggcaat ggaccactgtttcgcgtttaatcctcaccgcttagga
+           MH125198.1 607 CAGACCCTGGTCCGGGGCAATAGGACCACTGTTTCGCGTTTAATCCTCACCGCTTAGGA 665
+                          ********************************************************997 PP
+
+>> KF961187.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  253.7  20.7   5.7e-78         4       636 ..         3       661 ..         1       662 [.       692    0.73
+
+  Alignment:
+  score: 253.7 bits
+  cm_match_3utr_query   4 atgggaattacagtttcttcaaat...tataatattgtaaataattttgcttctg...ccggtgctacaattactgctgttacttttcag 87 
+                          atggg a ta  g t    caaat   ta  atattgt aataat t gc    g   ccgg gc ac     ctgctgttactttt a 
+           KF961187.1   3 ATGGGTAATATTGCTAGCACAAATaacTACCATATTGTGAATAATCTGGCCATGGgaaCCGGCGCAACTGCCGCTGCTGTTACTTTTAAT 92 
+                          667777777777766666666654111778899*************99998765444489****************************** PP
+
+  cm_match_3utr_query  88 actgcttcaattatcatgatttctattggtgctcttgttttaattgtgcttgcaggtgtggtaatttattatttttggaagaagcatcgt 177
+                          ac  ct   att t  tgatt c attggtgc cttgtt t  t  t  t    ggtgt  t atttattatttttgga  aa    cg 
+           KF961187.1  93 ACGACTATGATTGTTTTGATTACAATTGGTGCCCTTGTTCTCGTGATTTTGTGTGGTGTTATTATTTATTATTTTTGGAGAAAAAGGCGG 182
+                          *************************************998876655555555567888999999*************9988877777776 PP
+
+  cm_match_3utr_query 178 cgtggtcggaattctagaaagagggaggagaagattctggcacgactaattgaaaag.gggcttgtgtcccccgatact.cgtcttccag 265
+                          cgt   c        a  aagagggag   aagatt t g  cg  t  tt    ag g gct gt tccc c a ac  cg c  c   
+           KF961187.1 183 CGTTCGCTTCGCCGCAAGAAGAGGGAGAGAAAGATTTTCGAGCGTGTTCTTATGCAGcGTGCTCGTCTCCCTCCAGACCaCGCCCGCGCT 272
+                          665444433344445566889999*999999****9999999887776665544443155777787777776666554313333222222 PP
+
+  cm_match_3utr_query 266 atgatggaaacgaggtaattgaaagtataaagctctagctcaggagttgaaactgagtagccgttggaatcggctatataaattatcta. 354
+                           t    gaa c a  ta  tg   gta   a c  t g t       t  aact        g tg a  cgg tat  aa tt tcta 
+           KF961187.1 273 TTTGCTGAATCCATCTA--TGCGGGTAAT-ATCCGTCGGT------CTACAACT--------GATGAAGACGGTTATG-AAGTTGTCTAt 344
+                          22222233333333332..2222222221.1222222222......22333444........3344555555555543.33344444331 PP
+
+  cm_match_3utr_query 355 ....accctctagctcaggaggatttaaactgagtacccgttggaatcgggtatataaattatccatttagttgttaagttttagtttac 440
+                                 ctctagctcaggag  t taaactgagta ccgttggaatcgg tatataaattatccatt   ttgttaa ttttagttt  
+           KF961187.1 345 tgaaTGTCTCTAGCTCAGGAG--TGTAAACTGAGTAGCCGTTGGAATCGGCTATATAAATTATCCATTAGTTTGTTAAATTTTAGTTTTA 432
+                          1111346899********998..6789*****************************************999******9999999887643 PP
+
+  cm_match_3utr_query 441 aatt..cttgcttaaaataatttag...................ttaagtt..agtt..........tagtgtaaaagttaagtttagta 497
+                            tt   t g ttaa a   tttag                   ttaagtt  agtt          tagtgtaaaagttaagtttagta
+           KF961187.1 433 GTTTtaTTAGTTTAAGAAGCTTTAGttttagctttattagcttgTTAAGTTttAGTTttaattttaaTAGTGTAAAAGTTAAGTTTAGTA 522
+                          3222112234444444444444333111111111100000111145555421133322222222333689******************** PP
+
+  cm_match_3utr_query 498 agctttgccctcaacccttaaggttgttgtagcttgattaagcgaacgaaatgggacgtatgatccatcttggagtgggtcagaccctgg 587
+                          agctttgccctcaacccttaaggttgttgtagcttgattaagcgaacgaaatgggacg atgatccatctt gagtgg tcagaccctgg
+           KF961187.1 523 AGCTTTGCCCTCAACCCTTAAGGTTGTTGTAGCTTGATTAAGCGAACGAAATGGGACGCATGATCCATCTTAGAGTGGATCAGACCCTGG 612
+                          ****************************************************************************************** PP
+
+  cm_match_3utr_query 588 tccggggcaatgggaccactgtttcgcgtttaatcctcaccgcttagga 636
+                          tccggggcaat ggaccactgtttcgcgtttaatcctcac gcttagga
+           KF961187.1 613 TCCGGGGCAATAGGACCACTGTTTCGCGTTTAATCCTCACTGCTTAGGA 661
+                          **********************************************997 PP
+
+>> PX095761.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  196.4   9.5   1.5e-60         4       636 ..         3       608 ..         1       609 [.       647    0.73
+
+  Alignment:
+  score: 196.4 bits
+  cm_match_3utr_query   4 atgggaattacagtttcttc...aaattataatattgtaaataattttgcttctgccggtgctacaattactgctgttacttttcagact 90 
+                          atggg a ta ag t  t c    aatta aatattgtaaata t ttgc  c gccggtg taca   act c gt ac ttt a act
+           PX095761.1   3 ATGGGTAATATAGCTAGTACtaaTAATTACAATATTGTAAATACTATTGCCGCCGCCGGTGGTACAGCAACTTCCGTCACATTTAATACT 92 
+                          678888888888877655551115678999************************************************************ PP
+
+  cm_match_3utr_query  91 gcttcaattatcatgatttctattggtgctcttgttttaattgtgcttgcaggtgtggtaatttattatttttgga.........agaag 171
+                           ctt  attat at at  ctat ggtgct t  tt t at  t  t    gg  tg t atttattatttttgga          ga  
+           PX095761.1  93 ACTTTCATTATTATTATAGCTATAGGTGCTTTGATTCTTATAATTTTGTGTGGAATGATTATTTATTATTTTTGGAgacgacgtaGGAGA 182
+                          *****************************987766655544444444344567789999**************98622222111111222 PP
+
+  cm_match_3utr_query 172 catcgtcgtggtcggaatt...ctagaaagagggaggagaagattct...g..gcacgactaattga........aaaggggcttgtgtc 245
+                             cgtcg  g cg  a        g aa a    ggaga gat ct   g  gc cg c  att a        a a g gc tg gt 
+           PX095761.1 183 TCACGTCGCCGCCGCCAACgcgAACGCAAAACTTTGGAGAGGATCCTccaGgaGCGCGCCA-ATTTAccaccactACATGCGCGTGCGTT 271
+                          2235555555555533221000122333444445566666666655422231133333332.2222211111111456677888888888 PP
+
+  cm_match_3utr_query 246 ccccgatactcgtc.ttccagatgatggaaacgaggtaattgaaagtataaagctctagctcaggagttgaaactgagtagccgttggaa 334
+                            c ga  ct  t  ttcc g  g       c a           gtata  g     g t a ga  tga  c   g     g t g  
+           PX095761.1 272 TGCTGAATCTATTTaTTCCGGCCG----CCTCCA-----------GTATACTGAGGGTGGTTATGAAGTGATCCATTGAGAGAGCTTGTC 346
+                          888887766654430333333222....222333...........333333333333333444444444444332222222334455566 PP
+
+  cm_match_3utr_query 335 tcggctatataaattatctaaccctctagctcaggaggatttaaactgagtacccgttggaatcgggtatataaattatccatttagttg 424
+                          t  gct ta aaa    c  accc c agctca g gg  t aaa tgagta ccgttggaatcgg tata aaattatcca tt g   
+           PX095761.1 347 TGTGCTGTACAAA----CAGACCCACCAGCTCACGTGG--TAAAATTGAGTAGCCGTTGGAATCGGCTATACAAATTATCCAATTTGCCA 430
+                          6778888888876....66799999********99987..67999************************************988765543 PP
+
+  cm_match_3utr_query 425 ttaagttttagtttacaattcttgcttaaaataatttagttaagttagtttagtgtaaaagttaagtttagtaagctttgccctcaaccc 514
+                          tt                 tctt            tt  tt        ttagtgtaaaagttaagt tagtaag tttgccct  accc
+           PX095761.1 431 TT-----------------TCTTT-----------TTCTTT------AATTAGTGTAAAAGTTAAGT-TAGTAAGTTTTGCCCTTCACCC 485
+                          32.................22221...........111111......2357899***********96.69******************** PP
+
+  cm_match_3utr_query 515 ttaaggttgttgtagcttgattaagcgaacgaa.atgggacgtatgatccatcttggagtgggtcagaccctggtccggggcaatgggac 603
+                          ttaaggt  ttgtagcttgattaagcgaacgaa a ggg cg atga ccatcttggagtgggt  gaccctggtccggggcaat ggac
+           PX095761.1 486 TTAAGGTGATTGTAGCTTGATTAAGCGAACGAAcACGGGGCGCATGACCCATCTTGGAGTGGGTTTGACCCTGGTCCGGGGCAATAGGAC 575
+                          *******************************8757899**************************************************** PP
+
+  cm_match_3utr_query 604 cactgtttcgcgtttaatcctcaccgcttagga 636
+                          cac gtttcgcg ttaatcct   cgc tagga
+           PX095761.1 576 CACCGTTTCGCGCTTAATCCTTCACGCGTAGGA 608
+                          *****************************9997 PP
+
+>> NC_038957.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !   83.6   8.7   2.7e-26       299       611 ..         5       286 ..         1       306 [.       357    0.70
+
+  Alignment:
+  score: 83.6 bits
+  cm_match_3utr_query 299 tctagctcaggagttgaaactgagtagccgttgg.aatcggctatataaattatcta.accctctagctcaggaggatttaaactgagta 386
+                           ctagctca g  tt aaactgagtagccg tgg  atcggctatataaatta c a a   tctagctcagga g   taaactgagta
+          NC_038957.1   5 CCTAGCTCACGGTTTAAAACTGAGTAGCCGCTGGtTATCGGCTATATAAATTAACCAaAGTGTCTAGCTCAGGACGTCATAAACTGAGTA 94 
+                          5799**************************9998459*************9987765166789*************************** PP
+
+  cm_match_3utr_query 387 cccgttggaatcgggtatataaattatccatttagttgt..taagttttagtttacaattcttgcttaaaataatttagttaagttagtt 474
+                           ccgttggaatcgg tatataaattatccattt  tt t  t   tttta ttt    t  ttg tt aaat  t    tt agt    t
+          NC_038957.1  95 GCCGTTGGAATCGGCTATATAAATTATCCATTTTATTCTatTTTATTTTAATTTTAGTTATTTGATTGAAATTCTGATTTTTAGTA---T 181
+                          ******************************99876654311222233333333333334455666666665543332222222221...2 PP
+
+  cm_match_3utr_query 475 tagtgtaaaagttaagtttagtaagctttgccctcaacccttaaggttgttgtagcttgattaagcgaacgaaatgggacgtatgatcca 564
+                          t g  t  a gtt         aagctt g cctc   c tt ag  tgt g           agc     aa   gg c     a  c 
+          NC_038957.1 182 TTG--TGTAGGTT---------AAGCTTAGGCCTCT--CTTTGAGAGTGT-GA----------AGC-----AAGCAGGGCA----AAGCC 238
+                          222..23334444.........55666666666653..344444444432.22..........222.....2222233222....22344 PP
+
+  cm_match_3utr_query 565 tcttggagtg.ggtcagaccctggtccggggcaatgggaccactgttt 611
+                          t   ggagtg gg cagaccct   ccggggcaat gg   actgttt
+          NC_038957.1 239 TGCCGGAGTGcGGGCAGACCCTCCACCGGGGCAATAGGTGGACTGTTT 286
+                          455677887646789************************999999876 PP
+
+>> OR364988.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !   82.9   7.8   4.5e-26       299       611 ..         5       287 ..         1       307 [.       326    0.67
+
+  Alignment:
+  score: 82.9 bits
+  cm_match_3utr_query 299 tctagctcaggagttgaaactgagtagccgttgg.aatcggctatataaattatcta.accctctagctcaggaggatttaaactgagta 386
+                           ctagctca g  tt aaactgagtagccgttgg  atcggctatataaatta c a a   tctagctcagga     taaactgagta
+           OR364988.1   5 CCTAGCTCACGGTTTAAAACTGAGTAGCCGTTGGtTATCGGCTATATAAATTAACCAaAGTGTCTAGCTCAGGACACCATAAACTGAGTA 94 
+                          5799****************************98459*************9987765167789*************************** PP
+
+  cm_match_3utr_query 387 cccgttggaatcgggtatataaattatccattta..g..ttgttaagttttagtttacaattcttgcttaaaataatttagttaagttag 472
+                           ccgttggaatcgg tatataaattatcca  t      tt tt   ttttagttt    t  ttg tt aaa   ttta t        
+           OR364988.1  95 GCCGTTGGAATCGGCTATATAAATTATCCACCTTtaAttTTATTTTATTTTAGTTTTAGTTAGTTGATTGAAAC--TTTAAT-------- 174
+                          ****************************9975420010011122222333333333333333344444443332..121111........ PP
+
+  cm_match_3utr_query 473 tttagtgtaaaagttaagtttagtaagctttgccctcaacccttaaggttgttgtagcttgattaagcgaacgaaatgggacgtatgatc 562
+                          tttagt     a tt  gt    taagctt g cctc   c tt ag  tg                 gaa  aa   gg c     a  
+           OR364988.1 175 TTTAGT-----ATTTGTGTAGGTTAAGCTTAGGCCTCT--CTTTGAGAGTG----------------TGAAGCAAGCAGGGCA----AAG 237
+                          111111.....112222222222455666666666653..33444443333................2222223333333332....223 PP
+
+  cm_match_3utr_query 563 catcttggagtg.ggtcagaccctggtccggggcaatgggaccactgttt 611
+                          c t   ggagtg gg cagaccct   ccggggcaat gg   actgttt
+           OR364988.1 238 CCTGCCGGAGTGcGGGCAGACCCTCCACCGGGGCAATAGGTGGACTGTTT 287
+                          44555678887646789************************999999876 PP
+
+>> KC811837.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !   81.4   6.7   1.3e-25       299       611 ..         5       287 ..         1       307 [.       329    0.69
+
+  Alignment:
+  score: 81.4 bits
+  cm_match_3utr_query 299 tctagctcaggagttgaaactgagtagccgttgg.aatcggctatataaattatcta.accctctagctcaggaggatttaaactgagta 386
+                           ctagctca g  tt aaactgagtagccgttgg  atcggctatataaatta c a a   tctagctcagga     taaactgagta
+           KC811837.1   5 CCTAGCTCACGGTTTAAAACTGAGTAGCCGTTGGtTATCGGCTATATAAATTAACCAaAGTGTCTAGCTCAGGACACCATAAACTGAGTA 94 
+                          5799****************************98459*************9987765167789*************************** PP
+
+  cm_match_3utr_query 387 cccgttggaatcgggtatataaattatccatttagttgttaagttttagttta....caatt.cttgcttaaaataatttagttaagtta 471
+                           ccgttggaatcgg tata aaattatcca tt     tt   tttta ttta     a tt  ttg tt aaa    tt g t   tta
+           KC811837.1  95 GCCGTTGGAATCGGCTATACAAATTATCCACTTTT--ATTCTATTTTATTTTAattaTAGTTaTTTGATTGAAAC---TTTGATT-CTTA 178
+                          *****************************998743..33333444444444330000222220233333333322...1111111.1222 PP
+
+  cm_match_3utr_query 472 gtttagtgtaaaagttaagtttagtaagctttgccctcaacccttaaggttgttgtagcttgattaagcgaacgaaatgggacgtatgat 561
+                          gt t  tgt  a gt         taagctt g cctc   c tt ag  tg           t aagcgaac     ggg c     a 
+           KC811837.1 179 GTAT-TTGTGTAGGT---------TAAGCTTAGGCCTCT--CTTTGAGAGTG-----------TGAAGCGAACA----GGG-CA----AA 236
+                          2211.1222223344.........456677777777663..44455544433...........34677777663....222.22....23 PP
+
+  cm_match_3utr_query 562 ccatcttggagtg.ggtcagaccctggtccggggcaatgggaccactgttt 611
+                           c t   ggagtg gg cagaccct   ccggggcaat gg   actgttt
+           KC811837.1 237 GCCTGCCGGAGTGcGGGCAGACCCTCCACCGGGGCAATAGGTGGACTGTTT 287
+                          344555678887646789************************999999876 PP
+
+>> OP169446.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !   73.5   4.5   3.2e-23       300       612 ..         6       280 ..         2       300 ..       318    0.72
+
+  Alignment:
+  score: 73.5 bits
+  cm_match_3utr_query 300 ctagctcaggagttgaaactgagtagccgttgga..atcggctatataaattatctaac.cctctagctcaggaggatttaaactgagta 386
+                          ctagctc  g  tt aaactgagtagccg tg a  a cggctatataaatt  c  ac c tctagctca ga g   taaactgagta
+           OP169446.1   6 CTAGCTCTCGGCTTAAAACTGAGTAGCCGCTGCAccACCGGCTATATAAATTGGCGCACaCGTCTAGCTCACGACGTCATAAACTGAGTA 95 
+                          789999999999*******************98744789*************99987773569*************************** PP
+
+  cm_match_3utr_query 387 cccgttggaatcgggtatataaattatccatttagttgttaagttttagtttacaattcttgcttaaaataatttagttaagttagttta 476
+                           ccgttggaatcgg tatataaattatcca tt      taagtttt  ttta      t g ttaa  t   tta tt a ttag   a
+           OP169446.1  96 GCCGTTGGAATCGGCTATATAAATTATCCACTT------TAAGTTTTGTTTTAT----TTAGTTTAATTTTTCTTAATTTA-TTAGGCAA 174
+                          *****************************9875......566666655555442....23344444433333333333332.56677778 PP
+
+  cm_match_3utr_query 477 gtgtaaaagttaagtttagtaagctttgccctcaacccttaaggttgttgtagcttgattaagcgaacgaaatgggacgtatgatccatc 566
+                           tgt  a gttaagtttag          cctc   c tt ag  tgt g agc      aagc          gg c     a cc  c
+           OP169446.1 175 CTGTGTAGGTTAAGTTTAGG---------CCTC--TCTTTGAGAGTGT-GAAGC------AAGC---------AGGGCA---AAGCCGGC 234
+                          88888899999999998874.........3332..2334445444432.33332......2222.........222221...23344444 PP
+
+  cm_match_3utr_query 567 ttggagtgggtcagaccctggtccggggcaatgggaccactgtttc 612
+                           tg      g cagaccct   ccgggg aat gg   actgttt 
+           OP169446.1 235 CTGAGTGCTGGCAGACCCTCCACCGGGGTAATTGGTGGACTGTTTG 280
+                          444333334679************************9999998763 PP
+
+
+
+Internal pipeline statistics summary:
+-------------------------------------
+Query model(s):                              1  (637 nodes)
+Target sequences:                           14  (16002 residues searched)
+Residues passing SSV filter:              9393  (0.587); expected (0.02)
+Residues passing bias filter:             9393  (0.587); expected (0.02)
+Residues passing Vit filter:              8001  (0.5); expected (0.003)
+Residues passing Fwd filter:              8001  (0.5); expected (3e-05)
+Total number of hits:                       14  (0.468)
+# CPU time: 0.09u 0.03s 00:00:00.12 Elapsed: 00:00:00.11
+# Mc/sec: 92.67
+//
+# Alignment of 14 hits satisfying inclusion thresholds saved to: A7_analysis/phylogeny/cm_match/3UTR.sto
+[ok]

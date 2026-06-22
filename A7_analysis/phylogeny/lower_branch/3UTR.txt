@@ -1,0 +1,85 @@
+# nhmmer :: search a DNA model or alignment against a DNA database
+# HMMER 3.1b2 (February 2015); http://hmmer.org/
+# Copyright (C) 2015 Howard Hughes Medical Institute.
+# Freely distributed under the GNU General Public License (GPLv3).
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query file:                      A7_analysis/phylogeny/lowest_branch_3utr_query.hmm
+# target sequence database:        A7_analysis/phylogeny/lowest_branch_3utr.fasta
+# output directed to file:         A7_analysis/phylogeny/lower_branch/3UTR.txt
+# MSA of all hits saved to file:   A7_analysis/phylogeny/lower_branch/3UTR.sto
+# hits tabular output:             A7_analysis/phylogeny/lower_branch/3UTR.tblout
+# number of worker threads:        128
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       lowest_branch_3utr_query  [M=184]
+Scores for complete hits:
+    E-value  score  bias  Sequence    start    end  Description
+    ------- ------ -----  --------    -----  -----  -----------
+    3.2e-56  177.7   4.5  PQ360974.1      1    183  
+      1e-08   25.0   3.3  OP093968.1    194    272  
+    7.2e-08   22.3   5.0  OP093966.1    194    272  
+
+
+Annotation for each hit  (and alignments):
+>> PQ360974.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  177.7   4.5   3.2e-56         1       183 [.         1       183 [.         1       184 []       184    0.96
+
+  Alignment:
+  score: 177.7 bits
+  lowest_branch_3utr_query   1 agagacaggtctcctgtgtttctttctgattctctgtggtttcctgtaagttaggctctttgtaatggtgttggtcactcttgca 85 
+                               agagacaggtctcctgtgtttctttctgattctctgtggtttcctgtaagttaggctctttgtaatggtgttggtcactcttgca
+                PQ360974.1   1 AGAGACAGGTCTCCTGTGTTTCTTTCTGATTCTCTGTGGTTTCCTGTAAGTTAGGCTCTTTGTAATGGTGTTGGTCACTCTTGCA 85 
+                               689********************************************************************************** PP
+
+  lowest_branch_3utr_query  86 tgaaaattttcctctctttgctctcctcccgcctcccgggggggggcccgcccttttcttcctaacttgaaaaaaaaaaaaaaaa 170
+                               tgaaaattttcctctctttgctctcctcccgcctcccgggggggggcccgcccttttcttcctaacttgaaaaaaaaaaaaaaaa
+                PQ360974.1  86 TGAAAATTTTCCTCTCTTTGCTCTCCTCCCGCCTCCCGGGGGGGGGCCCGCCCTTTTCTTCCTAACTTGAAAAAAAAAAAAAAAA 170
+                               ***********************************************************************99999999888888 PP
+
+  lowest_branch_3utr_query 171 aaaaaaaaaaaaa 183
+                               aaaaaaaaaaaaa
+                PQ360974.1 171 AAAAAAAAAAAAA 183
+                               8887777777765 PP
+
+>> OP093968.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !   25.0   3.3     1e-08       104       182 ..       194       272 ..       123       274 .]       274    0.42
+
+  Alignment:
+  score: 25.0 bits
+  lowest_branch_3utr_query 104 tgctctcctcccgcctcccgggggggggcccgcccttttcttcctaacttgaaaaaaaaaaaaaaaaaaaaaaaaaaaa 182
+                                g  ct c cccgc   cc ggg  g     g  cttttct  ct    t aaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                OP093968.1 194 GGAGCTGCACCCGCGGGCCAGGGTTGTCTTTGAACTTTTCTAACTGTTCTTAAAAAAAAAAAAAAAAAAAAAAAAAAAA 272
+                               1112222223333333333333333333334445566666666665555556666555555555555555555544444 PP
+
+>> OP093966.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !   22.3   5.0   7.2e-08       104       182 ..       194       272 ..       127       274 .]       274    0.45
+
+  Alignment:
+  score: 22.3 bits
+  lowest_branch_3utr_query 104 tgctctcctcccgcctcccgggggggggcccgcccttttcttcctaacttgaaaaaaaaaaaaaaaaaaaaaaaaaaaa 182
+                                g  ct c cccgc   cc ggg  g     g  cttttct  ct    t aaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                OP093966.1 194 GGAACTGCACCCGCGGACCAGGGTCGTCTTTGAACTTTTCTAACTGTTCTTAAAAAAAAAAAAAAAAAAAAAAAAAAAA 272
+                               1222333333444444444444444444445556677777777776666666666666655555555555555554444 PP
+
+
+
+Internal pipeline statistics summary:
+-------------------------------------
+Query model(s):                              1  (184 nodes)
+Target sequences:                           12  (2644 residues searched)
+Residues passing SSV filter:              1011  (0.382); expected (0.02)
+Residues passing bias filter:             1011  (0.382); expected (0.02)
+Residues passing Vit filter:               732  (0.277); expected (0.003)
+Residues passing Fwd filter:               732  (0.277); expected (3e-05)
+Total number of hits:                        3  (0.129)
+# CPU time: 0.02u 0.02s 00:00:00.04 Elapsed: 00:00:00.03
+# Mc/sec: 16.22
+//
+# Alignment of 3 hits satisfying inclusion thresholds saved to: A7_analysis/phylogeny/lower_branch/3UTR.sto
+[ok]

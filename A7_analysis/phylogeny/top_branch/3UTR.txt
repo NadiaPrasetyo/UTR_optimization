@@ -1,0 +1,288 @@
+# nhmmer :: search a DNA model or alignment against a DNA database
+# HMMER 3.1b2 (February 2015); http://hmmer.org/
+# Copyright (C) 2015 Howard Hughes Medical Institute.
+# Freely distributed under the GNU General Public License (GPLv3).
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query file:                      A7_analysis/phylogeny/top_branch_3utr_query.hmm
+# target sequence database:        A7_analysis/phylogeny/top_branch_3utr.fasta
+# output directed to file:         A7_analysis/phylogeny/top_branch/3UTR.txt
+# MSA of all hits saved to file:   A7_analysis/phylogeny/top_branch/3UTR.sto
+# hits tabular output:             A7_analysis/phylogeny/top_branch/3UTR.tblout
+# number of worker threads:        128
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       top_branch_3utr_query  [M=316]
+Scores for complete hits:
+    E-value  score  bias  Sequence    start    end  Description
+    ------- ------ -----  --------    -----  -----  -----------
+    2.2e-96  313.8   8.9  PX392724.1      1    316  
+    4.3e-92  299.8   8.5  FJ496341.1      2    314  
+    4.3e-92  299.8   8.5  FJ496342.1      2    314  
+    1.3e-91  298.2   8.6  FJ496344.1      2    313  
+    3.9e-91  296.7   7.9  FJ496343.1      2    314  
+    2.4e-89  290.9  10.4  FJ496340.1      4    313  
+    3.2e-88  287.2  11.0  FJ496339.1      7    316  
+    3.1e-32  104.8   4.5  GQ485310.1     87    361  
+    6.1e-32  103.9   4.5  GQ485311.1     85    360  
+
+
+Annotation for each hit  (and alignments):
+>> PX392724.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  313.8   8.9   2.2e-96         1       316 []         1       316 []         1       316 []       316    0.99
+
+  Alignment:
+  score: 313.8 bits
+  top_branch_3utr_query   1 accgttggtctacaggtaccataaacctgtttttcctgggttttagtgttgtgggatacccaggagtacacgtaaaacacccactggc 88 
+                            accgttggtctacaggtaccataaacctgtttttcctgggttttagtgttgtgggatacccaggagtacacgtaaaacacccactggc
+             PX392724.1   1 ACCGTTGGTCTACAGGTACCATAAACCTGTTTTTCCTGGGTTTTAGTGTTGTGGGATACCCAGGAGTACACGTAAAACACCCACTGGC 88 
+                            589************************************************************************************* PP
+
+  top_branch_3utr_query  89 tttggagctgtgccacatgacacctcccagcttgacagtgctgtcagaaactgttatataggaataggctaaaactaatcaatttacc 176
+                            tttggagctgtgccacatgacacctcccagcttgacagtgctgtcagaaactgttatataggaataggctaaaactaatcaatttacc
+             PX392724.1  89 TTTGGAGCTGTGCCACATGACACCTCCCAGCTTGACAGTGCTGTCAGAAACTGTTATATAGGAATAGGCTAAAACTAATCAATTTACC 176
+                            **************************************************************************************** PP
+
+  top_branch_3utr_query 177 cccatgattgtttaggtattagttgttagtatttagtataagacatttggtgatataaagacctcacacaatctccattttctgtgag 264
+                            cccatgattgtttaggtattagttgttagtatttagtataagacatttggtgatataaagacctcacacaatctccattttctgtgag
+             PX392724.1 177 CCCATGATTGTTTAGGTATTAGTTGTTAGTATTTAGTATAAGACATTTGGTGATATAAAGACCTCACACAATCTCCATTTTCTGTGAG 264
+                            **************************************************************************************** PP
+
+  top_branch_3utr_query 265 gaccctaagccaaatgacttctttttactttactattccctaccctacctga 316
+                            gaccctaagccaaatgacttctttttactttactattccctaccctacctga
+             PX392724.1 265 GACCCTAAGCCAAATGACTTCTTTTTACTTTACTATTCCCTACCCTACCTGA 316
+                            ************************************************9985 PP
+
+>> FJ496341.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  299.8   8.5   4.3e-92         2       314 ..         2       314 ..         1       316 [.       329    0.99
+
+  Alignment:
+  score: 299.8 bits
+  top_branch_3utr_query   2 ccgttggtctacaggtaccataaacctgtttttcctgggttttagtgttgtgggatacccaggagtacacgtaaaacacccactggct 89 
+                            c gttggtc  caggtaccataaacctgtttttcctgggttttagtgttgtgggatacccaggagtacacgtaaaacacccactggct
+             FJ496341.1   2 CTGTTGGTCCGCAGGTACCATAAACCTGTTTTTCCTGGGTTTTAGTGTTGTGGGATACCCAGGAGTACACGTAAAACACCCACTGGCT 89 
+                            6799************************************************************************************ PP
+
+  top_branch_3utr_query  90 ttggagctgtgccacatgacacctcccagcttgacagtgctgtcagaaactgttatataggaataggctaaaactaatcaatttaccc 177
+                            ttggag tgtgccaca gacacctcccagcttgacagtgctgtcagaaactgttatataggaataggctaaaactaatcaatttaccc
+             FJ496341.1  90 TTGGAGTTGTGCCACAAGACACCTCCCAGCTTGACAGTGCTGTCAGAAACTGTTATATAGGAATAGGCTAAAACTAATCAATTTACCC 177
+                            **************************************************************************************** PP
+
+  top_branch_3utr_query 178 ccatgattgtttaggtattagttgttagtatttagtataagacatttggtgatataaagacctcacacaatctccattttctgtgagg 265
+                            ccatgattgtttaggtattagttgttagtatttagtataagacatttggtgatataaagacctcacacaat tcca tttc gtgagg
+             FJ496341.1 178 CCATGATTGTTTAGGTATTAGTTGTTAGTATTTAGTATAAGACATTTGGTGATATAAAGACCTCACACAATTTCCACTTTCCGTGAGG 265
+                            **************************************************************************************** PP
+
+  top_branch_3utr_query 266 accctaagccaaatgacttctttttactttactattccctaccctacct 314
+                            accctaagccaaatgacttctttttactttactattccctaccctacct
+             FJ496341.1 266 ACCCTAAGCCAAATGACTTCTTTTTACTTTACTATTCCCTACCCTACCT 314
+                            **********************************************987 PP
+
+>> FJ496342.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  299.8   8.5   4.3e-92         2       314 ..         2       314 ..         1       316 [.       328    0.99
+
+  Alignment:
+  score: 299.8 bits
+  top_branch_3utr_query   2 ccgttggtctacaggtaccataaacctgtttttcctgggttttagtgttgtgggatacccaggagtacacgtaaaacacccactggct 89 
+                            c gttggtc  caggtaccataaacctgtttttcctgggttttagtgttgtgggatacccaggagtacacgtaaaacacccactggct
+             FJ496342.1   2 CTGTTGGTCCGCAGGTACCATAAACCTGTTTTTCCTGGGTTTTAGTGTTGTGGGATACCCAGGAGTACACGTAAAACACCCACTGGCT 89 
+                            6799************************************************************************************ PP
+
+  top_branch_3utr_query  90 ttggagctgtgccacatgacacctcccagcttgacagtgctgtcagaaactgttatataggaataggctaaaactaatcaatttaccc 177
+                            ttggag tgtgccaca gacacctcccagcttgacagtgctgtcagaaactgttatataggaataggctaaaactaatcaatttaccc
+             FJ496342.1  90 TTGGAGTTGTGCCACAAGACACCTCCCAGCTTGACAGTGCTGTCAGAAACTGTTATATAGGAATAGGCTAAAACTAATCAATTTACCC 177
+                            **************************************************************************************** PP
+
+  top_branch_3utr_query 178 ccatgattgtttaggtattagttgttagtatttagtataagacatttggtgatataaagacctcacacaatctccattttctgtgagg 265
+                            ccatgattgtttaggtattagttgttagtatttagtataagacatttggtgatataaagacctcacacaat tcca tttc gtgagg
+             FJ496342.1 178 CCATGATTGTTTAGGTATTAGTTGTTAGTATTTAGTATAAGACATTTGGTGATATAAAGACCTCACACAATTTCCACTTTCCGTGAGG 265
+                            **************************************************************************************** PP
+
+  top_branch_3utr_query 266 accctaagccaaatgacttctttttactttactattccctaccctacct 314
+                            accctaagccaaatgacttctttttactttactattccctaccctacct
+             FJ496342.1 266 ACCCTAAGCCAAATGACTTCTTTTTACTTTACTATTCCCTACCCTACCT 314
+                            **********************************************987 PP
+
+>> FJ496344.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  298.2   8.6   1.3e-91         2       313 ..         2       313 ..         1       316 [.       329    0.99
+
+  Alignment:
+  score: 298.2 bits
+  top_branch_3utr_query   2 ccgttggtctacaggtaccataaacctgtttttcctgggttttagtgttgtgggatacccaggagtacacgtaaaacacccactggct 89 
+                            c gttggtc  caggtaccataaacctgtttttcctgggttttagtgttgtgggatacccaggagtacacgtaaaacacccactggct
+             FJ496344.1   2 CTGTTGGTCCGCAGGTACCATAAACCTGTTTTTCCTGGGTTTTAGTGTTGTGGGATACCCAGGAGTACACGTAAAACACCCACTGGCT 89 
+                            6799************************************************************************************ PP
+
+  top_branch_3utr_query  90 ttggagctgtgccacatgacacctcccagcttgacagtgctgtcagaaactgttatataggaataggctaaaactaatcaatttaccc 177
+                            ttggagctgtgccaca gacacctcccagcttgacagtgctgtcagaaactgttatataggaataggctaaaa taatcaatttaccc
+             FJ496344.1  90 TTGGAGCTGTGCCACAAGACACCTCCCAGCTTGACAGTGCTGTCAGAAACTGTTATATAGGAATAGGCTAAAATTAATCAATTTACCC 177
+                            **************************************************************************************** PP
+
+  top_branch_3utr_query 178 ccatgattgtttaggtattagttgttagtatttagtataagacatttggtgatataaagacctcacacaatctccattttctgtgagg 265
+                            ccatgattgtttaggtattagttgttagtatttagtataagacatttggtgatataaagacctcacacaat tcca tttc gtgagg
+             FJ496344.1 178 CCATGATTGTTTAGGTATTAGTTGTTAGTATTTAGTATAAGACATTTGGTGATATAAAGACCTCACACAATTTCCACTTTCCGTGAGG 265
+                            **************************************************************************************** PP
+
+  top_branch_3utr_query 266 accctaagccaaatgacttctttttactttactattccctaccctacc 313
+                            accctaagccaaatgacttctttttactttactattccctaccctac 
+             FJ496344.1 266 ACCCTAAGCCAAATGACTTCTTTTTACTTTACTATTCCCTACCCTACA 313
+                            ********************************************9985 PP
+
+>> FJ496343.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  296.7   7.9   3.9e-91         2       313 ..         2       314 ..         1       317 [.       331    0.98
+
+  Alignment:
+  score: 296.7 bits
+  top_branch_3utr_query   2 ccgttggtctacaggtaccataaacctgtttttcctgggttttagtgttgtgggatacccaggagtacacgtaaaacacccactggct 89 
+                            c gttggtc  caggtaccataaacctgtttttcctgggttttagtgttgtgggatacccaggagtacacgtaaaacacccactggct
+             FJ496343.1   2 CTGTTGGTCCGCAGGTACCATAAACCTGTTTTTCCTGGGTTTTAGTGTTGTGGGATACCCAGGAGTACACGTAAAACACCCACTGGCT 89 
+                            6799************************************************************************************ PP
+
+  top_branch_3utr_query  90 ttggagctgtgccacatgacacctcccagcttgacagtgctgtcagaaactgttatataggaataggctaaaactaatcaatttaccc 177
+                            ttggagctgtgccaca gacacctcccagcttgacagtgctgtcagaaactgttatataggaataggctaaaactaatcaatttaccc
+             FJ496343.1  90 TTGGAGCTGTGCCACAAGACACCTCCCAGCTTGACAGTGCTGTCAGAAACTGTTATATAGGAATAGGCTAAAACTAATCAATTTACCC 177
+                            **************************************************************************************** PP
+
+  top_branch_3utr_query 178 ccatgattgtttaggtattagttgttagtatttagtataagacatttggtgatataaagacctcacacaatctccattttctgtgagg 265
+                            ccatgattgtttaggtattagttgttagtatttagtataagacatttggtgatataaagacctcacacaat tcca tttc gtgagg
+             FJ496343.1 178 CCATGATTGTTTAGGTATTAGTTGTTAGTATTTAGTATAAGACATTTGGTGATATAAAGACCTCACACAATTTCCACTTTCCGTGAGG 265
+                            **************************************************************************************** PP
+
+  top_branch_3utr_query 266 accctaagccaaatgacttctt.tttactttactattccctaccctacc 313
+                            accctaagccaaatgacttctt tttactttactattccctaccctacc
+             FJ496343.1 266 ACCCTAAGCCAAATGACTTCTTtTTTACTTTACTATTCCCTACCCTACC 314
+                            *******************98615689*******************987 PP
+
+>> FJ496340.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  290.9  10.4   2.4e-89         4       313 ..         4       313 ..         1       316 [.       328    0.99
+
+  Alignment:
+  score: 290.9 bits
+  top_branch_3utr_query   4 gttggtctacaggtaccataaacctgtttttcctgggttttagtgttgtgggatacccaggagtacacgtaaaacacccactggcttt 91 
+                            gtt gtc  caggtac ataaacctgtttttcctgggttttagtgttgtgggatacccaggagtacacgtaaaacacccactggcttt
+             FJ496340.1   4 GTTAGTCCGCAGGTACTATAAACCTGTTTTTCCTGGGTTTTAGTGTTGTGGGATACCCAGGAGTACACGTAAAACACCCACTGGCTTT 91 
+                            788899********************************************************************************** PP
+
+  top_branch_3utr_query  92 ggagctgtgccacatgacacctcccagcttgacagtgctgtcagaaactgttatataggaataggctaaaactaatcaatttaccccc 179
+                            ggag tgtgccacatgacacctcccagcttgacagtgctgtcagaaactgttatataggaataggctaaaactaatcaattt ccccc
+             FJ496340.1  92 GGAGTTGTGCCACATGACACCTCCCAGCTTGACAGTGCTGTCAGAAACTGTTATATAGGAATAGGCTAAAACTAATCAATTTTCCCCC 179
+                            **************************************************************************************** PP
+
+  top_branch_3utr_query 180 atgattgtttaggtattagttgttagtatttagtataagacatttggtgatataaagacctcacacaatctccattttctgtgaggac 267
+                            atgattgtttaggtattagttgttagtatttagtataagacatttggtgatataaagacctcacacaat tccatttt  gtgaggac
+             FJ496340.1 180 ATGATTGTTTAGGTATTAGTTGTTAGTATTTAGTATAAGACATTTGGTGATATAAAGACCTCACACAATTTCCATTTTTCGTGAGGAC 267
+                            **************************************************************************************** PP
+
+  top_branch_3utr_query 268 cctaagccaaatgacttctttttactttactattccctaccctacc 313
+                            cctaagccaaatgacttc ttttactttactattccctaccctacc
+             FJ496340.1 268 CCTAAGCCAAATGACTTCCTTTTACTTTACTATTCCCTACCCTACC 313
+                            *******************************************997 PP
+
+>> FJ496339.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  287.2  11.0   3.2e-88         6       314 ..         7       316 ..         3       318 ..       336    0.98
+
+  Alignment:
+  score: 287.2 bits
+  top_branch_3utr_query   6 tggtctacaggtaccataaacctgtttttcctgggttttagtgttgtgggatacccaggagtacacgtaaaacacccactggctttgg 93 
+                            t gtc  caggtac ataaacctgtttttcctgggttttagtgttgtgggatacccaggagtacacgtaaaacacccactggctttgg
+             FJ496339.1   7 TAGTCCGCAGGTACTATAAACCTGTTTTTCCTGGGTTTTAGTGTTGTGGGATACCCAGGAGTACACGTAAAACACCCACTGGCTTTGG 94 
+                            5689999********************************************************************************* PP
+
+  top_branch_3utr_query  94 agctgtgccacatgacacctcccagcttgacagtgctgtcagaaactgttatataggaataggctaaaactaatcaatttacccccat 181
+                            ag tgtgccacatgacacctcccagcttgacagtgctgtcagaaactgttatataggaataggctaaaactaatcaattt  ccccat
+             FJ496339.1  95 AGTTGTGCCACATGACACCTCCCAGCTTGACAGTGCTGTCAGAAACTGTTATATAGGAATAGGCTAAAACTAATCAATTTTTCCCCAT 182
+                            **************************************************************************************** PP
+
+  top_branch_3utr_query 182 gattgtttaggtattagttgttagtatttagtataagacatttggtgatataaagacctcacacaatctccatt.ttctgtgaggacc 268
+                            gattgtttaggtattagttgttagtatttagtataagacatttggtgatataaagacctcacacaat tccatt ttc gtgaggacc
+             FJ496339.1 183 GATTGTTTAGGTATTAGTTGTTAGTATTTAGTATAAGACATTTGGTGATATAAAGACCTCACACAATTTCCATTtTTCCGTGAGGACC 270
+                            ***********************************************************************98626799********* PP
+
+  top_branch_3utr_query 269 ctaagccaaatgacttctttttactttactattccctaccctacct 314
+                            ctaagccaaatgacttctttttactttactattccctaccctacct
+             FJ496339.1 271 CTAAGCCAAATGACTTCTTTTTACTTTACTATTCCCTACCCTACCT 316
+                            *******************************************987 PP
+
+>> GQ485310.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  104.8   4.5   3.1e-32        21       308 ..        87       361 ..        67       370 ..       379    0.78
+
+  Alignment:
+  score: 104.8 bits
+  top_branch_3utr_query  21 ataaacctgtttttcctgggttttagtgttgtgggatacccaggagtacacgtaaaacacccactggctttggagctgtgccacatga 108
+                            a aaacct       ct gg   tagtgttgtgggataccc  gagtacacgtaaaacacccac gg tt g ag     c     g 
+             GQ485310.1  87 AAAAACCTCCC---TCTAGGGCGTAGTGTTGTGGGATACCCTAGAGTACACGTAAAACACCCACCGGTTTGGCAGGACACCGTAGAGT 171
+                            45555554433...3566777889*******************************************999887775444333334455 PP
+
+  top_branch_3utr_query 109 cacctcccagc.ttgacagtgctgtcagaa....actgttatataggaataggctaaaactaatcaatttacccccatgattgtttag 191
+                             ac  cccag  ttg    t ctgtc gaa    actg t ta ag a    g t   actaatcaatt  cc  c         tag
+             GQ485310.1 172 AACTGCCCAGTgTTGGTCCTACTGTCTGAAcaggACTGCTTTAGAGTA----GTTTCTACTAATCAATTCCCCGTC---------TAG 246
+                            666777777742556666778889998886433367777777766544....34566789*******997666544.........555 PP
+
+  top_branch_3utr_query 192 gtattagttgttagtatttagtataagacatttggtgatataaagacctcacacaatctccattttctgtgag.gaccctaagccaaa 278
+                            gt     t gttagtatttagtataagac   tggtgatataaagacc  ac  aatctcca tttc gtg g gaccctaagcca  
+             GQ485310.1 247 GTTGATTTAGTTAGTATTTAGTATAAGACCAATGGTGATATAAAGACCATACCTAATCTCCACTTTCGGTGTGtGACCCTAAGCCATT 334
+                            554445567899********************************************************99987689************ PP
+
+  top_branch_3utr_query 279 tgacttctttttactttactattccctacc 308
+                             gacttctt  t ctttactattcc    c
+             GQ485310.1 335 GGACTTCTT--TGCTTTACTATTCCTCC-C 361
+                            *****9975..67999***999875322.2 PP
+
+>> GQ485311.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  103.9   4.5   6.1e-32        19       308 ..        85       360 ..        65       369 ..       379    0.75
+
+  Alignment:
+  score: 103.9 bits
+  top_branch_3utr_query  19 ccataaacctgtttttcctgggttttagtgttgtgggatacccaggagtacacgtaaaacacccactggctttggagctgtgccacat 106
+                             ca aaacct       ct gg   tagtgttgtgggataccc  gagtacacgtaaaacacccac gg tt g ag     c     
+             GQ485311.1  85 TCAAAAACCTCCC---TCTAGGGCGTAGTGTTGTGGGATACCCTAGAGTACACGTAAAACACCCACCGGTTTGGCAGGACACCGTAGA 169
+                            4566677765443...3566777889*******************************************9988776643332222223 PP
+
+  top_branch_3utr_query 107 gacacctcccag.cttgacagtgctgtcagaa....actgttatataggaataggctaaaactaatcaatttacccccatgattgttt 189
+                            g  ac   ccag  ttg    t ctgtc gaa    actgt  ta ag   tag       ctaatcaatt  cc            t
+             GQ485311.1 170 GTAACTGTCCAGtGTTGGTCCTACTGTCTGAAcaggACTGTCTTAGAG---TAGTT--TTGCTAATCAATTCCCCGT---------CT 243
+                            334444444554135566666777888887763333566666555544...44433..3568999999998766554.........45 PP
+
+  top_branch_3utr_query 190 aggtattagttgttagtatttagtataagacatttggtgatataaagacctcacacaatctccattttctgtgag.gaccctaagcca 276
+                            aggt     t gttagtatttagtataagac   tggtgatataaagacc  ac  aatctcca tttc gtg g gaccctaagcca
+             GQ485311.1 244 AGGTTGATTTAGTTAGTATTTAGTATAAGACCAATGGTGATATAAAGACCATACCTAATCTCCACTTTCGGTGTGtGACCCTAAGCCA 331
+                            55555455567899********************************************************99987689********** PP
+
+  top_branch_3utr_query 277 aatgacttctttttactttactattccctacc 308
+                               gacttct  ttactttactattcc   cc
+             GQ485311.1 332 TTGGACTTCT--TTACTTTACTATTCCTC-CC 360
+                            *******986..579********987532.22 PP
+
+
+
+Internal pipeline statistics summary:
+-------------------------------------
+Query model(s):                              1  (316 nodes)
+Target sequences:                           83  (37738 residues searched)
+Residues passing SSV filter:              5631  (0.149); expected (0.02)
+Residues passing bias filter:             5631  (0.149); expected (0.02)
+Residues passing Vit filter:              3055  (0.081); expected (0.003)
+Residues passing Fwd filter:              3055  (0.081); expected (3e-05)
+Total number of hits:                        9  (0.0726)
+# CPU time: 0.02u 0.03s 00:00:00.05 Elapsed: 00:00:00.05
+# Mc/sec: 238.50
+//
+# Alignment of 9 hits satisfying inclusion thresholds saved to: A7_analysis/phylogeny/top_branch/3UTR.sto
+[ok]

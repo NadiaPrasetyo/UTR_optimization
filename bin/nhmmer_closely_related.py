@@ -29,7 +29,7 @@ def run_rnaalifold(input_file, output_file, verbose=False):
     """
     print(f"Running RNAalifold on {input_file}...")
     result = subprocess.run(
-        ["RNAalifold", -f, "s", input_file],
+        ["RNAalifold", "-f=S", input_file],
         capture_output=True,
         text=True,
         check=True,
@@ -185,6 +185,15 @@ def run_nhmmer(query, subject, output_file, verbose=False):
     print(f"  nhmmer results saved to: {output_file}.txt / .tblout / .sto")
 
 
+def deduplicate_fasta(records):
+    seen = set()
+    unique_records = []
+    for record in records:
+        if record.id not in seen:
+            unique_records.append(record)
+            seen.add(record.id)
+    return unique_records
+
 def main(input_file, output_file, use_cacofold=False, verbose=False):
     # ------------------------------------------------------------------ #
     # 1. Split query (first sequence) from the rest                       #
@@ -192,6 +201,11 @@ def main(input_file, output_file, use_cacofold=False, verbose=False):
     records = list(SeqIO.parse(input_file, "fasta"))
     if len(records) < 2:
         raise ValueError("Input FASTA must contain at least two sequences.")
+        
+    # prep: deduplicate sequences
+    records = deduplicate_fasta(records)
+    # update the input file
+    SeqIO.write(records, input_file, "fasta")
 
     print(f"Loaded {len(records)} sequences from {input_file}")
     print(f"  Query   : {records[0].id}")

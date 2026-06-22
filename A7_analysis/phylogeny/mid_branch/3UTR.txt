@@ -1,0 +1,69 @@
+# nhmmer :: search a DNA model or alignment against a DNA database
+# HMMER 3.1b2 (February 2015); http://hmmer.org/
+# Copyright (C) 2015 Howard Hughes Medical Institute.
+# Freely distributed under the GNU General Public License (GPLv3).
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query file:                      A7_analysis/phylogeny/mid_branch_3utr_query.hmm
+# target sequence database:        A7_analysis/phylogeny/mid_branch_3utr.fasta
+# output directed to file:         A7_analysis/phylogeny/mid_branch/3UTR.txt
+# MSA of all hits saved to file:   A7_analysis/phylogeny/mid_branch/3UTR.sto
+# hits tabular output:             A7_analysis/phylogeny/mid_branch/3UTR.tblout
+# number of worker threads:        128
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       mid_branch_3utr_query  [M=415]
+Scores for complete hits:
+    E-value  score  bias  Sequence    start    end  Description
+    ------- ------ -----  --------    -----  -----  -----------
+   1.3e-123  400.1  28.9  MK834286.1      2    415  
+
+
+Annotation for each hit  (and alignments):
+>> MK834286.1  
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  400.1  28.9  1.3e-123         2       415 .]         2       415 .]         1       415 []       415    0.99
+
+  Alignment:
+  score: 400.1 bits
+  mid_branch_3utr_query   2 ttttccgttttccaatatcgtataattggaactactggaggttttccagtgtgcaggcagacacttattctgtttggctcttcaagcc 89 
+                            ttttccgttttccaatatcgtataattggaactactggaggttttccagtgtgcaggcagacacttattctgtttggctcttcaagcc
+             MK834286.1   2 TTTTCCGTTTTCCAATATCGTATAATTGGAACTACTGGAGGTTTTCCAGTGTGCAGGCAGACACTTATTCTGTTTGGCTCTTCAAGCC 89 
+                            6789************************************************************************************ PP
+
+  mid_branch_3utr_query  90 tgcttgttggtgtaagtaaccaatcctctcaatggattttgagccctgcccgggttatggctttcgtttttcgttttctgatatcgta 177
+                            tgcttgttggtgtaagtaaccaatcctctcaatggattttgagccctgcccgggttatggctttcgtttttcgttttctgatatcgta
+             MK834286.1  90 TGCTTGTTGGTGTAAGTAACCAATCCTCTCAATGGATTTTGAGCCCTGCCCGGGTTATGGCTTTCGTTTTTCGTTTTCTGATATCGTA 177
+                            **************************************************************************************** PP
+
+  mid_branch_3utr_query 178 taatcagaactactcgttttctgatatcgtataatcagaactaccagaagttttctggtgtgccggcggacacttattctgtttggtt 265
+                            taatcagaactactcgttttctgatatcgtataatcagaactaccagaagttttctggtgtgccggcggacacttattctgtttggtt
+             MK834286.1 178 TAATCAGAACTACTCGTTTTCTGATATCGTATAATCAGAACTACCAGAAGTTTTCTGGTGTGCCGGCGGACACTTATTCTGTTTGGTT 265
+                            **************************************************************************************** PP
+
+  mid_branch_3utr_query 266 cttcaaacctgcttgttggttcaagtaaccaatcctctcgttggatttcgagccccacctgggttatggttttattttgtttgtgtta 353
+                            cttcaaacctgcttgttggttcaagtaaccaatcctctcgttggatttcgagccccacctgggttatggttttattttgtttgtgtta
+             MK834286.1 266 CTTCAAACCTGCTTGTTGGTTCAAGTAACCAATCCTCTCGTTGGATTTCGAGCCCCACCTGGGTTATGGTTTTATTTTGTTTGTGTTA 353
+                            **************************************************************************************** PP
+
+  mid_branch_3utr_query 354 ttttctctccttttgtttgtttgtaacttttgttgagaattggtgaaagcccaatcggacac 415
+                            ttttctctccttttgtttgtttgtaacttttgttgagaattggtgaaagcccaatcggacac
+             MK834286.1 354 TTTTCTCTCCTTTTGTTTGTTTGTAACTTTTGTTGAGAATTGGTGAAAGCCCAATCGGACAC 415
+                            ***********************************************************986 PP
+
+
+
+Internal pipeline statistics summary:
+-------------------------------------
+Query model(s):                              1  (415 nodes)
+Target sequences:                            6  (2546 residues searched)
+Residues passing SSV filter:               940  (0.369); expected (0.02)
+Residues passing bias filter:              940  (0.369); expected (0.02)
+Residues passing Vit filter:               415  (0.163); expected (0.003)
+Residues passing Fwd filter:               415  (0.163); expected (3e-05)
+Total number of hits:                        1  (0.163)
+# CPU time: 0.01u 0.02s 00:00:00.03 Elapsed: 00:00:00.03
+# Mc/sec: 35.22
+//
+# Alignment of 1 hits satisfying inclusion thresholds saved to: A7_analysis/phylogeny/mid_branch/3UTR.sto
+[ok]
