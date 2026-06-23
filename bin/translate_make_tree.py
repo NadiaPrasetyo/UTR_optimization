@@ -113,6 +113,8 @@ def main():
     # Translate sequences
     if not args.no_translate:
         records = translate_sequences(args.input)
+    else:
+        records = list(SeqIO.parse(args.input, "fasta"))
 
     # Deduplicate sequences
     records = deduplicate_aa_seq(records)
