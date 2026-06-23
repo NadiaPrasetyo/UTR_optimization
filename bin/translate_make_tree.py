@@ -98,6 +98,7 @@ def main():
     parser.add_argument("-i", "--input",    required=True,  help="Input FASTA file with full genome sequences to be translated")
     parser.add_argument("-o", "--output",   required=True,  help="Output alignment and tree file prefix")
     parser.add_argument("--highlight",      nargs="+",      help="Accession IDs to highlight in the tree", default=[])
+    parser.add_argument("--no-translate",   action="store_true", help="Skip translation step")
     parser.add_argument("--tree",           help="Visualize existing tree")
     args = parser.parse_args()
 
@@ -110,7 +111,8 @@ def main():
         visualize_tree(args.tree, highlight_accessions=args.highlight)
         return
     # Translate sequences
-    records = translate_sequences(args.input)
+    if not args.no_translate:
+        records = translate_sequences(args.input)
 
     # Deduplicate sequences
     records = deduplicate_aa_seq(records)
