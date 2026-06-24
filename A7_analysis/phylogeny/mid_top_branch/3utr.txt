@@ -1,0 +1,464 @@
+# nhmmer :: search a DNA model or alignment against a DNA database
+# HMMER 3.1b2 (February 2015); http://hmmer.org/
+# Copyright (C) 2015 Howard Hughes Medical Institute.
+# Freely distributed under the GNU General Public License (GPLv3).
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query file:                      A7_analysis/phylogeny/mid_top_branch_3utr_query.hmm
+# target sequence database:        A7_analysis/phylogeny/mid_top_branch_3utr.fasta
+# output directed to file:         A7_analysis/phylogeny/mid_top_branch/3utr.txt
+# MSA of all hits saved to file:   A7_analysis/phylogeny/mid_top_branch/3utr.sto
+# hits tabular output:             A7_analysis/phylogeny/mid_top_branch/3utr.tblout
+# number of worker threads:        128
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       mid_top_branch_3utr_query  [M=591]
+Scores for complete hits:
+    E-value  score  bias  Sequence                          start    end  Description
+    ------- ------ -----  --------                          -----  -----  -----------
+   1.4e-183  600.3  17.3  PQ368550.1|Goose                      1    591  megrivirus isolate SC01/China/2023
+   6.1e-182  594.9  15.7  PQ368551.1|Goose                   1445   2035  megrivirus isolate SC02/China/2023
+   2.3e-169  553.5  17.2  KY369299.1|Megrivirus                 2    593  A3 isolate W18
+   2.7e-169  553.3  14.0  PP346853.1|Goose                      2    593  megrivirus strain MWG01, complete genome
+   5.1e-119  388.1  16.4  PP827034.1|Bar-headed                 1    481  goose megrivirus isolate PICV21
+   3.5e-114  372.1  19.9  PP827035.1|Bar-headed                 1    491  goose megrivirus isolate PICV22
+   1.2e-107  350.7  17.4  PP827032.1|Bar-headed                 1    454  goose megrivirus isolate PICV1
+    1.4e-05   15.2   0.4  MF405436.1|NC_039004.1|Penguin       16     81  megrivirus isolate KGI-Bel-P5/2015
+    1.4e-05   15.2   0.4  MN453780.1|MN453782.1|Megrivirus     16     81  E1 isolate Ornithogenic_soil-NIHSAD-INDIA-20
+    1.4e-05   15.2   0.4  MN453781.1|Megrivirus                16     81  E1 isolate Adelie penguin-NIHSAD-INDIA-2018
+    0.00025   11.0  26.4  MF405436.1|NC_039004.1|Penguin      284    471  megrivirus isolate KGI-Bel-P5/2015
+    0.00033   10.7  23.4  MN453781.1|Megrivirus               284    471  E1 isolate Adelie penguin-NIHSAD-INDIA-2018
+    0.00053   10.0  22.4  MN453780.1|MN453782.1|Megrivirus    284    471  E1 isolate Ornithogenic_soil-NIHSAD-INDIA-20
+  ------ inclusion threshold ------
+        8.8   -3.9  11.1  PP346853.1|Goose                    212    154  megrivirus strain MWG01, complete genome
+
+
+Annotation for each hit  (and alignments):
+>> PQ368550.1|Goose  megrivirus isolate SC01/China/2023
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  600.3  17.3  1.4e-183         1       591 []         1       591 []         1       591 []       591    1.00
+
+  Alignment:
+  score: 600.3 bits
+  mid_top_branch_3utr_query   1 aatgggtaatacaatcactcaaacaataaatcaaacaattcataatatttttataaccaactcacccaactcccatgtgagttc 84 
+                                aatgggtaatacaatcactcaaacaataaatcaaacaattcataatatttttataaccaactcacccaactcccatgtgagttc
+           PQ368550.1|Goose   1 AATGGGTAATACAATCACTCAAACAATAAATCAAACAATTCATAATATTTTTATAACCAACTCACCCAACTCCCATGTGAGTTC 84 
+                                589********************************************************************************* PP
+
+  mid_top_branch_3utr_query  85 cggttcttcacaatcagcttcttcttcagttgttgtcttttctgttttgggagtctttgtctttttcttagttgttttcttttc 168
+                                cggttcttcacaatcagcttcttcttcagttgttgtcttttctgttttgggagtctttgtctttttcttagttgttttcttttc
+           PQ368550.1|Goose  85 CGGTTCTTCACAATCAGCTTCTTCTTCAGTTGTTGTCTTTTCTGTTTTGGGAGTCTTTGTCTTTTTCTTAGTTGTTTTCTTTTC 168
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 169 ctattgtatctttaaaaattgtagaaaagaacaaaaacaattaaaactcttggaagtataactgttacagaccctacccattcc 252
+                                ctattgtatctttaaaaattgtagaaaagaacaaaaacaattaaaactcttggaagtataactgttacagaccctacccattcc
+           PQ368550.1|Goose 169 CTATTGTATCTTTAAAAATTGTAGAAAAGAACAAAAACAATTAAAACTCTTGGAAGTATAACTGTTACAGACCCTACCCATTCC 252
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 253 acggtcgcagtgttgcaggagaccctggaaaccacgttaaacacctgccgacgtgagtcgtaaaatctctcttgtctgttacat 336
+                                acggtcgcagtgttgcaggagaccctggaaaccacgttaaacacctgccgacgtgagtcgtaaaatctctcttgtctgttacat
+           PQ368550.1|Goose 253 ACGGTCGCAGTGTTGCAGGAGACCCTGGAAACCACGTTAAACACCTGCCGACGTGAGTCGTAAAATCTCTCTTGTCTGTTACAT 336
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 337 ccccttccccctctttgaggtcacggtgttgctggatacctcaaagtacacgtaaaacaccagccacctgccaggtgtaaattg 420
+                                ccccttccccctctttgaggtcacggtgttgctggatacctcaaagtacacgtaaaacaccagccacctgccaggtgtaaattg
+           PQ368550.1|Goose 337 CCCCTTCCCCCTCTTTGAGGTCACGGTGTTGCTGGATACCTCAAAGTACACGTAAAACACCAGCCACCTGCCAGGTGTAAATTG 420
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 421 gcaaaacaagccctaatggctaatcatttaaatttatctaatcatctgcttttgtaactcgcttaggtaagatttagtcccctt 504
+                                gcaaaacaagccctaatggctaatcatttaaatttatctaatcatctgcttttgtaactcgcttaggtaagatttagtcccctt
+           PQ368550.1|Goose 421 GCAAAACAAGCCCTAATGGCTAATCATTTAAATTTATCTAATCATCTGCTTTTGTAACTCGCTTAGGTAAGATTTAGTCCCCTT 504
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 505 gcccttaaggcaaggtgctttatcacaagtgacaaagtcggtcctctgactgatagaccctccccccggggtaataggggggcc 588
+                                gcccttaaggcaaggtgctttatcacaagtgacaaagtcggtcctctgactgatagaccctccccccggggtaataggggggcc
+           PQ368550.1|Goose 505 GCCCTTAAGGCAAGGTGCTTTATCACAAGTGACAAAGTCGGTCCTCTGACTGATAGACCCTCCCCCCGGGGTAATAGGGGGGCC 588
+                                ***********************************************************************************9 PP
+
+  mid_top_branch_3utr_query 589 ttg 591
+                                ttg
+           PQ368550.1|Goose 589 TTG 591
+                                986 PP
+
+>> PQ368551.1|Goose  megrivirus isolate SC02/China/2023
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  594.9  15.7  6.1e-182         1       591 []      1445      2035 ..      1445      2035 ..      2088    1.00
+
+  Alignment:
+  score: 594.9 bits
+  mid_top_branch_3utr_query    1 aatgggtaatacaatcactcaaacaataaatcaaacaattcataatatttttataaccaactcacccaactcccatgtgagt 82  
+                                 aatgggtaatacaatcactcaaacaataaatcaaacaattcataa atttttataaccaactcacccaactcccatgtgagt
+           PQ368551.1|Goose 1445 AATGGGTAATACAATCACTCAAACAATAAATCAAACAATTCATAACATTTTTATAACCAACTCACCCAACTCCCATGTGAGT 1526
+                                 589******************************************************************************* PP
+
+  mid_top_branch_3utr_query   83 tccggttcttcacaatcagcttcttcttcagttgttgtcttttctgttttgggagtctttgtctttttcttagttgttttct 164 
+                                 tccggttc tc caatcagcttcttcttcagttgttgtcttttctgttttgggagtctttgtctttttcttagttgttttct
+           PQ368551.1|Goose 1527 TCCGGTTCCTCGCAATCAGCTTCTTCTTCAGTTGTTGTCTTTTCTGTTTTGGGAGTCTTTGTCTTTTTCTTAGTTGTTTTCT 1608
+                                 ********************************************************************************** PP
+
+  mid_top_branch_3utr_query  165 tttcctattgtatctttaaaaattgtagaaaagaacaaaaacaattaaaactcttggaagtataactgttacagaccctacc 246 
+                                 tttcctattgtatctttaaaaattgtagaaaagaacaaaaacaattaaaactcttggaagtataactgttacagaccctacc
+           PQ368551.1|Goose 1609 TTTCCTATTGTATCTTTAAAAATTGTAGAAAAGAACAAAAACAATTAAAACTCTTGGAAGTATAACTGTTACAGACCCTACC 1690
+                                 ********************************************************************************** PP
+
+  mid_top_branch_3utr_query  247 cattccacggtcgcagtgttgcaggagaccctggaaaccacgttaaacacctgccgacgtgagtcgtaaaatctctcttgtc 328 
+                                 cattccacggtcgcagtgttgcaggagaccctggaaaccacgttaaacacctgccgacgtgagtcgtaaaatctctcttgtc
+           PQ368551.1|Goose 1691 CATTCCACGGTCGCAGTGTTGCAGGAGACCCTGGAAACCACGTTAAACACCTGCCGACGTGAGTCGTAAAATCTCTCTTGTC 1772
+                                 ********************************************************************************** PP
+
+  mid_top_branch_3utr_query  329 tgttacatccccttccccctctttgaggtcacggtgttgctggatacctcaaagtacacgtaaaacaccagccacctgccag 410 
+                                 tgttacatccccttccccctctttgaggtcacggtgttgctggatacctcaaagtacacgtaaaacaccagccacctgccag
+           PQ368551.1|Goose 1773 TGTTACATCCCCTTCCCCCTCTTTGAGGTCACGGTGTTGCTGGATACCTCAAAGTACACGTAAAACACCAGCCACCTGCCAG 1854
+                                 ********************************************************************************** PP
+
+  mid_top_branch_3utr_query  411 gtgtaaattggcaaaacaagccctaatggctaatcatttaaatttatctaatcatctgcttttgtaactcgcttaggtaaga 492 
+                                 gtgtaaattggcaaaacaagccctaatggctaatcatttaaatttatctaatcatctgcttttgtaactcgcttaggtaaga
+           PQ368551.1|Goose 1855 GTGTAAATTGGCAAAACAAGCCCTAATGGCTAATCATTTAAATTTATCTAATCATCTGCTTTTGTAACTCGCTTAGGTAAGA 1936
+                                 ********************************************************************************** PP
+
+  mid_top_branch_3utr_query  493 tttagtccccttgcccttaaggcaaggtgctttatcacaagtgacaaagtcggtcctctgactgatagaccctccccccggg 574 
+                                 tttagtccccttgcccttaaggcaaggtgctttatcacaagtgacaaagtcggtcctctgactgatagaccctccccccggg
+           PQ368551.1|Goose 1937 TTTAGTCCCCTTGCCCTTAAGGCAAGGTGCTTTATCACAAGTGACAAAGTCGGTCCTCTGACTGATAGACCCTCCCCCCGGG 2018
+                                 ********************************************************************************** PP
+
+  mid_top_branch_3utr_query  575 gtaataggggggccttg 591 
+                                 g aataggggggccttg
+           PQ368551.1|Goose 2019 GCAATAGGGGGGCCTTG 2035
+                                 *************9986 PP
+
+>> KY369299.1|Megrivirus  A3 isolate W18
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  553.5  17.2  2.3e-169         2       591 .]         2       593 ..         1       593 [.       663    0.99
+
+  Alignment:
+  score: 553.5 bits
+  mid_top_branch_3utr_query   2 atgggtaatacaatcactcaaacaataaatcaaacaattcataatatttttataaccaactcacccaactcccatgtgagttcc 85 
+                                atgggtaatacaatcactcaaacaataaatcaaacaattcataatat tt ataaccaactcacc aactcccatgtgagttc 
+      KY369299.1|Megrivirus   2 ATGGGTAATACAATCACTCAAACAATAAATCAAACAATTCATAATATCTTCATAACCAACTCACCTAACTCCCATGTGAGTTCT 85 
+                                789********************************************************************************* PP
+
+  mid_top_branch_3utr_query  86 ggttcttcacaatcagcttcttcttcagttgttgtcttttctgttttgggagtctttgtctttttcttagttgttttcttttcc 169
+                                ggttcttcaca tcagcttcttcttcagttgttgtcttttct ttttgggagtcttt tctttttcttagttgttttcttttc 
+      KY369299.1|Megrivirus  86 GGTTCTTCACAGTCAGCTTCTTCTTCAGTTGTTGTCTTTTCTATTTTGGGAGTCTTTATCTTTTTCTTAGTTGTTTTCTTTTCT 169
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 170 tattgtatctttaaaaattgtagaaaagaacaaaaacaattaaaactcttggaagtataactgttacagaccctacccattcca 253
+                                ta tgtat tttaaaaattgtagaaaagaacaaaaacaattaaaact ttggaagt taactgttacagaccc acccattcca
+      KY369299.1|Megrivirus 170 TACTGTATTTTTAAAAATTGTAGAAAAGAACAAAAACAATTAAAACTTTTGGAAGTGTAACTGTTACAGACCCCACCCATTCCA 253
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 254 cggtcgcagtgttgcaggagaccctggaaaccacgttaaacacctgccgacgtgagtcgtaaaatctctcttgtctgttacatc 337
+                                cggtcgcagtgttgcaggagaccctggaaaccacgttaaacacctgccgacgtgagtcgtaaaatctc cttgtctgttacatc
+      KY369299.1|Megrivirus 254 CGGTCGCAGTGTTGCAGGAGACCCTGGAAACCACGTTAAACACCTGCCGACGTGAGTCGTAAAATCTCCCTTGTCTGTTACATC 337
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 338 cccttccccc.tctttgaggtcacggtgttgctggatacctcaaagtacacgtaaaacaccagccacctgccaggtgtaaattg 420
+                                cccttccccc tctttgagg c cggtgttgctggatacctcaaagtacacgtaaaacaccagccacctgccaggtgtaaattg
+      KY369299.1|Megrivirus 338 CCCTTCCCCCtTCTTTGAGGCCTCGGTGTTGCTGGATACCTCAAAGTACACGTAAAACACCAGCCACCTGCCAGGTGTAAATTG 421
+                                ***998876626899********************************************************************* PP
+
+  mid_top_branch_3utr_query 421 gcaaaacaagccctaatggctaatcatttaaatttatctaatcatctgct.tttgtaactcgcttaggtaagatttagtcccct 503
+                                gcaaaacaagccctaatggctaatca ttaaatttatctaatca  tgct tttgtaactcgcttaggtaagatttagtcccct
+      KY369299.1|Megrivirus 422 GCAAAACAAGCCCTAATGGCTAATCACTTAAATTTATCTAATCACTTGCTcTTTGTAACTCGCTTAGGTAAGATTTAGTCCCCT 505
+                                ************************************************984578****************************** PP
+
+  mid_top_branch_3utr_query 504 tgcccttaaggcaaggtgctttatcacaagtgacaaagtcggtcctctgactgatagaccctccccccggggtaataggggggc 587
+                                tgcccttaagg aaggtgctttatcacaagtgacaaagtcggtc tctgactgatagaccctccccccggggtaataggggggc
+      KY369299.1|Megrivirus 506 TGCCCTTAAGGTAAGGTGCTTTATCACAAGTGACAAAGTCGGTCTTCTGACTGATAGACCCTCCCCCCGGGGTAATAGGGGGGC 589
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 588 cttg 591
+                                cttg
+      KY369299.1|Megrivirus 590 CTTG 593
+                                9986 PP
+
+>> PP346853.1|Goose  megrivirus strain MWG01, complete genome
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  553.3  14.0  2.7e-169         2       591 .]         2       593 ..         1       593 [.       663    0.99
+
+  Alignment:
+  score: 553.3 bits
+  mid_top_branch_3utr_query   2 atgggtaatacaatcactcaaacaataaatcaaacaattcataatatttttataaccaactcacccaactcccatgtgagttcc 85 
+                                atgggtaa acaatcactcaaacaataaatcaaacaattcataatatttt ataaccaactcacc aactcccatgtgagttc 
+           PP346853.1|Goose   2 ATGGGTAACACAATCACTCAAACAATAAATCAAACAATTCATAATATTTTCATAACCAACTCACCTAACTCCCATGTGAGTTCT 85 
+                                789********************************************************************************* PP
+
+  mid_top_branch_3utr_query  86 ggttcttcacaatcagcttcttcttcagttgttgtcttttctgttttgggagtctttgtctttttcttagttgttttcttttcc 169
+                                ggttcttcacaatcagc tcttcttcagttgttgtcttttctgt ttgggagtctttgtctttttcttagttgttttcttttc 
+           PP346853.1|Goose  86 GGTTCTTCACAATCAGCCTCTTCTTCAGTTGTTGTCTTTTCTGTCTTGGGAGTCTTTGTCTTTTTCTTAGTTGTTTTCTTTTCT 169
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 170 tattgtatctttaaaaattgtagaaaagaacaaaaacaattaaaactcttggaagtataactgttacagaccctacccattcca 253
+                                ta tgtatctttaaaaattgtagaaa gaacaaaaacaattaaaactcttggaagt taactgttacagaccc acccattcca
+           PP346853.1|Goose 170 TACTGTATCTTTAAAAATTGTAGAAAGGAACAAAAACAATTAAAACTCTTGGAAGTGTAACTGTTACAGACCCCACCCATTCCA 253
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 254 cggtcgcagtgttgcaggagaccctggaaaccacgttaaacacctgccgacgtgagtcgtaaaatctctcttgtctgttacatc 337
+                                cggtcgcagtgttgcaggagaccctggaaaccacgttaaacacctgccgacgtgagtcgtaaaatc   c tgtctgttacatc
+           PP346853.1|Goose 254 CGGTCGCAGTGTTGCAGGAGACCCTGGAAACCACGTTAAACACCTGCCGACGTGAGTCGTAAAATCATCCCTGTCTGTTACATC 337
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 338 cccttccccc.tctttgaggtcacggtgttgctggatacctcaaagtacacgtaaaacaccagccacctgccaggtgtaaattg 420
+                                cccttccccc tctttgaggtc cggtgttgctggatacctcaaagtacacgtaaaacaccagccacc gccaggtgtaaattg
+           PP346853.1|Goose 338 CCCTTCCCCCtTCTTTGAGGTCTCGGTGTTGCTGGATACCTCAAAGTACACGTAAAACACCAGCCACCCGCCAGGTGTAAATTG 421
+                                ***998876626899********************************************************************* PP
+
+  mid_top_branch_3utr_query 421 gcaaaacaagccctaatggctaatcatttaaatttatctaatcatctgctt.ttgtaactcgcttaggtaagatttagtcccct 503
+                                gcaaaacaagccctaatggctaat   ttaaatttatctaatca c gctt ttgtaactcgcttaggtaagatttagtcccct
+           PP346853.1|Goose 422 GCAAAACAAGCCCTAATGGCTAATTGCTTAAATTTATCTAATCACCCGCTTtTTGTAACTCGCTTAGGTAAGATTTAGTCCCCT 505
+                                ************************************************976268****************************** PP
+
+  mid_top_branch_3utr_query 504 tgcccttaaggcaaggtgctttatcacaagtgacaaagtcggtcctctgactgatagaccctccccccggggtaataggggggc 587
+                                tgcccttaaggcaaggtgctttatcacaagtgacaaagtcggtc t tgactgatagaccctccccccggggtaataggggggc
+           PP346853.1|Goose 506 TGCCCTTAAGGCAAGGTGCTTTATCACAAGTGACAAAGTCGGTCTTTTGACTGATAGACCCTCCCCCCGGGGTAATAGGGGGGC 589
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 588 cttg 591
+                                cttg
+           PP346853.1|Goose 590 CTTG 593
+                                9986 PP
+
+>> PP827034.1|Bar-headed  goose megrivirus isolate PICV21
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  388.1  16.4  5.1e-119         3       482 ..         1       481 []         1       481 []       481    0.99
+
+  Alignment:
+  score: 388.1 bits
+  mid_top_branch_3utr_query   3 tgggtaatacaatcactcaaacaataaatcaaacaattcataatatttttataaccaactcacccaactcccatgtgagttccg 86 
+                                tggg aatac atcactca acaat aatcaaacaat   taatat ttt t accaactcacccaactccca gtgagt c g
+      PP827034.1|Bar-headed   1 TGGGCAATACTATCACTCAGACAATCAATCAAACAATCTTTAATATCTTTGTTACCAACTCACCCAACTCCCAGGTGAGTGCTG 84 
+                                5899******************************************************************************** PP
+
+  mid_top_branch_3utr_query  87 gttcttcacaatcagcttcttcttcagttgttgtcttttctgttttgggagtctttgtctttttcttagttgttttcttttcct 170
+                                gttcttc caatc gc  cttct cagt gttgt tt tctgttttgggagtcttt tcttt tct   tt ttttcttttcct
+      PP827034.1|Bar-headed  85 GTTCTTCCCAATCTGCCACTTCTACAGTGGTTGTTTTCTCTGTTTTGGGAGTCTTTCTCTTTATCTGTATTATTTTCTTTTCCT 168
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 171 attgtatctttaaaaattgtagaaaagaacaaaaacaattaaaactcttggaagtataactgttacagaccctacccattccac 254
+                                a tgtatctttaaaaattgtagaaaagaacaaaaaca ttaaaac  tt g agt taactgttaca  ccc acccattccac
+      PP827034.1|Bar-headed 169 ACTGTATCTTTAAAAATTGTAGAAAAGAACAAAAACAGTTAAAACATTTAGGAGTGTAACTGTTACAATCCCCACCCATTCCAC 252
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 255 ggtcgcagtgttgcaggagaccctggaaaccacgttaaacacctgccgacgtgagtcgtaaaatctctcttgtctgttacatcc 338
+                                ggtcgcagtgttgcaggagaccctggaaaccacgttaaacacctgccgacgtgagtcgtaaaatct  cttgtctgttacatcc
+      PP827034.1|Bar-headed 253 GGTCGCAGTGTTGCAGGAGACCCTGGAAACCACGTTAAACACCTGCCGACGTGAGTCGTAAAATCTTCCTTGTCTGTTACATCC 336
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 339 ccttccccc.tctttgaggtcacggtgttgctggatacctcaaagtacacgtaaaacaccagccacctgccaggtgtaaattgg 421
+                                cct ccccc tctttgaggtc  ggtgttgctggatacctcaaagtacacgtaaaacaccagccacctgccaggtgtaaattgg
+      PP827034.1|Bar-headed 337 CCTCCCCCCtTCTTTGAGGTCGTGGTGTTGCTGGATACCTCAAAGTACACGTAAAACACCAGCCACCTGCCAGGTGTAAATTGG 420
+                                *9988776526999********************************************************************** PP
+
+  mid_top_branch_3utr_query 422 caaaacaagccctaatggctaatcatttaaatttatctaatcatctgcttttgtaactcgc 482
+                                caaaacaagccctaatggctaatca ttaaattt t taatca  tgcttttgtaactcgc
+      PP827034.1|Bar-headed 421 CAAAACAAGCCCTAATGGCTAATCACTTAAATTTGTTTAATCACTTGCTTTTGTAACTCGC 481
+                                *********************************************************9985 PP
+
+>> PP827035.1|Bar-headed  goose megrivirus isolate PICV22
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  372.1  19.9  3.5e-114         3       492 ..         1       491 [.         1       492 []       492    0.96
+
+  Alignment:
+  score: 372.1 bits
+  mid_top_branch_3utr_query   3 tgggtaatacaatcactcaaacaataaatcaaacaattcataatatttttataaccaactcacccaactcccatgtgagttccg 86 
+                                tggg aatac  tcactcaaac  t aa      aa t a  atatt  t t a c actcacccaactccca gtgag  c g
+      PP827035.1|Bar-headed   1 TGGGCAATACTGTCACTCAAACCTTTAACATTGTAAATAACTATATTACTCTTAACCACTCACCCAACTCCCAGGTGAGCACTG 84 
+                                5899******************999888777777777888888888888888888999************************** PP
+
+  mid_top_branch_3utr_query  87 gttcttcacaatcagcttcttcttcagttgttgtcttttctgttttgggagtctttgtctttttcttagttgttttcttttcct 170
+                                gttcttc caatcagc  cttct cagt gttgtcttttctgttttgggagtcttt t ttt t t   t gttttcttttc t
+      PP827035.1|Bar-headed  85 GTTCTTCTCAATCAGCCACTTCTACAGTGGTTGTCTTTTCTGTTTTGGGAGTCTTTCTTTTTATTTGTATAGTTTTCTTTTCTT 168
+                                *******************************************************9998888888888899************* PP
+
+  mid_top_branch_3utr_query 171 attgtatctttaaaaattgtagaaaagaacaaaaacaattaaaactcttggaagtataactgttacagaccctacccattccac 254
+                                attgtat tttaaaaattgtagaaaagaacaaaaacaattaaaact tt g agt taactgttaca accc acccattccac
+      PP827035.1|Bar-headed 169 ATTGTATTTTTAAAAATTGTAGAAAAGAACAAAAACAATTAAAACTTTTAGGAGTGTAACTGTTACAAACCCCACCCATTCCAC 252
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 255 ggtcgcagtgttgcaggagaccctggaaaccacgttaaacacctgccgacgtgagtcgtaaaatctctcttgtctgttacatcc 338
+                                ggtcgcagtgttgcaggagaccctggaaaccacgttaaacacctgccgacgtgagtcgtaaaatctct ttgtctgttacatcc
+      PP827035.1|Bar-headed 253 GGTCGCAGTGTTGCAGGAGACCCTGGAAACCACGTTAAACACCTGCCGACGTGAGTCGTAAAATCTCTTTTGTCTGTTACATCC 336
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 339 ccttccccc.tctttgaggtcacggtgttgctggatacctcaaagtacacgtaaaacaccagccacctgccaggtgtaaattgg 421
+                                ccttccccc tctttgaggtc  ggtgttgctggatacctcaaagtacacgtaaaacaccagccacctg caggtgtaaa tgg
+      PP827035.1|Bar-headed 337 CCTTCCCCCtTCTTTGAGGTCGTGGTGTTGCTGGATACCTCAAAGTACACGTAAAACACCAGCCACCTGTCAGGTGTAAAATGG 420
+                                **998877626899********************************************************************** PP
+
+  mid_top_branch_3utr_query 422 caaaacaagccctaatggctaatcatttaaatttatctaatcatctgctt.ttgtaactcgcttaggtaaga 492
+                                caaa caagccctaatggctaatcatttaaat tatctaatcat tgctt ttgtaac cgcttaggtaaga
+      PP827035.1|Bar-headed 421 CAAACCAAGCCCTAATGGCTAATCATTTAAAT-TATCTAATCATTTGCTTtTTGTAACACGCTTAGGTAAGA 491
+                                ***************************99885.79************976268****************998 PP
+
+>> PP827032.1|Bar-headed  goose megrivirus isolate PICV1
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  350.7  17.4  1.2e-107         1       453 [.         1       454 [.         1       455 []       455    0.98
+
+  Alignment:
+  score: 350.7 bits
+  mid_top_branch_3utr_query   1 aatgggtaatacaatcactcaaacaataaatcaaacaattcataatatttttataaccaactcacccaactcccatgtgagttc 84 
+                                aatgggtaatacaatcactca ac  t aat     aatt ataatatt tt t    aa tcacccaactccca gtgag  c
+      PP827032.1|Bar-headed   1 AATGGGTAATACAATCACTCAGACCTTTAATGTTGTAATTAATAATATTCTTCTTTATAATTCACCCAACTCCCAGGTGAGCAC 84 
+                                589***********************************************99999999************************** PP
+
+  mid_top_branch_3utr_query  85 cggttcttcacaatcagcttcttcttcagttgttgtcttttctgttttgggagtctttgtctttttcttagttgttttcttttc 168
+                                 ggttcttc caatc gc  cttct  agt gttgt ttttct ttttgggagtcttt tcttt tct   tt ttttcttttc
+      PP827032.1|Bar-headed  85 TGGTTCTTCCCAATCTGCCACTTCTATAGTGGTTGTTTTTTCTATTTTGGGAGTCTTTCTCTTTATCTGTATTATTTTCTTTTC 168
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 169 ctattgtatctttaaaaattgtagaaaagaacaaaaacaattaaaactcttggaagtataactgttacagaccctacccattcc 252
+                                cta tgtatctttaaaaattgtagaaaagaacaaaaaca ttaaaact tt g agt taactgttaca  ccc acccattcc
+      PP827032.1|Bar-headed 169 CTACTGTATCTTTAAAAATTGTAGAAAAGAACAAAAACAGTTAAAACTTTTAGGAGTGTAACTGTTACAATCCCCACCCATTCC 252
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 253 acggtcgcagtgttgcaggagaccctggaaaccacgttaaacacctgccgacgtgagtcgtaaaatctctcttgtctgttacat 336
+                                acggtcgcagtgttgcaggagaccctggaaaccacgttaaacacctgccgacgtgagtcgtaaaatct  cttgtctgttacat
+      PP827032.1|Bar-headed 253 ACGGTCGCAGTGTTGCAGGAGACCCTGGAAACCACGTTAAACACCTGCCGACGTGAGTCGTAAAATCTTCCTTGTCTGTTACAT 336
+                                ************************************************************************************ PP
+
+  mid_top_branch_3utr_query 337 ccccttccccc.tctttgaggtcacggtgttgctggatacctcaaagtacacgtaaaacaccagccacctgccaggtgtaaatt 419
+                                cccct ccccc tctttgaggtc  ggtgttgctggatacctcaaagtacacgtaaaacaccagccacctgccaggtgtaaatt
+      PP827032.1|Bar-headed 337 CCCCTCCCCCCtTCTTTGAGGTCGTGGTGTTGCTGGATACCTCAAAGTACACGTAAAACACCAGCCACCTGCCAGGTGTAAATT 420
+                                ****988776626999******************************************************************** PP
+
+  mid_top_branch_3utr_query 420 ggcaaaacaagccctaatggctaatcatttaaat 453
+                                ggcaaaacaagccctaatggctaatca ttaaat
+      PP827032.1|Bar-headed 421 GGCAAAACAAGCCCTAATGGCTAATCACTTAAAT 454
+                                *****************************99986 PP
+
+>> MF405436.1|NC_039004.1|Penguin  megrivirus isolate KGI-Bel-P5/2015
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !   15.2   0.4   1.4e-05       348       413 ..        16        81 ..         3       119 ..       672    0.76
+
+  Alignment:
+  score: 15.2 bits
+       mid_top_branch_3utr_query 348 tctttgaggtcacggtgttgctggatacctcaaagtacacgtaaaacaccagccacctgccaggtg 413
+                                     tctt   ggtc   gtgttg  ggatacc     gtacacgtaaaacacc  cc cct  c   tg
+  MF405436.1|NC_039004.1|Penguin  16 TCTTCAGGGTCTTAGTGTTGTGGGATACCCTGTCGTACACGTAAAACACCCACCTCCTAGCTCATG 81 
+                                     5677788999999**********************************9998888777654432222 PP
+
+>> MN453780.1|MN453782.1|Megrivirus  E1 isolate Ornithogenic_soil-NIHSAD-INDIA-2018
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !   15.2   0.4   1.4e-05       348       413 ..        16        81 ..         3       119 ..       672    0.76
+
+  Alignment:
+  score: 15.2 bits
+         mid_top_branch_3utr_query 348 tctttgaggtcacggtgttgctggatacctcaaagtacacgtaaaacaccagccacctgccaggtg 413
+                                       tctt   ggtc   gtgttg  ggatacc     gtacacgtaaaacacc  cc cct  c   tg
+  MN453780.1|MN453782.1|Megrivirus  16 TCTTCAGGGTCTTAGTGTTGTGGGATACCCTGTCGTACACGTAAAACACCCACCTCCTAGCTCATG 81 
+                                       5677788999999**********************************9998888777654432222 PP
+
+>> MN453781.1|Megrivirus  E1 isolate Adelie penguin-NIHSAD-INDIA-2018
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !   15.2   0.4   1.4e-05       348       413 ..        16        81 ..         3       119 ..       672    0.76
+
+  Alignment:
+  score: 15.2 bits
+  mid_top_branch_3utr_query 348 tctttgaggtcacggtgttgctggatacctcaaagtacacgtaaaacaccagccacctgccaggtg 413
+                                tctt   ggtc   gtgttg  ggatacc     gtacacgtaaaacacc  cc cct  c   tg
+      MN453781.1|Megrivirus  16 TCTTCAGGGTCTTAGTGTTGTGGGATACCCTGTCGTACACGTAAAACACCCACCTCCTAGCTCATG 81 
+                                5677788999999**********************************9998888777654432222 PP
+
+>> MF405436.1|NC_039004.1|Penguin  megrivirus isolate KGI-Bel-P5/2015
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !   11.0  26.4   0.00025         2       189 ..       284       471 ..       283       497 ..       672    0.62
+
+  Alignment:
+  score: 11.0 bits
+       mid_top_branch_3utr_query   2 atgggtaatacaatcactcaaacaataaatcaaacaattcataatatttttataaccaactcacccaactcccatgtga 80 
+                                     atggg aatacaat ac   aac at  a caaacaatt   aatat t ta    c a tcacc    tc  at t  
+  MF405436.1|NC_039004.1|Penguin 284 ATGGGGAATACAATTACAACAACCATCCAGCAAACAATTGTAAATATCTATAATTACTATTCACCTTCTTCTGATATTT 362
+                                     689*************************************999999998887777788899999887777666665544 PP
+
+       mid_top_branch_3utr_query  81 gttccggttcttcacaatcagcttcttcttcagttgttgtcttttctgttttgggagtctttgtctttttctt...ag. 155
+                                      t   g ttc   acaa c  ct  ttc   +gt gt gtcttttc   t t     t      ctttttctt   a  
+  MF405436.1|NC_039004.1|Penguin 363 CTATTGATTCGAAACAAACTTCTGTTTCAATGGTGGTGGTCTTTTCAACTATTTCTCT-----CCTTTTTCTTttgACt 436
+                                     4444555555555555555555555555555677777788887777554433211111.....1222222221000110 PP
+
+       mid_top_branch_3utr_query 156 .ttgttttcttttcctattgtatctttaaaaattg 189
+                                      tt t tt tt    tattgt t t taa+aat g
+  MF405436.1|NC_039004.1|Penguin 437 tTTATCTTTTTGATTTATTGTTTTTGTAAGAATAG 471
+                                     01112222222233455566666666666666554 PP
+
+>> MN453781.1|Megrivirus  E1 isolate Adelie penguin-NIHSAD-INDIA-2018
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !   10.7  23.4   0.00033         2       189 ..       284       471 ..       283       496 ..       672    0.64
+
+  Alignment:
+  score: 10.7 bits
+  mid_top_branch_3utr_query   2 atgggtaatacaatcactcaaacaataaatcaaacaattcataatatttttataaccaactcacccaactcccatgtgagttcc 85 
+                                atggg aatacaat ac   aac at  a caaacaatt   aatat t ta    c a tcacc    tc  at t   t   
+      MN453781.1|Megrivirus 284 ATGGGGAATACAATTACAACAACCATCCAGCAAACAATTGTAAATATCTATAATTACTATTCACCTTCTTCTGATATTTCTATT 367
+                                689*************************************99999999888877778889999988777766666554444445 PP
+
+  mid_top_branch_3utr_query  86 ggttcttcacaatcagcttcttcttcagttgttgtcttttctgttttgggagtctttgtctttttcttagttgttttcttttcc 169
+                                g  tc   acaa c  ct  ttc    gt gt gtcttttc   t t     tc tt tc tttt     tt t tt tt    
+      MN453781.1|Megrivirus 368 GACTCGAAACAAACTTCTGTTTCAATGGTGGTGGTCTTTTCAACTATTTCTCTCCTTTTCCTTTTGACTTTTATCTTTTTGATT 451
+                                555555555555555555555555556777778888888776555443333333333333333322222222223333333334 PP
+
+  mid_top_branch_3utr_query 170 tattgtatctttaaaaattg 189
+                                tattgt t t ta  aat g
+      MN453781.1|Megrivirus 452 TATTGTTTTTGTAGGAATAG 471
+                                55555555555555555544 PP
+
+>> MN453780.1|MN453782.1|Megrivirus  E1 isolate Ornithogenic_soil-NIHSAD-INDIA-2018
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !   10.0  22.4   0.00053         2       189 ..       284       471 ..       283       496 ..       672    0.62
+
+  Alignment:
+  score: 10.0 bits
+         mid_top_branch_3utr_query   2 atgggtaatacaatcactcaaacaataaatcaaacaattcataatatttttataaccaactcacccaactcccatgt 78 
+                                       atggg aatacaat ac   aac at  a caaacaatt   aatat t ta    c a tcacc    tc  at t
+  MN453780.1|MN453782.1|Megrivirus 284 ATGGGGAATACAATTACAACAACCATCCAGCAAACAATTGTAAATATCTATAATTACTATTCACCTTCTTCTGATAT 360
+                                       689*************************************9999999988877777888999998776666666555 PP
+
+         mid_top_branch_3utr_query  79 gagttccggttcttcacaatcagcttcttcttcagttgttgtcttttctgttttgggagtctttgtctttttcttag 155
+                                          t   g  tc   aca  c  ct  ttc    gt gt gtcttttc   t t     tc tt tc tttt     
+  MN453780.1|MN453782.1|Megrivirus 361 TTCTATTGACTCGAAACAGACTTCTGTTTCAATGGTGGTGGTCTTTTCAACTATTTCTCTCCTTTTCCTTTTGACTT 437
+                                       44444445555555555544444444445555557777777888877765554433333333333333333222222 PP
+
+         mid_top_branch_3utr_query 156 ttgttttcttttcctattgtatctttaaaaattg 189
+                                       tt t tt tt    tattgt t t ta  aat g
+  MN453780.1|MN453782.1|Megrivirus 438 TTATCTTTTTGATTTATTGTTTTTGTAGGAATAG 471
+                                       2222233333333445555555555555555544 PP
+
+>> PP346853.1|Goose  megrivirus strain MWG01, complete genome
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ ?   -3.9  11.1       8.8       152       210 ..       212       154 ..       233       133 ..       663    0.58
+
+  Alignment:
+  score: -3.9 bits
+  mid_top_branch_3utr_query 152 ttagttgttttcttttcctattgtatctttaaaaattgtagaaaagaacaaaaacaatt 210
+                                tta ttgtttt  tt c t  t  a  ttt aaa+ t  ag aa+ aa +aaaacaa t
+           PP346853.1|Goose 212 TTAATTGTTTTTGTTCCTTTCTACAATTTTTAAAGATACAGTAAGAAAAGAAAACAACT 154
+                                44555666665555555444444444444444444444454444444444444555444 PP
+
+
+
+Internal pipeline statistics summary:
+-------------------------------------
+Query model(s):                              1  (591 nodes)
+Target sequences:                           10  (14898 residues searched)
+Residues passing SSV filter:             12207  (0.819); expected (0.02)
+Residues passing bias filter:            12207  (0.819); expected (0.02)
+Residues passing Vit filter:              7083  (0.475); expected (0.003)
+Residues passing Fwd filter:              7083  (0.475); expected (3e-05)
+Total number of hits:                       14  (0.31)
+# CPU time: 0.11u 0.04s 00:00:00.15 Elapsed: 00:00:00.15
+# Mc/sec: 58.70
+//
+# Alignment of 13 hits satisfying inclusion thresholds saved to: A7_analysis/phylogeny/mid_top_branch/3utr.sto
+[ok]

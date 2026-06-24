@@ -1,0 +1,78 @@
+# nhmmer :: search a DNA model or alignment against a DNA database
+# HMMER 3.1b2 (February 2015); http://hmmer.org/
+# Copyright (C) 2015 Howard Hughes Medical Institute.
+# Freely distributed under the GNU General Public License (GPLv3).
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query file:                      A7_analysis/phylogeny/mid_low_branch_3utr_query.hmm
+# target sequence database:        A7_analysis/phylogeny/mid_low_branch_3utr.fasta
+# output directed to file:         A7_analysis/phylogeny/mid_low_branch/3utr.txt
+# MSA of all hits saved to file:   A7_analysis/phylogeny/mid_low_branch/3utr.sto
+# hits tabular output:             A7_analysis/phylogeny/mid_low_branch/3utr.tblout
+# number of worker threads:        128
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       mid_low_branch_3utr_query  [M=276]
+Scores for complete hits:
+    E-value  score  bias  Sequence           start    end  Description
+    ------- ------ -----  --------           -----  -----  -----------
+    1.5e-80  258.8  22.8  MH320558.1|Kilifi      1    275  Virus isolate SRR6161778_Dbip1
+  ------ inclusion threshold ------
+          4   -2.5  13.5  MH320558.1|Kilifi    194    136  Virus isolate SRR6161778_Dbip1
+
+
+Annotation for each hit  (and alignments):
+>> MH320558.1|Kilifi  Virus isolate SRR6161778_Dbip1
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  258.8  22.8   1.5e-80         1       275 [.         1       275 [.         1       276 []       276    0.99
+
+  Alignment:
+  score: 258.8 bits
+  mid_low_branch_3utr_query   1 agcgtatgcattgaaagaaatgagtggtgcatatgcgggatctttaaatagatcctcaagcgcagaaaagtgagagcactccta 84 
+                                agcgtatgcattgaaagaaatgagtggtgcatatgcgggatctttaaatagatcctcaagcgcagaaaagtgagagcactccta
+          MH320558.1|Kilifi   1 AGCGTATGCATTGAAAGAAATGAGTGGTGCATATGCGGGATCTTTAAATAGATCCTCAAGCGCAGAAAAGTGAGAGCACTCCTA 84 
+                                589********************************************************************************* PP
+
+  mid_low_branch_3utr_query  85 taagaaccctgaaacctgggcctttctgttcgctatatataatcaactattaaccaattagtaagtaagcatattagccaatta 168
+                                taagaaccctgaaacctgggcctttctgttcgctatatataatcaactattaaccaattagtaagtaagcatattagccaatta
+          MH320558.1|Kilifi  85 TAAGAACCCTGAAACCTGGGCCTTTCTGTTCGCTATATATAATCAACTATTAACCAATTAGTAAGTAAGCATATTAGCCAATTA 168
+                                ************************************************************************************ PP
+
+  mid_low_branch_3utr_query 169 gtaagtaagcatattaatcaattagtaagtaagaaatgagctattctctataaacgagactcatgaaagataatatataacgcc 252
+                                gtaagtaagcatattaatcaattagtaagtaagaaatgagctattctctataaacgagactcatgaaagataatatataacgcc
+          MH320558.1|Kilifi 169 GTAAGTAAGCATATTAATCAATTAGTAAGTAAGAAATGAGCTATTCTCTATAAACGAGACTCATGAAAGATAATATATAACGCC 252
+                                ************************************************************************************ PP
+
+  mid_low_branch_3utr_query 253 tactgcgtaacttatcaaaaaaa 275
+                                tactgcgtaacttatcaaaaaaa
+          MH320558.1|Kilifi 253 TACTGCGTAACTTATCAAAAAAA 275
+                                *****************998765 PP
+
+>> MH320558.1|Kilifi  Virus isolate SRR6161778_Dbip1
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ ?   -2.5  13.5         4       137       195 ..       194       136 ..       218       112 ..       276    0.71
+
+  Alignment:
+  score: -2.5 bits
+  mid_low_branch_3utr_query 137 accaattagtaagtaagcatattagccaattagtaagtaagcatattaatcaattagta 195
+                                ac aatt  t a ta gc ta+t  c aatt g+ a ta gc ta+t a+ aatt gt 
+          MH320558.1|Kilifi 194 ACTAATTGATTAATATGCTTACTTACTAATTGGCTAATATGCTTACTTACTAATTGGTT 136
+                                55556666666667777777777777788888887777778777777777777666654 PP
+
+
+
+Internal pipeline statistics summary:
+-------------------------------------
+Query model(s):                              1  (276 nodes)
+Target sequences:                            5  (3092 residues searched)
+Residues passing SSV filter:               780  (0.252); expected (0.02)
+Residues passing bias filter:              552  (0.179); expected (0.02)
+Residues passing Vit filter:               552  (0.179); expected (0.003)
+Residues passing Fwd filter:               552  (0.179); expected (3e-05)
+Total number of hits:                        2  (0.108)
+# CPU time: 0.01u 0.02s 00:00:00.03 Elapsed: 00:00:00.04
+# Mc/sec: 21.33
+//
+# Alignment of 1 hits satisfying inclusion thresholds saved to: A7_analysis/phylogeny/mid_low_branch/3utr.sto
+[ok]

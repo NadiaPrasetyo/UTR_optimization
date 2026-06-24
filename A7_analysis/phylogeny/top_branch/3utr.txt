@@ -1,0 +1,59 @@
+# nhmmer :: search a DNA model or alignment against a DNA database
+# HMMER 3.1b2 (February 2015); http://hmmer.org/
+# Copyright (C) 2015 Howard Hughes Medical Institute.
+# Freely distributed under the GNU General Public License (GPLv3).
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query file:                      A7_analysis/phylogeny/top_branch_3utr_query.hmm
+# target sequence database:        A7_analysis/phylogeny/top_branch_3utr.fasta
+# output directed to file:         A7_analysis/phylogeny/top_branch/3utr.txt
+# MSA of all hits saved to file:   A7_analysis/phylogeny/top_branch/3utr.sto
+# hits tabular output:             A7_analysis/phylogeny/top_branch/3utr.tblout
+# number of worker threads:        128
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       top_branch_3utr_query  [M=195]
+Scores for complete hits:
+    E-value  score  bias  Sequence               start    end  Description
+    ------- ------ -----  --------               -----  -----  -----------
+      1e-55  177.2  16.8  PX115321.1|Megrivirus      2    195  C strain ChMeV-C1/broiler/IN/A2323728-003/23
+
+
+Annotation for each hit  (and alignments):
+>> PX115321.1|Megrivirus  C strain ChMeV-C1/broiler/IN/A2323728-003/23
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  177.2  16.8     1e-55         2       195 .]         2       195 .]         1       195 []       195    0.99
+
+  Alignment:
+  score: 177.2 bits
+  top_branch_3utr_query   2 tgtctctagctcaggagtgtaaactgagtagccgttggaatcggctatataaattatccattagttcgttaagttttagttctagttt 89 
+                            tgtctctagctcaggagtgtaaactgagtagccgttggaatcggctatataaattatccattagttcgttaagttttagttctagttt
+  PX115321.1|Megrivirus   2 TGTCTCTAGCTCAGGAGTGTAAACTGAGTAGCCGTTGGAATCGGCTATATAAATTATCCATTAGTTCGTTAAGTTTTAGTTCTAGTTT 89 
+                            799************************************************************************************* PP
+
+  top_branch_3utr_query  90 tgctagtttgttaagttctagctttagctttaattttagtgtaaaagttaagtttagtaagctgtgccctcaacccttaaggttgttg 177
+                            tgctagtttgttaagttctagctttagctttaattttagtgtaaaagttaagtttagtaagctgtgccctcaacccttaaggttgttg
+  PX115321.1|Megrivirus  90 TGCTAGTTTGTTAAGTTCTAGCTTTAGCTTTAATTTTAGTGTAAAAGTTAAGTTTAGTAAGCTGTGCCCTCAACCCTTAAGGTTGTTG 177
+                            **************************************************************************************** PP
+
+  top_branch_3utr_query 178 tagcttgattaagcgaac 195
+                            tagcttgattaagcgaac
+  PX115321.1|Megrivirus 178 TAGCTTGATTAAGCGAAC 195
+                            ***************986 PP
+
+
+
+Internal pipeline statistics summary:
+-------------------------------------
+Query model(s):                              1  (195 nodes)
+Target sequences:                            7  (3602 residues searched)
+Residues passing SSV filter:               765  (0.212); expected (0.02)
+Residues passing bias filter:              765  (0.212); expected (0.02)
+Residues passing Vit filter:               195  (0.0541); expected (0.003)
+Residues passing Fwd filter:               195  (0.0541); expected (3e-05)
+Total number of hits:                        1  (0.0539)
+# CPU time: 0.00u 0.02s 00:00:00.02 Elapsed: 00:00:00.03
+# Mc/sec: 23.41
+//
+# Alignment of 1 hits satisfying inclusion thresholds saved to: A7_analysis/phylogeny/top_branch/3utr.sto
+[ok]
