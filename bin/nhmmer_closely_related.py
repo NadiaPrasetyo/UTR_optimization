@@ -8,14 +8,21 @@ from Bio import SeqIO
 def build_mafft(input_file, output_file, verbose=False):
     """Align sequences using MAFFT and return the path to the alignment file."""
     aln_file = f"{output_file}.aln"
+    tree_file= f"{output_file}.tree"
     print(f"Running MAFFT on {input_file}...")
-    with open(aln_file, "w") as fh:
-        subprocess.run(
-            ["mafft", "--auto", input_file],
-            stdout=fh,
-            check=True,
-            stderr=None if verbose else subprocess.DEVNULL,
-        )
+    try:
+        with open(alignment_file, "w") as aln_out:
+            subprocess.run(
+                ["mafft", "--auto", "--treeout", input_file],
+                stdout=aln_out,
+                check=True
+            )
+        # MAFFT writes the tree as <input>.tree, so rename it
+        mafft_tree = f"{input_file}.tree"
+        if os.path.exists(mafft_tree):
+            shutil.move(mafft_tree, tree_file)
+
+    print(f"Alignment written to {alignment_file}")
     print(f"  Alignment saved to: {aln_file}")
     return aln_file
 
