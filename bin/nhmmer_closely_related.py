@@ -3,6 +3,7 @@ import os
 import re
 import subprocess
 from Bio import SeqIO
+import shutil
 
 
 def build_mafft(input_file, output_file, verbose=False):
