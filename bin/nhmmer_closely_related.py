@@ -11,7 +11,7 @@ def build_mafft(input_file, output_file, verbose=False):
     tree_file= f"{output_file}.tree"
     print(f"Running MAFFT on {input_file}...")
     try:
-        with open(alignment_file, "w") as aln_out:
+        with open(aln_file, "w") as aln_out:
             subprocess.run(
                 ["mafft", "--auto", "--treeout", input_file],
                 stdout=aln_out,
@@ -23,9 +23,9 @@ def build_mafft(input_file, output_file, verbose=False):
             shutil.move(mafft_tree, tree_file)
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"MAFFT failed with exit code {e.returncode}")
-        
-    print(f"Alignment written to {alignment_file}")
+
     print(f"  Alignment saved to: {aln_file}")
+    print(f"  Tree saved to: {tree_file}")
     return aln_file
 
 
