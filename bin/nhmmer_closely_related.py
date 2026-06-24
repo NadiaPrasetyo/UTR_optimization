@@ -21,7 +21,9 @@ def build_mafft(input_file, output_file, verbose=False):
         mafft_tree = f"{input_file}.tree"
         if os.path.exists(mafft_tree):
             shutil.move(mafft_tree, tree_file)
-
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"MAFFT failed with exit code {e.returncode}")
+        
     print(f"Alignment written to {alignment_file}")
     print(f"  Alignment saved to: {aln_file}")
     return aln_file
