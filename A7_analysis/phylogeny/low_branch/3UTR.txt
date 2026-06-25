@@ -1,0 +1,69 @@
+# nhmmer :: search a DNA model or alignment against a DNA database
+# HMMER 3.1b2 (February 2015); http://hmmer.org/
+# Copyright (C) 2015 Howard Hughes Medical Institute.
+# Freely distributed under the GNU General Public License (GPLv3).
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query file:                      A7_analysis/phylogeny/low_branch_3utr_query.hmm
+# target sequence database:        A7_analysis/phylogeny/low_branch_3utr.fasta
+# output directed to file:         A7_analysis/phylogeny/low_branch/3UTR.txt
+# MSA of all hits saved to file:   A7_analysis/phylogeny/low_branch/3UTR.sto
+# hits tabular output:             A7_analysis/phylogeny/low_branch/3UTR.tblout
+# number of worker threads:        128
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       low_branch_3utr_query  [M=327]
+Scores for complete hits:
+    E-value  score  bias  Sequence                         start    end  Description
+    ------- ------ -----  --------                         -----  -----  -----------
+   6.5e-100  321.3  14.7  JX134222.1|NC_018506.1|Bluegill      1    326  picornavirus isolate 04-032
+
+
+Annotation for each hit  (and alignments):
+>> JX134222.1|NC_018506.1|Bluegill  picornavirus isolate 04-032
+    score  bias    Evalue   hmmfrom    hmm to     alifrom    ali to      envfrom    env to       sq len      acc
+   ------ ----- ---------   -------   -------    --------- ---------    --------- ---------    ---------    ----
+ !  321.3  14.7  6.5e-100         1       326 [.         1       326 [.         1       327 []       327    0.99
+
+  Alignment:
+  score: 321.3 bits
+            low_branch_3utr_query   1 agactacgatgcgattttgtttggcgatgaccttggactggagactatgattttggatatctttgaaatactcgatag 78 
+                                      agactacgatgcgattttgtttggcgatgaccttggactggagactatgattttggatatctttgaaatactcgatag
+  JX134222.1|NC_018506.1|Bluegill   1 AGACTACGATGCGATTTTGTTTGGCGATGACCTTGGACTGGAGACTATGATTTTGGATATCTTTGAAATACTCGATAG 78 
+                                      689*************************************************************************** PP
+
+            low_branch_3utr_query  79 tgtatgactcggaccgtttgacaatgctgatgcggatattgacttttagacacattattagccacctttagttggagc 156
+                                      tgtatgactcggaccgtttgacaatgctgatgcggatattgacttttagacacattattagccacctttagttggagc
+  JX134222.1|NC_018506.1|Bluegill  79 TGTATGACTCGGACCGTTTGACAATGCTGATGCGGATATTGACTTTTAGACACATTATTAGCCACCTTTAGTTGGAGC 156
+                                      ****************************************************************************** PP
+
+            low_branch_3utr_query 157 gttcaggcactagacctgtaatgtgttgatatatataatttatgcttgcaataaatagatgtaatgttagtttttgtg 234
+                                      gttcaggcactagacctgtaatgtgttgatatatataatttatgcttgcaataaatagatgtaatgttagtttttgtg
+  JX134222.1|NC_018506.1|Bluegill 157 GTTCAGGCACTAGACCTGTAATGTGTTGATATATATAATTTATGCTTGCAATAAATAGATGTAATGTTAGTTTTTGTG 234
+                                      ****************************************************************************** PP
+
+            low_branch_3utr_query 235 agtgttgaaccccatgtatttgtatgtggttataactagtttttagggaaactagtttgttaatgtttaccccccccc 312
+                                      agtgttgaaccccatgtatttgtatgtggttataactagtttttagggaaactagtttgttaatgtttaccccccccc
+  JX134222.1|NC_018506.1|Bluegill 235 AGTGTTGAACCCCATGTATTTGTATGTGGTTATAACTAGTTTTTAGGGAAACTAGTTTGTTAATGTTTACCCCCCCCC 312
+                                      ****************************************************************************** PP
+
+            low_branch_3utr_query 313 ccccccccccccta 326
+                                      ccccccccccccta
+  JX134222.1|NC_018506.1|Bluegill 313 CCCCCCCCCCCCTA 326
+                                      ****9999999987 PP
+
+
+
+Internal pipeline statistics summary:
+-------------------------------------
+Query model(s):                              1  (327 nodes)
+Target sequences:                            3  (2032 residues searched)
+Residues passing SSV filter:               327  (0.161); expected (0.02)
+Residues passing bias filter:              327  (0.161); expected (0.02)
+Residues passing Vit filter:               327  (0.161); expected (0.003)
+Residues passing Fwd filter:               327  (0.161); expected (3e-05)
+Total number of hits:                        1  (0.16)
+# CPU time: 0.01u 0.03s 00:00:00.04 Elapsed: 00:00:00.03
+# Mc/sec: 22.15
+//
+# Alignment of 1 hits satisfying inclusion thresholds saved to: A7_analysis/phylogeny/low_branch/3UTR.sto
+[ok]
