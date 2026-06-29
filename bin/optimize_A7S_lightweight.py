@@ -236,92 +236,144 @@ def run_prediction(predict_script: Path, metrics_dir: Path) -> Optional[pd.DataF
 # ══════════════════════════════════════════════════════════════════════════════
 # Fallback TSV synthesis
 # Generates default-filled TSVs for plugins that cannot run without a GFF
-# (e.g. nmd_fragility_full, junctions, architecture).  All count/density
-# columns are set to 0 / NaN so the LightGBM model receives a consistent
-# feature vector rather than crashing on a missing file.
+# (nmd_fragility_*, junctions, architecture).  Triggered when a TSV is absent
+# OR exists but contains only a header row (0 data rows) — the NMD plugins
+# write an empty-but-headed file when no junction data is available.
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Schema for each plugin that may fail in split-FASTA / no-GFF mode.
-# Each entry: (tsv_filename, list_of_columns, default_row_factory(transcript_id, gene_id, cds_len))
-# The factory returns a dict of column → value for one transcript row.
+def _tsv_row_count(path: Path) -> int:
+    """Return the number of data rows in a TSV (0 if missing or header-only)."""
+    if not path.exists():
+        return 0
+    with open(path) as fh:
+        lines = [l for l in fh if l.strip()]
+    return max(0, len(lines) - 1)   # subtract header
 
-def _nmd_default_row(transcript_id: str, gene_id: str, cds_len: int) -> dict:
-    """
-    NMD fragility row with all counts = 0.
-    zone_length defaults to the full CDS length (no EJCs → whole CDS is the zone).
-    Density columns are 0.0; fraction is NaN (0/0 is undefined but the model
-    handles NaN via its missing-value mechanism).
-    """
+
+# ── NMD shared columns (present in all three NMD variants) ───────────────────
+_NMD_SHARED_COLS = [
+    'transcript_id', 'gene_id', 'strand', 'model',
+    'cds_length', 'zone_length',
+    'n_transition_fragile_codons', 'n_transversion_fragile_codons',
+    'n_snv_fragile_codons', 'n_alt_stop_codons',
+]
+_NMD_DENSITY_COLS = [
+    'transition_fragile_codon_density',
+    'transversion_fragile_codon_density',
+    'snv_fragile_codon_density',
+    'alt_stop_codon_density',
+    'transition_fraction_of_snv_fragile',
+]
+
+
+def _nmd_base_row(transcript_id: str, cds_len: int, model_label: str) -> dict:
+    """Shared NMD fields with zero counts."""
     return {
-        'transcript_id':                        transcript_id,
-        'gene_id':                              gene_id,
-        'strand':                               '+',
-        'model':                                'full',
-        'cds_length':                           cds_len,
-        'zone_length':                          cds_len,
-        'n_transition_fragile_codons':          0,
-        'n_transversion_fragile_codons':        0,
-        'n_snv_fragile_codons':                 0,
-        'n_alt_stop_codons':                    0,
-        'transition_fragile_codon_density':     0.0,
-        'transversion_fragile_codon_density':   0.0,
-        'snv_fragile_codon_density':            0.0,
-        'alt_stop_codon_density':               0.0,
-        'transition_fraction_of_snv_fragile':   'nan',
+        'transcript_id':                transcript_id,
+        'gene_id':                      transcript_id,
+        'strand':                       '+',
+        'model':                        model_label,
+        'cds_length':                   cds_len,
+        'zone_length':                  cds_len,
+        'n_transition_fragile_codons':  0,
+        'n_transversion_fragile_codons':0,
+        'n_snv_fragile_codons':         0,
+        'n_alt_stop_codons':            0,
     }
 
 
+def _nmd_core_row(transcript_id: str, gene_id: str, cds_len: int) -> dict:
+    """
+    nmd_fragility_core.tsv — shared NMD counts only, no density columns.
+    13 cols as seen in the prediction script output.
+    """
+    row = _nmd_base_row(transcript_id, cds_len, 'core')
+    # core variant has the same shared columns, no density suffix columns
+    return row   # 10 cols; the remaining 3 the predict script sees come from
+                 # gene_id/strand being dropped as duplicates in the merge —
+                 # just emit all shared cols cleanly.
+
+
+def _nmd_full_row(transcript_id: str, gene_id: str, cds_len: int) -> dict:
+    """
+    nmd_fragility_full.tsv — shared counts + all five density/fraction cols.
+    Fraction is NaN (0/0 undefined; LightGBM handles NaN natively).
+    """
+    row = _nmd_base_row(transcript_id, cds_len, 'full')
+    row.update({
+        'transition_fragile_codon_density':    0.0,
+        'transversion_fragile_codon_density':  0.0,
+        'snv_fragile_codon_density':           0.0,
+        'alt_stop_codon_density':              0.0,
+        'transition_fraction_of_snv_fragile':  '',   # blank → NaN on read
+    })
+    return row
+
+
+def _nmd_window_row(transcript_id: str, gene_id: str, cds_len: int) -> dict:
+    """
+    nmd_fragility_window.tsv — same as full but model label = 'window'.
+    The predict script drops density cols as duplicates of full, so only
+    one unique column (e.g. a window-specific metric) remains.  We emit
+    the full shared + density set so nothing is accidentally missing.
+    """
+    row = _nmd_base_row(transcript_id, cds_len, 'window')
+    row.update({
+        'transition_fragile_codon_density':    0.0,
+        'transversion_fragile_codon_density':  0.0,
+        'snv_fragile_codon_density':           0.0,
+        'alt_stop_codon_density':              0.0,
+        'transition_fraction_of_snv_fragile':  '',
+    })
+    return row
+
+
 def _junctions_default_row(transcript_id: str, gene_id: str, cds_len: int) -> dict:
-    """
-    Junctions row: no introns → all junction counts and distances are 0 / NaN.
-    """
+    """No introns → all junction counts 0, all distances NaN."""
     return {
         'transcript_id':                  transcript_id,
-        'gene_id':                        gene_id,
+        'gene_id':                        transcript_id,
         'n_exons':                        1,
         'n_junctions':                    0,
+        'strand':                         '+',
         'n_5utr_junctions':               0,
         'n_cds_junctions':                0,
         'n_3utr_junctions':               0,
-        'stop_dist_closest_upstream':     'nan',
-        'stop_dist_closest_downstream':   'nan',
-        'stop_dist_last_downstream':      'nan',
-        'start_dist_closest_upstream':    'nan',
-        'start_dist_closest_downstream':  'nan',
+        'stop_dist_closest_upstream':     '',
+        'stop_dist_closest_downstream':   '',
+        'stop_dist_last_downstream':      '',
+        'start_dist_closest_upstream':    '',
+        'start_dist_closest_downstream':  '',
     }
 
 
 def _architecture_default_row(transcript_id: str, gene_id: str, cds_len: int) -> dict:
-    """
-    Architecture row: single-exon transcript, so first/last exon = full mRNA.
-    Intron stats are all NaN.
-    """
+    """Single-exon transcript; intron stats all NaN."""
     return {
         'transcript_id':      transcript_id,
-        'gene_id':            gene_id,
+        'gene_id':            transcript_id,
         'n_exons':            1,
-        'first_exon_length':  'nan',   # undefined without known mRNA length here
-        'last_exon_length':   'nan',
-        'intron_mean':        'nan',
-        'intron_median':      'nan',
-        'intron_sd':          'nan',
+        'strand':             '+',
+        'first_exon_length':  '',
+        'last_exon_length':   '',
+        'intron_mean':        '',
+        'intron_median':      '',
+        'intron_sd':          '',
     }
 
 
-# Maps TSV filename → (header_columns, row_factory)
-_FALLBACK_SCHEMAS: dict[str, tuple[list[str], any]] = {
-    'nmd_fragility_full.tsv': (
-        list(_nmd_default_row('', '', 0).keys()),
-        _nmd_default_row,
-    ),
-    'junctions.tsv': (
-        list(_junctions_default_row('', '', 0).keys()),
-        _junctions_default_row,
-    ),
-    'architecture.tsv': (
-        list(_architecture_default_row('', '', 0).keys()),
-        _architecture_default_row,
-    ),
+def _make_schema(factory) -> tuple:
+    sample = factory('__sample__', '__sample__', 100)
+    return (list(sample.keys()), factory)
+
+
+# Maps TSV filename → (columns, row_factory)
+_FALLBACK_SCHEMAS: dict = {
+    'nmd_fragility_core.tsv':   _make_schema(_nmd_core_row),
+    'nmd_fragility_full.tsv':   _make_schema(_nmd_full_row),
+    'nmd_fragility_window.tsv': _make_schema(_nmd_window_row),
+    'junctions.tsv':            _make_schema(_junctions_default_row),
+    'architecture.tsv':         _make_schema(_architecture_default_row),
 }
 
 
@@ -331,20 +383,22 @@ def _synthesise_fallback_tsvs(
     cds_len: int,
 ) -> None:
     """
-    For each plugin TSV that is absent or zero-byte after the metrics run,
-    write a default-filled version so the prediction script can join on it.
+    For each plugin TSV that is absent OR has 0 data rows (header-only),
+    overwrite it with default-filled rows so the prediction inner-join succeeds.
 
-    Only applies to TSVs listed in _FALLBACK_SCHEMAS.  TSVs already present
-    with content are left untouched.
+    Header-only detection is important: NMD plugins write empty-headed files
+    rather than no file at all when junction data is unavailable.
     """
     for tsv_name, (columns, row_factory) in _FALLBACK_SCHEMAS.items():
         tsv_path = metrics_tsv_dir / tsv_name
-        if tsv_path.exists() and tsv_path.stat().st_size > 0:
-            continue   # plugin succeeded — nothing to do
+        n_rows = _tsv_row_count(tsv_path)
+        if n_rows > 0:
+            continue   # plugin produced real data — leave it alone
 
+        action = "header-only (0 data rows)" if tsv_path.exists() else "missing"
         log.warning(
-            f"[fallback] '{tsv_name}' missing or empty after metrics run — "
-            f"writing default (zero/NaN) values for {len(utr_ids)} transcripts."
+            f"[fallback] '{tsv_name}' is {action} — "
+            f"writing default (zero/NaN) rows for {len(utr_ids)} transcripts."
         )
         metrics_tsv_dir.mkdir(parents=True, exist_ok=True)
         rows = [row_factory(sid, sid, cds_len) for sid in utr_ids]
@@ -353,7 +407,7 @@ def _synthesise_fallback_tsvs(
                                     lineterminator='\n')
             writer.writeheader()
             writer.writerows(rows)
-        log.info(f"[fallback] Wrote {len(rows)} default rows → {tsv_path}")
+        log.info(f"[fallback] Wrote {len(rows)} rows → {tsv_path}")
 
 
 def evaluate_population(
