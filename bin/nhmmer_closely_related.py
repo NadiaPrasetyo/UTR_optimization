@@ -5,6 +5,7 @@ import subprocess
 from Bio import SeqIO
 import shutil
 
+# export GNUPLOT_PS_DIR=/home/prana47p/miniconda3/share/gnuplot/5.0/PostScript
 
 def build_mafft(input_file, output_file, verbose=False):
     """Align sequences using MAFFT and return the path to the alignment file."""
