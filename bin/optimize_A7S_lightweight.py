@@ -152,7 +152,11 @@ def run_metrics(
 ) -> bool:
     """
     Call 01b_metrics.py in split-FASTA mode.
-    Returns True on success.
+
+    Returns True if the script exited cleanly OR if it exited with a non-zero
+    code only because some plugins failed (partial success).  The prediction
+    script will catch any missing TSVs.  Returns False only when the metrics
+    script crashes before producing any output at all.
     """
     cmd = [
         sys.executable, str(metrics_script),
@@ -167,9 +171,36 @@ def run_metrics(
 
     log.debug(f"metrics cmd: {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True)
+
+    # Always surface the full stderr so failing plugin names are visible.
+    if result.stderr:
+        # Print each line with a prefix so it's easy to spot in terminal output.
+        for line in result.stderr.splitlines():
+            # Suppress blank lines and duplicate timestamp noise at DEBUG level.
+            if line.strip():
+                if '[ERROR]' in line or 'failed' in line.lower():
+                    log.warning(f"[metrics] {line}")
+                else:
+                    log.debug(f"[metrics] {line}")
+
     if result.returncode != 0:
-        log.error(f"metrics script failed:\n{result.stderr[-2000:]}")
-        return False
+        # Check whether the metrics dir has *any* TSV output — if so, treat
+        # this as a partial success (some plugins failed, rest succeeded).
+        metrics_tsv_dir = output_dir / 'metrics'
+        tsv_count = len(list(metrics_tsv_dir.glob('*.tsv'))) if metrics_tsv_dir.exists() else 0
+        if tsv_count > 0:
+            log.warning(
+                f"metrics script exited with code {result.returncode} "
+                f"but produced {tsv_count} TSV(s) — continuing (partial success). "
+                f"Check [metrics] WARNING lines above for which plugins failed."
+            )
+            return True   # let the prediction script decide if it has enough
+        else:
+            log.error(
+                f"metrics script failed (exit {result.returncode}) with no TSV output.\n"
+                f"Full stderr:\n{result.stderr}"
+            )
+            return False
     return True
 
 
@@ -183,15 +214,146 @@ def run_prediction(predict_script: Path, metrics_dir: Path) -> Optional[pd.DataF
     log.debug(f"predict cmd: {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        log.error(f"prediction script failed:\n{result.stderr[-2000:]}")
+        log.error(
+            f"prediction script failed (exit {result.returncode}).\n"
+            f"── stdout ──\n{result.stdout[-3000:]}\n"
+            f"── stderr ──\n{result.stderr[-3000:]}"
+        )
         return None
 
     out_path = metrics_dir / 'predictions.tsv'
     if not out_path.exists():
-        log.error(f"Prediction output not found: {out_path}")
+        log.error(
+            f"Prediction output not found: {out_path}\n"
+            f"── stdout ──\n{result.stdout[-2000:]}\n"
+            f"── stderr ──\n{result.stderr[-2000:]}"
+        )
         return None
 
     return pd.read_csv(out_path, sep='\t')
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Fallback TSV synthesis
+# Generates default-filled TSVs for plugins that cannot run without a GFF
+# (e.g. nmd_fragility_full, junctions, architecture).  All count/density
+# columns are set to 0 / NaN so the LightGBM model receives a consistent
+# feature vector rather than crashing on a missing file.
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Schema for each plugin that may fail in split-FASTA / no-GFF mode.
+# Each entry: (tsv_filename, list_of_columns, default_row_factory(transcript_id, gene_id, cds_len))
+# The factory returns a dict of column → value for one transcript row.
+
+def _nmd_default_row(transcript_id: str, gene_id: str, cds_len: int) -> dict:
+    """
+    NMD fragility row with all counts = 0.
+    zone_length defaults to the full CDS length (no EJCs → whole CDS is the zone).
+    Density columns are 0.0; fraction is NaN (0/0 is undefined but the model
+    handles NaN via its missing-value mechanism).
+    """
+    return {
+        'transcript_id':                        transcript_id,
+        'gene_id':                              gene_id,
+        'strand':                               '+',
+        'model':                                'full',
+        'cds_length':                           cds_len,
+        'zone_length':                          cds_len,
+        'n_transition_fragile_codons':          0,
+        'n_transversion_fragile_codons':        0,
+        'n_snv_fragile_codons':                 0,
+        'n_alt_stop_codons':                    0,
+        'transition_fragile_codon_density':     0.0,
+        'transversion_fragile_codon_density':   0.0,
+        'snv_fragile_codon_density':            0.0,
+        'alt_stop_codon_density':               0.0,
+        'transition_fraction_of_snv_fragile':   'nan',
+    }
+
+
+def _junctions_default_row(transcript_id: str, gene_id: str, cds_len: int) -> dict:
+    """
+    Junctions row: no introns → all junction counts and distances are 0 / NaN.
+    """
+    return {
+        'transcript_id':                  transcript_id,
+        'gene_id':                        gene_id,
+        'n_exons':                        1,
+        'n_junctions':                    0,
+        'n_5utr_junctions':               0,
+        'n_cds_junctions':                0,
+        'n_3utr_junctions':               0,
+        'stop_dist_closest_upstream':     'nan',
+        'stop_dist_closest_downstream':   'nan',
+        'stop_dist_last_downstream':      'nan',
+        'start_dist_closest_upstream':    'nan',
+        'start_dist_closest_downstream':  'nan',
+    }
+
+
+def _architecture_default_row(transcript_id: str, gene_id: str, cds_len: int) -> dict:
+    """
+    Architecture row: single-exon transcript, so first/last exon = full mRNA.
+    Intron stats are all NaN.
+    """
+    return {
+        'transcript_id':      transcript_id,
+        'gene_id':            gene_id,
+        'n_exons':            1,
+        'first_exon_length':  'nan',   # undefined without known mRNA length here
+        'last_exon_length':   'nan',
+        'intron_mean':        'nan',
+        'intron_median':      'nan',
+        'intron_sd':          'nan',
+    }
+
+
+# Maps TSV filename → (header_columns, row_factory)
+_FALLBACK_SCHEMAS: dict[str, tuple[list[str], any]] = {
+    'nmd_fragility_full.tsv': (
+        list(_nmd_default_row('', '', 0).keys()),
+        _nmd_default_row,
+    ),
+    'junctions.tsv': (
+        list(_junctions_default_row('', '', 0).keys()),
+        _junctions_default_row,
+    ),
+    'architecture.tsv': (
+        list(_architecture_default_row('', '', 0).keys()),
+        _architecture_default_row,
+    ),
+}
+
+
+def _synthesise_fallback_tsvs(
+    metrics_tsv_dir: Path,
+    utr_ids: List[str],
+    cds_len: int,
+) -> None:
+    """
+    For each plugin TSV that is absent or zero-byte after the metrics run,
+    write a default-filled version so the prediction script can join on it.
+
+    Only applies to TSVs listed in _FALLBACK_SCHEMAS.  TSVs already present
+    with content are left untouched.
+    """
+    for tsv_name, (columns, row_factory) in _FALLBACK_SCHEMAS.items():
+        tsv_path = metrics_tsv_dir / tsv_name
+        if tsv_path.exists() and tsv_path.stat().st_size > 0:
+            continue   # plugin succeeded — nothing to do
+
+        log.warning(
+            f"[fallback] '{tsv_name}' missing or empty after metrics run — "
+            f"writing default (zero/NaN) values for {len(utr_ids)} transcripts."
+        )
+        metrics_tsv_dir.mkdir(parents=True, exist_ok=True)
+        rows = [row_factory(sid, sid, cds_len) for sid in utr_ids]
+        with open(tsv_path, 'w', newline='') as fh:
+            writer = csv.DictWriter(fh, fieldnames=columns, delimiter='\t',
+                                    lineterminator='\n')
+            writer.writeheader()
+            writer.writerows(rows)
+        log.info(f"[fallback] Wrote {len(rows)} default rows → {tsv_path}")
 
 
 def evaluate_population(
@@ -233,6 +395,10 @@ def evaluate_population(
     )
     if not ok:
         return None
+
+    # Synthesise default-filled TSVs for any GFF-dependent plugin that failed.
+    # This is expected in split-FASTA / no-GFF mode for NMD, junctions, etc.
+    _synthesise_fallback_tsvs(metrics_tsv_dir, utr_ids, len(fixed_cds_seq))
 
     preds = run_prediction(predict_script, metrics_tsv_dir)
     if preds is None:
