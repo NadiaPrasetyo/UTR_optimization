@@ -367,13 +367,14 @@ def _make_schema(factory) -> tuple:
     return (list(sample.keys()), factory)
 
 
-# Maps TSV filename → (columns, row_factory)
+# Maps TSV filename → (columns, row_factory).
+# Only nmd_fragility_full is used by the prediction model; core and window
+# are not needed and are intentionally excluded so the prediction script's
+# inner-join does not require them.
 _FALLBACK_SCHEMAS: dict = {
-    'nmd_fragility_core.tsv':   _make_schema(_nmd_core_row),
-    'nmd_fragility_full.tsv':   _make_schema(_nmd_full_row),
-    'nmd_fragility_window.tsv': _make_schema(_nmd_window_row),
-    'junctions.tsv':            _make_schema(_junctions_default_row),
-    'architecture.tsv':         _make_schema(_architecture_default_row),
+    'nmd_fragility_full.tsv': _make_schema(_nmd_full_row),
+    'junctions.tsv':          _make_schema(_junctions_default_row),
+    'architecture.tsv':       _make_schema(_architecture_default_row),
 }
 
 
@@ -440,8 +441,14 @@ def evaluate_population(
     write_fasta(fasta_3, list(zip(utr_ids, population)))
 
     metrics_out = work_dir / 'metrics_run'
-    metrics_out.mkdir(exist_ok=True)
     metrics_tsv_dir = metrics_out / 'metrics'
+
+    # Wipe the metrics TSV dir before each generation so that predictions.tsv
+    # and stale TSVs from the previous generation don't pollute the inner-join.
+    if metrics_tsv_dir.exists():
+        import shutil as _shutil
+        _shutil.rmtree(metrics_tsv_dir)
+    metrics_out.mkdir(parents=True, exist_ok=True)
 
     ok = run_metrics(
         metrics_script, fasta_5, fasta_c, fasta_3,
@@ -449,6 +456,16 @@ def evaluate_population(
     )
     if not ok:
         return None
+
+    # Remove TSVs that the prediction model doesn't need but that the metrics
+    # script may have written as empty/header-only files.  Leaving them in
+    # causes the prediction script's inner-join to collapse to 0 rows.
+    _UNUSED_TSVS = ('nmd_fragility_core.tsv', 'nmd_fragility_window.tsv')
+    for _unused in _UNUSED_TSVS:
+        _p = metrics_tsv_dir / _unused
+        if _p.exists():
+            _p.unlink()
+            log.debug(f"[cleanup] Removed unused TSV: {_p.name}")
 
     # Synthesise default-filled TSVs for any GFF-dependent plugin that failed.
     # This is expected in split-FASTA / no-GFF mode for NMD, junctions, etc.
