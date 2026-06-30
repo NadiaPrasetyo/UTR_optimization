@@ -1,0 +1,57 @@
+# cmsearch :: search CM(s) against a sequence database
+# INFERNAL 1.1.5 (Sep 2023)
+# Copyright (C) 2023 Howard Hughes Medical Institute.
+# Freely distributed under the BSD open source license.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query CM file:                         A7_analysis/patent.cm
+# target sequence database:              /tmp/tmp4olo2gdo/queries.fa
+# output directed to file:               /projects/health_sciences/bms/biochemistry/gardner_group/nadia/UTR_optimization/patent_cmsearch.out
+# MSA of significant hits saved to file: /projects/health_sciences/bms/biochemistry/gardner_group/nadia/UTR_optimization/patent_cmsearch.sto
+# tabular output of hits:                /projects/health_sciences/bms/biochemistry/gardner_group/nadia/UTR_optimization/patent_cmsearch.tblout
+# max ASCII text line length:            unlimited
+# sequence reporting threshold:          E-value <= 1000
+# number of worker threads:              4
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       patent_aligned  [CLEN=36]
+Hit scores:
+ rank     E-value  score  bias  sequence                            start    end   mdl trunc   gc  description
+ ----   --------- ------ -----  ---------------------------------- ------ ------   --- ----- ----  -----------
+  (1) !   4.8e-17   66.3   0.0  A7_original|5'pfizer|mEmerald|3'A7    915    950 +  cm    no 0.64  -
+
+
+Hit alignments:
+>> A7_original|5'pfizer|mEmerald|3'A7  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (1) !   4.8e-17   66.3   0.0  cm        1       36 []         915         950 + .. 1.00    no 0.64
+
+                                                                              NC
+                                         :::::<<<--<<<<<<_________>>>>>>-->>> CS
+                      patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                                         GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU
+  A7_original|5'pfizer|mEmerald|3'A7 915 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 950
+                                         ************************************ PP
+
+
+
+Internal CM pipeline statistics summary:
+----------------------------------------
+Query model(s):                                                  1  (36 consensus positions)
+Target sequences:                                                2  (3860 residues searched)
+Target sequences re-searched for truncated hits:                 2  (408 residues re-searched)
+Windows   passing  local HMM SSV           filter:              43  (0.6495); expected (0.35)
+Windows   passing  local HMM Viterbi       filter:                  (off)
+Windows   passing  local HMM Viterbi  bias filter:                  (off)
+Windows   passing  local HMM Forward       filter:               3  (0.03585); expected (0.02)
+Windows   passing  local HMM Forward  bias filter:               3  (0.03585); expected (0.02)
+Windows   passing glocal HMM Forward       filter:               1  (0.02554); expected (0.02)
+Windows   passing glocal HMM Forward  bias filter:               1  (0.02554); expected (0.02)
+Envelopes passing glocal HMM envelope defn filter:               1  (0.008435); expected (0.02)
+Envelopes passing  local CM  CYK           filter:               1  (0.008435); expected (0.0001)
+Total CM hits reported:                                          1  (0.008435); includes 0 truncated hit(s)
+
+# CPU time: 0.00u 0.00s 00:00:00.00 Elapsed: 00:00:00.01
+# Alignment of 1 hits satisfying inclusion thresholds saved to: /projects/health_sciences/bms/biochemistry/gardner_group/nadia/UTR_optimization/patent_cmsearch.sto
+//
+[ok]
