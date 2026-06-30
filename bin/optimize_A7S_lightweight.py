@@ -21,7 +21,8 @@ python mutate_3utr_ga.py \\
     [--crossover-rate 0.5]             \\   # crossover probability
     [--elite-frac  0.1]                \\   # fraction kept as elites (no mutation)
     [--tournament-k 3]                 \\   # tournament selection size
-    [--seed        42]
+    [--seed        42]                 \\
+    [--no-plot]                        \\   # skip generating the fitness plot
 
 WHAT IT DOES
 ────────────
@@ -39,6 +40,7 @@ WHAT IT DOES
       - all_generations.tsv          — every evaluated individual
       - best_3utr.fa                 — FASTA of the all-time best sequence
       - evolution_summary.txt        — human-readable run summary
+      - fitness_over_generations.png — plot of best/mean/worst half-life per gen
 ─────────────────────────────────────────────────────────────────────────────
 """
 from __future__ import annotations
@@ -288,10 +290,7 @@ def _nmd_core_row(transcript_id: str, gene_id: str, cds_len: int) -> dict:
     13 cols as seen in the prediction script output.
     """
     row = _nmd_base_row(transcript_id, cds_len, 'core')
-    # core variant has the same shared columns, no density suffix columns
-    return row   # 10 cols; the remaining 3 the predict script sees come from
-                 # gene_id/strand being dropped as duplicates in the merge —
-                 # just emit all shared cols cleanly.
+    return row
 
 
 def _nmd_full_row(transcript_id: str, gene_id: str, cds_len: int) -> dict:
@@ -482,6 +481,63 @@ def evaluate_population(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Plotting
+# ══════════════════════════════════════════════════════════════════════════════
+
+def plot_fitness_over_generations(best_per_gen: List[dict], out_path: Path) -> None:
+    """
+    Plot best / mean / worst predicted half-life per generation and save as PNG.
+    Uses matplotlib with a non-interactive backend so it works headlessly.
+    Failure to plot (e.g. matplotlib not installed) is logged as a warning,
+    never a fatal error — the GA's TSV/FASTA outputs are unaffected.
+    """
+    try:
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+    except ImportError:
+        log.warning(
+            "matplotlib is not installed — skipping fitness plot. "
+            "Install it with `pip install matplotlib` to enable plotting."
+        )
+        return
+
+    try:
+        gens   = [row['generation'] for row in best_per_gen]
+        best   = [row['best_score'] for row in best_per_gen]
+        mean   = [row['mean_score'] for row in best_per_gen]
+        worst  = [row['worst_score'] for row in best_per_gen]
+
+        fig, ax = plt.subplots(figsize=(9, 5.5), dpi=150)
+
+        ax.plot(gens, best, label='Best', color='#1b9e3e', linewidth=2, marker='o', markersize=3)
+        ax.plot(gens, mean, label='Mean', color='#2166ac', linewidth=1.5, marker='o', markersize=3)
+        ax.plot(gens, worst, label='Worst', color='#b2182b', linewidth=1.5, linestyle='--', alpha=0.7)
+
+        # Shade the gap between best and worst each generation for visual context.
+        ax.fill_between(gens, worst, best, color='#1b9e3e', alpha=0.07)
+
+        # Mark the all-time best point.
+        best_idx = max(range(len(best)), key=lambda i: best[i])
+        ax.scatter([gens[best_idx]], [best[best_idx]], color='gold', edgecolor='black',
+                   zorder=5, s=80, marker='*', label=f"All-time best (gen {gens[best_idx]})")
+
+        ax.set_xlabel('Generation')
+        ax.set_ylabel('Predicted half-life')
+        ax.set_title("3' UTR GA — Predicted Half-Life Over Generations")
+        ax.legend(loc='best', framealpha=0.9)
+        ax.grid(True, alpha=0.3)
+        if len(gens) <= 30:
+            ax.set_xticks(gens)
+        fig.tight_layout()
+        fig.savefig(out_path)
+        plt.close(fig)
+        log.info(f"Wrote {out_path}")
+    except Exception as exc:
+        log.warning(f"Failed to generate fitness plot ({exc}); continuing without it.")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Genetic Algorithm
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -502,6 +558,7 @@ def run_ga(
     elite_frac: float,
     tournament_k: int,
     rng_seed: int,
+    make_plot: bool = True,
 ) -> None:
     rng = random.Random(rng_seed)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -521,9 +578,8 @@ def run_ga(
     log.info(f"  Output       : {output_dir}")
     log.info("═" * 60)
 
-    # ── Initialise population: seed + mutated copies ──────────────────────
     population = [seed_3utr_seq] + [
-        point_mutate(seed_3utr_seq, mutation_rate * 5, rng)   # higher rate for diversity
+        point_mutate(seed_3utr_seq, mutation_rate * 5, rng)
         for _ in range(population_size - 1)
     ]
 
@@ -551,13 +607,17 @@ def run_ga(
 
         if scores is None:
             log.error(f"Pipeline failed on generation {gen}. Aborting.")
+            if best_per_gen and make_plot:
+                plot_fitness_over_generations(
+                    best_per_gen, results_dir / 'fitness_over_generations.png'
+                )
             sys.exit(1)
 
         # ── Record results ────────────────────────────────────────────────
         for i, (sid, seq, score) in enumerate(zip(utr_ids, population, scores)):
             all_rows.append({
                 'generation': gen,
-                'rank_in_gen': 0,           # filled after sort below
+                'rank_in_gen': 0,
                 'sample_id': sid,
                 'predicted_halflife': score,
                 'sequence': seq,
@@ -597,14 +657,14 @@ def run_ga(
             log.info(f"  ★ New all-time best: {all_time_best_score:.4f}")
 
         if gen == generations:
-            break  # no breeding needed after last gen
+            break
 
         # ── Breed next generation ─────────────────────────────────────────
         elite_seqs = [sq for _, sq, _ in ranked[:n_elite]]
         non_elite_scores = [sc for sc, _, _ in ranked]
         non_elite_seqs   = [sq for _, sq, _ in ranked]
 
-        next_gen = list(elite_seqs)   # elites pass through unchanged
+        next_gen = list(elite_seqs)
 
         while len(next_gen) < population_size:
             parent_a = tournament_select(non_elite_seqs, non_elite_scores,
@@ -649,7 +709,12 @@ def run_ga(
     seed_fa = results_dir / 'seed_3utr.fa'
     write_fasta(seed_fa, [('seed_3utr_original', seed_3utr_seq)])
 
-    # evolution_summary.txt
+    # fitness_over_generations.png
+    if make_plot:
+        plot_fitness_over_generations(
+            best_per_gen, results_dir / 'fitness_over_generations.png'
+        )
+
     summary_path = results_dir / 'evolution_summary.txt'
     with open(summary_path, 'w') as fh:
         fh.write("3' UTR Genetic Algorithm — Evolution Summary\n")
@@ -739,6 +804,8 @@ def main():
     parser.add_argument('--output-dir', '-o', default='ga_output',
                         dest='output_dir', metavar='DIR',
                         help="Output directory (default: ga_output/).")
+    parser.add_argument('--no-plot', action='store_true', dest='no_plot',
+                        help="Skip generating fitness_over_generations.png.")
     parser.add_argument('-v', '--verbose', action='store_true',
                         help="Enable DEBUG logging.")
 
@@ -791,6 +858,7 @@ def main():
         elite_frac      = args.elite_frac,
         tournament_k    = args.tournament_k,
         rng_seed        = args.seed,
+        make_plot       = not args.no_plot,
     )
 
 
