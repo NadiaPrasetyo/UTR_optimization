@@ -42,7 +42,7 @@ def main():
   usage = 'usage: %prog [options] <models_dir> <fasta>'
   parser = OptionParser(usage)
   parser.add_option('-d', dest='data_head',
-      default=None, type='int',
+      default=0, type='int',
       help='Index for dataset/head [Default: %default]')  
   parser.add_option('-o', dest='out_dir',
       default='grads_out',
