@@ -3,7 +3,9 @@
 mutate_3utr_ga.py
 ─────────────────────────────────────────────────────────────────────────────
 Genetic Algorithm to evolve 3' UTR sequences that maximise predicted mRNA
-half-life, using the 01b_metrics.py + LightGBM prediction pipeline.
+half-life while preserving structural homology to the original 3' UTR,
+using the 01b_metrics.py + LightGBM prediction pipeline plus an Infernal
+covariance-model (CM) search against the original secondary structure.
 
 USAGE
 ─────
@@ -17,10 +19,20 @@ python mutate_3utr_ga.py \\
     --output-dir   ga_output           \\
     [--population  50]                 \\   # individuals per generation
     [--generations 30]                 \\   # number of GA iterations
-    [--mutation-rate 0.02]             \\   # per-nucleotide mutation probability
+    [--mutation-rate-start 0.05]       \\   # per-nt mutation prob, generation 1
+    [--mutation-rate-end   0.005]      \\   # per-nt mutation prob, final gen
+    [--cooling-schedule exponential]   \\   # 'exponential' (SA-style) or 'linear'
+    [--cooling-rate 3.0]               \\   # decay constant for exponential cooling
     [--crossover-rate 0.5]             \\   # crossover probability
     [--elite-frac  0.1]                \\   # fraction kept as elites (no mutation)
     [--tournament-k 3]                 \\   # tournament selection size
+    [--cm-model    original_3utr.cm]   \\   # calibrated Infernal CM of the seed structure
+    [--cmsearch-bin cmsearch]          \\   # path to the cmsearch executable
+    [--cm-evalue-threshold 0.01]       \\   # E-value cutoff defining a "hit"
+    [--cm-cpu 4]                       \\
+    [--halflife-weight 0.5]            \\   # weight of half-life in combined fitness
+    [--cm-weight 0.5]                  \\   # weight of cmscore in combined fitness
+    [--no-hit-penalty -1000.0]         \\   # fitness assigned when there is no CM hit
     [--seed        42]                 \\
     [--no-plot]                        \\   # skip generating the fitness plot
 
@@ -28,19 +40,37 @@ WHAT IT DOES
 ────────────
 1.  Reads the fixed 5' UTR and CDS (these are never mutated).
 2.  Seeds a population of N copies of the initial 3' UTR, then applies
-    random point mutations to every non-elite member each generation.
+    random point mutations to every non-elite member each generation, with
+    the per-nucleotide mutation rate annealed (simulated-annealing style)
+    from --mutation-rate-start down to --mutation-rate-end over the run.
 3.  Each generation:
       a.  Writes three temporary FASTA files (5UTR, CDS, 3UTR variants).
       b.  Calls 01b_metrics.py --fasta-* to compute feature TSVs.
-      c.  Calls the LightGBM prediction script to get half-life scores.
-      d.  Ranks by predicted half-life, keeps elites, breeds next generation
-          via tournament selection + uniform crossover + point mutation.
+      c.  Calls the LightGBM prediction script to get predicted half-life.
+      d.  If --cm-model is given, runs cmsearch against the covariance
+          model built from the original 3' UTR structure. Sequences with
+          no hit above --cm-evalue-threshold receive --no-hit-penalty as
+          their fitness, regardless of predicted half-life.
+      e.  Combines (normalised) predicted half-life and (normalised)
+          cmscore into a single fitness value using --halflife-weight and
+          --cm-weight, and ranks/selects on that combined fitness.
+      f.  Keeps elites, breeds next generation via tournament selection +
+          uniform crossover + annealed point mutation.
 4.  Writes results/  containing:
-      - best_per_generation.tsv      — top score each generation
+      - best_per_generation.tsv      — top fitness/half-life/cmscore per gen
       - all_generations.tsv          — every evaluated individual
       - best_3utr.fa                 — FASTA of the all-time best sequence
       - evolution_summary.txt        — human-readable run summary
-      - fitness_over_generations.png — plot of best/mean/worst half-life per gen
+      - fitness_over_generations.png — plot of fitness (and components) per gen
+
+NOTE ON THE CM MODEL
+─────────────────────
+--cm-model expects a *calibrated* Infernal covariance model (the output of
+`cmbuild` + `cmcalibrate` run on a Stockholm alignment/secondary-structure
+annotation of the original 3' UTR). Building/calibrating that model is
+outside the scope of this script — it is assumed to already exist. If
+--cm-model is omitted, the structural constraint is skipped entirely and
+fitness reduces to (normalised) predicted half-life alone.
 ─────────────────────────────────────────────────────────────────────────────
 """
 from __future__ import annotations
@@ -48,6 +78,7 @@ from __future__ import annotations
 import argparse
 import csv
 import logging
+import math
 import os
 import random
 import shutil
@@ -56,7 +87,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 
@@ -103,6 +134,45 @@ def write_fasta(path: Path, records: List[Tuple[str, str]], line_width: int = 60
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Simulated-annealing mutation-rate schedule
+# ══════════════════════════════════════════════════════════════════════════════
+
+def compute_mutation_rate(
+    generation: int,
+    total_generations: int,
+    rate_start: float,
+    rate_end: float,
+    schedule: str = 'exponential',
+    cooling_rate: float = 3.0,
+) -> float:
+    """
+    Return the per-nucleotide mutation rate for *generation* (1-indexed),
+    annealed from rate_start (generation 1) down to rate_end (final
+    generation).
+
+    schedule='exponential' follows a classic simulated-annealing cooling
+    curve:  rate(frac) = rate_end + (rate_start - rate_end) * exp(-k * frac)
+    where frac goes from 0 (first generation) to 1 (last generation) and
+    k = cooling_rate controls how quickly the rate drops early on.
+
+    schedule='linear' interpolates rate_start → rate_end evenly across
+    generations.
+    """
+    if total_generations <= 1:
+        return rate_end
+
+    frac = (generation - 1) / (total_generations - 1)
+    frac = min(max(frac, 0.0), 1.0)
+
+    if schedule == 'linear':
+        return rate_start + (rate_end - rate_start) * frac
+
+    # exponential / simulated-annealing cooling
+    decay = math.exp(-cooling_rate * frac)
+    return rate_end + (rate_start - rate_end) * decay
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Genetic operators
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -131,11 +201,11 @@ def uniform_crossover(seq_a: str, seq_b: str, rng: random.Random) -> str:
     )
 
 
-def tournament_select(population: List[str], scores: List[float],
+def tournament_select(population: List[str], fitness: List[float],
                        k: int, rng: random.Random) -> str:
-    """Select one individual via k-way tournament (highest score wins)."""
+    """Select one individual via k-way tournament (highest fitness wins)."""
     contestants = rng.sample(range(len(population)), min(k, len(population)))
-    winner = max(contestants, key=lambda i: scores[i])
+    winner = max(contestants, key=lambda i: fitness[i])
     return population[winner]
 
 
@@ -233,6 +303,154 @@ def run_prediction(predict_script: Path, metrics_dir: Path) -> Optional[pd.DataF
         return None
 
     return pd.read_csv(out_path, sep='\t')
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Structural constraint: cmsearch against the original 3' UTR covariance model
+# ══════════════════════════════════════════════════════════════════════════════
+
+def run_cmsearch(
+    cmsearch_bin: str,
+    cm_model: Path,
+    fasta_path: Path,
+    work_dir: Path,
+    evalue_threshold: float,
+    cpu: int = 4,
+) -> Dict[str, Tuple[float, float]]:
+    """
+    Run Infernal's cmsearch of *cm_model* against *fasta_path* and parse the
+    --tblout table. Returns {seq_id: (bit_score, e_value)} for every
+    sequence that produced a hit at or below evalue_threshold. Sequences
+    absent from the returned dict had NO hit against the original structure.
+    """
+    tblout = work_dir / 'cmsearch.tblout'
+    cmd = [
+        cmsearch_bin,
+        '--tblout', str(tblout),
+        '--cpu', str(cpu),
+        '-E', str(evalue_threshold),
+        '--noali',
+        str(cm_model),
+        str(fasta_path),
+    ]
+    log.debug(f"cmsearch cmd: {' '.join(cmd)}")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        log.error(
+            f"cmsearch failed (exit {result.returncode}).\n"
+            f"── stderr ──\n{result.stderr[-2000:]}"
+        )
+        return {}
+
+    if not tblout.exists():
+        log.error(f"cmsearch did not produce tblout: {tblout}")
+        return {}
+
+    hits: Dict[str, Tuple[float, float]] = {}
+    # Infernal 1.1.x --tblout column layout (whitespace-delimited):
+    # 0 target name, 1 accession, 2 query name, 3 accession, 4 mdl,
+    # 5 mdl from, 6 mdl to, 7 seq from, 8 seq to, 9 strand, 10 trunc,
+    # 11 pass, 12 gc, 13 bias, 14 score, 15 E-value, 16 inc, 17+ description
+    with open(tblout) as fh:
+        for line in fh:
+            if line.startswith('#') or not line.strip():
+                continue
+            fields = line.split()
+            if len(fields) < 16:
+                continue
+            target_name = fields[0]
+            try:
+                bit_score = float(fields[14])
+                e_value = float(fields[15])
+            except (IndexError, ValueError):
+                continue
+            # tblout is sorted by significance, but guard against duplicates
+            # by keeping the best (highest bit score) hit per target.
+            if target_name not in hits or bit_score > hits[target_name][0]:
+                hits[target_name] = (bit_score, e_value)
+    return hits
+
+
+def evaluate_cmscores(
+    cmsearch_bin: str,
+    cm_model: Path,
+    fasta_3utr_path: Path,
+    utr_ids: List[str],
+    work_dir: Path,
+    evalue_threshold: float,
+    cpu: int = 4,
+) -> Tuple[List[Optional[float]], List[bool]]:
+    """
+    Run cmsearch for the whole population's 3' UTR FASTA and return
+    (cmscores, hit_flags) aligned with utr_ids. cmscores[i] is None and
+    hit_flags[i] is False when sequence i had no hit against the CM.
+    """
+    hits = run_cmsearch(cmsearch_bin, cm_model, fasta_3utr_path, work_dir, evalue_threshold, cpu)
+    cmscores: List[Optional[float]] = []
+    hit_flags: List[bool] = []
+    for sid in utr_ids:
+        if sid in hits:
+            cmscores.append(hits[sid][0])
+            hit_flags.append(True)
+        else:
+            cmscores.append(None)
+            hit_flags.append(False)
+    n_hits = sum(hit_flags)
+    log.info(f"  cmsearch: {n_hits}/{len(utr_ids)} sequences hit the original structure CM")
+    return cmscores, hit_flags
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Combined fitness: predicted half-life + structural cmscore
+# ══════════════════════════════════════════════════════════════════════════════
+
+def compute_fitness(
+    halflife_scores: List[float],
+    cmscores: List[Optional[float]],
+    hit_flags: List[bool],
+    halflife_weight: float,
+    cm_weight: float,
+    no_hit_penalty: float,
+) -> Tuple[List[float], List[float], List[float]]:
+    """
+    Combine predicted half-life and cmscore into a single fitness value.
+
+    Both components are min-max normalised to [0, 1] across the *current*
+    population before being combined, so the two weights are comparable
+    regardless of the raw score scales. Individuals with no CM hit
+    (hit_flags[i] is False) bypass the weighted combination entirely and
+    receive *no_hit_penalty* as their fitness, guaranteeing they lose
+    selection against any individual that does preserve the structure
+    (as long as no_hit_penalty is set below the achievable combined range).
+
+    Returns (fitness, normalised_halflife, normalised_cmscore).
+    """
+    valid_hl = [s for s in halflife_scores if s is not None and s != float('-inf')]
+    hl_min, hl_max = (min(valid_hl), max(valid_hl)) if valid_hl else (0.0, 1.0)
+    hl_range = (hl_max - hl_min) or 1.0
+
+    valid_cm = [c for c, hit in zip(cmscores, hit_flags) if hit and c is not None]
+    cm_min, cm_max = (min(valid_cm), max(valid_cm)) if valid_cm else (0.0, 1.0)
+    cm_range = (cm_max - cm_min) or 1.0
+
+    fitness: List[float] = []
+    norm_hl_list: List[float] = []
+    norm_cm_list: List[float] = []
+
+    for hl, cm, hit in zip(halflife_scores, cmscores, hit_flags):
+        norm_hl = 0.0 if (hl is None or hl == float('-inf')) else (hl - hl_min) / hl_range
+        norm_hl_list.append(norm_hl)
+
+        if not hit:
+            norm_cm_list.append(0.0)
+            fitness.append(no_hit_penalty)
+            continue
+
+        norm_cm = (cm - cm_min) / cm_range
+        norm_cm_list.append(norm_cm)
+        fitness.append(halflife_weight * norm_hl + cm_weight * norm_cm)
+
+    return fitness, norm_hl_list, norm_cm_list
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -486,10 +704,12 @@ def evaluate_population(
 
 def plot_fitness_over_generations(best_per_gen: List[dict], out_path: Path) -> None:
     """
-    Plot best / mean / worst predicted half-life per generation and save as PNG.
-    Uses matplotlib with a non-interactive backend so it works headlessly.
-    Failure to plot (e.g. matplotlib not installed) is logged as a warning,
-    never a fatal error — the GA's TSV/FASTA outputs are unaffected.
+    Plot combined fitness (top panel) and its predicted-half-life /
+    cmscore components plus the annealed mutation rate (bottom panel) per
+    generation, and save as PNG.  Uses matplotlib with a non-interactive
+    backend so it works headlessly.  Failure to plot (e.g. matplotlib not
+    installed) is logged as a warning, never a fatal error — the GA's
+    TSV/FASTA outputs are unaffected.
     """
     try:
         import matplotlib
@@ -503,32 +723,57 @@ def plot_fitness_over_generations(best_per_gen: List[dict], out_path: Path) -> N
         return
 
     try:
-        gens   = [row['generation'] for row in best_per_gen]
-        best   = [row['best_score'] for row in best_per_gen]
-        mean   = [row['mean_score'] for row in best_per_gen]
-        worst  = [row['worst_score'] for row in best_per_gen]
+        gens        = [row['generation'] for row in best_per_gen]
+        best_fit    = [row['best_fitness'] for row in best_per_gen]
+        mean_fit    = [row['mean_fitness'] for row in best_per_gen]
+        worst_fit   = [row['worst_fitness'] for row in best_per_gen]
+        best_hl     = [row['best_halflife'] for row in best_per_gen]
+        best_cm     = [row['best_cmscore'] if row['best_cmscore'] is not None else float('nan')
+                       for row in best_per_gen]
+        mut_rate    = [row['mutation_rate'] for row in best_per_gen]
 
-        fig, ax = plt.subplots(figsize=(9, 5.5), dpi=150)
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 8.5), dpi=150, sharex=True)
 
-        ax.plot(gens, best, label='Best', color='#1b9e3e', linewidth=2, marker='o', markersize=3)
-        ax.plot(gens, mean, label='Mean', color='#2166ac', linewidth=1.5, marker='o', markersize=3)
-        ax.plot(gens, worst, label='Worst', color='#b2182b', linewidth=1.5, linestyle='--', alpha=0.7)
+        # ── Top panel: combined fitness ────────────────────────────────
+        ax1.plot(gens, best_fit, label='Best fitness', color='#1b9e3e', linewidth=2, marker='o', markersize=3)
+        ax1.plot(gens, mean_fit, label='Mean fitness', color='#2166ac', linewidth=1.5, marker='o', markersize=3)
+        ax1.plot(gens, worst_fit, label='Worst fitness', color='#b2182b', linewidth=1.5, linestyle='--', alpha=0.7)
+        ax1.fill_between(gens, worst_fit, best_fit, color='#1b9e3e', alpha=0.07)
 
-        # Shade the gap between best and worst each generation for visual context.
-        ax.fill_between(gens, worst, best, color='#1b9e3e', alpha=0.07)
+        best_idx = max(range(len(best_fit)), key=lambda i: best_fit[i])
+        ax1.scatter([gens[best_idx]], [best_fit[best_idx]], color='gold', edgecolor='black',
+                    zorder=5, s=80, marker='*', label=f"All-time best (gen {gens[best_idx]})")
 
-        # Mark the all-time best point.
-        best_idx = max(range(len(best)), key=lambda i: best[i])
-        ax.scatter([gens[best_idx]], [best[best_idx]], color='gold', edgecolor='black',
-                   zorder=5, s=80, marker='*', label=f"All-time best (gen {gens[best_idx]})")
+        ax1.set_ylabel('Combined fitness')
+        ax1.set_title("3' UTR GA — Combined Fitness (half-life + cmscore) Over Generations")
+        ax1.legend(loc='best', framealpha=0.9)
+        ax1.grid(True, alpha=0.3)
 
-        ax.set_xlabel('Generation')
-        ax.set_ylabel('Predicted half-life')
-        ax.set_title("3' UTR GA — Predicted Half-Life Over Generations")
-        ax.legend(loc='best', framealpha=0.9)
-        ax.grid(True, alpha=0.3)
+        # ── Bottom panel: fitness components + annealed mutation rate ──
+        ax2.plot(gens, best_hl, label='Best predicted half-life', color='#762a83', linewidth=1.5, marker='o', markersize=3)
+        ax2.set_ylabel('Predicted half-life')
+        ax2.tick_params(axis='y', labelcolor='#762a83')
+
+        ax2b = ax2.twinx()
+        ax2b.plot(gens, best_cm, label='Best cmscore (bits)', color='#e08214', linewidth=1.5, marker='s', markersize=3)
+        ax2b.set_ylabel('cmscore (bits)')
+        ax2b.tick_params(axis='y', labelcolor='#e08214')
+
+        ax2c = ax2.twinx()
+        ax2c.spines['right'].set_position(('outward', 60))
+        ax2c.plot(gens, mut_rate, label='Mutation rate', color='#4d4d4d', linewidth=1.2, linestyle=':')
+        ax2c.set_ylabel('Mutation rate')
+
+        lines1, labels1 = ax2.get_legend_handles_labels()
+        lines2, labels2 = ax2b.get_legend_handles_labels()
+        lines3, labels3 = ax2c.get_legend_handles_labels()
+        ax2.legend(lines1 + lines2 + lines3, labels1 + labels2 + labels3, loc='best', framealpha=0.9, fontsize=8)
+
+        ax2.set_xlabel('Generation')
+        ax2.grid(True, alpha=0.3)
         if len(gens) <= 30:
-            ax.set_xticks(gens)
+            ax2.set_xticks(gens)
+
         fig.tight_layout()
         fig.savefig(out_path)
         plt.close(fig)
@@ -553,11 +798,21 @@ def run_ga(
     output_dir: Path,
     population_size: int,
     generations: int,
-    mutation_rate: float,
+    mutation_rate_start: float,
+    mutation_rate_end: float,
+    cooling_schedule: str,
+    cooling_rate: float,
     crossover_rate: float,
     elite_frac: float,
     tournament_k: int,
     rng_seed: int,
+    cm_model: Optional[Path],
+    cmsearch_bin: str,
+    cm_evalue_threshold: float,
+    cm_cpu: int,
+    halflife_weight: float,
+    cm_weight: float,
+    no_hit_penalty: float,
     make_plot: bool = True,
 ) -> None:
     rng = random.Random(rng_seed)
@@ -566,46 +821,68 @@ def run_ga(
     results_dir.mkdir(exist_ok=True)
 
     n_elite = max(1, int(population_size * elite_frac))
+    use_cm = cm_model is not None
 
     log.info("═" * 60)
     log.info("3' UTR Genetic Algorithm")
-    log.info(f"  Population   : {population_size}")
-    log.info(f"  Generations  : {generations}")
-    log.info(f"  Mutation rate: {mutation_rate:.4f}")
-    log.info(f"  Crossover    : {crossover_rate:.4f}")
-    log.info(f"  Elites       : {n_elite}")
-    log.info(f"  Seed 3UTR    : {len(seed_3utr_seq)} nt")
-    log.info(f"  Output       : {output_dir}")
+    log.info(f"  Population        : {population_size}")
+    log.info(f"  Generations       : {generations}")
+    log.info(f"  Mutation rate     : {mutation_rate_start:.4f} → {mutation_rate_end:.4f} "
+             f"({cooling_schedule}, k={cooling_rate})")
+    log.info(f"  Crossover         : {crossover_rate:.4f}")
+    log.info(f"  Elites            : {n_elite}")
+    log.info(f"  Seed 3UTR         : {len(seed_3utr_seq)} nt")
+    if use_cm:
+        log.info(f"  CM model          : {cm_model}")
+        log.info(f"  cmsearch E-value  : <= {cm_evalue_threshold}")
+        log.info(f"  Fitness weights   : halflife={halflife_weight}, cmscore={cm_weight}")
+        log.info(f"  No-hit penalty    : {no_hit_penalty}")
+    else:
+        log.info("  CM model          : (none) — cmscore constraint disabled, "
+                 "fitness = normalised half-life only")
+    log.info(f"  Output            : {output_dir}")
     log.info("═" * 60)
 
+    init_mutation_rate = min(
+        compute_mutation_rate(1, generations, mutation_rate_start, mutation_rate_end,
+                               cooling_schedule, cooling_rate) * 5,
+        0.75,
+    )
     population = [seed_3utr_seq] + [
-        point_mutate(seed_3utr_seq, mutation_rate * 5, rng)
+        point_mutate(seed_3utr_seq, init_mutation_rate, rng)
         for _ in range(population_size - 1)
     ]
 
     all_rows: List[dict] = []
     best_per_gen: List[dict] = []
-    all_time_best_score = float('-inf')
-    all_time_best_seq   = seed_3utr_seq
+    all_time_best_fitness = float('-inf')
+    all_time_best_seq     = seed_3utr_seq
+    all_time_best_halflife = None
+    all_time_best_cmscore  = None
 
     work_dir = output_dir / '_workspace'
     work_dir.mkdir(exist_ok=True)
 
     for gen in range(1, generations + 1):
         gen_start = time.time()
-        log.info(f"\n── Generation {gen}/{generations} ──")
+        current_mutation_rate = compute_mutation_rate(
+            gen, generations, mutation_rate_start, mutation_rate_end,
+            cooling_schedule, cooling_rate,
+        )
+        log.info(f"\n── Generation {gen}/{generations} "
+                 f"(mutation rate = {current_mutation_rate:.5f}) ──")
 
         # Unique sample IDs so the merge in predict_script works
         utr_ids = [f"ind_{gen:04d}_{i:05d}" for i in range(population_size)]
 
-        scores = evaluate_population(
+        halflife_scores = evaluate_population(
             population, utr_ids,
             fixed_5utr_id, fixed_5utr_seq,
             fixed_cds_id, fixed_cds_seq,
             species, metrics_script, predict_script, work_dir,
         )
 
-        if scores is None:
+        if halflife_scores is None:
             log.error(f"Pipeline failed on generation {gen}. Aborting.")
             if best_per_gen and make_plot:
                 plot_fitness_over_generations(
@@ -613,70 +890,105 @@ def run_ga(
                 )
             sys.exit(1)
 
+        # ── Structural constraint: cmsearch against the original 3' UTR CM ──
+        if use_cm:
+            fasta_3_path = work_dir / 'pop_3utr.fa'
+            cmscores, hit_flags = evaluate_cmscores(
+                cmsearch_bin, cm_model, fasta_3_path, utr_ids,
+                work_dir, cm_evalue_threshold, cm_cpu,
+            )
+        else:
+            cmscores = [None] * population_size
+            hit_flags = [True] * population_size
+
+        fitness, norm_hl, norm_cm = compute_fitness(
+            halflife_scores, cmscores, hit_flags,
+            halflife_weight, cm_weight, no_hit_penalty,
+        )
+
         # ── Record results ────────────────────────────────────────────────
-        for i, (sid, seq, score) in enumerate(zip(utr_ids, population, scores)):
+        for sid, seq, hl, cm, hit, f, nhl, ncm in zip(
+            utr_ids, population, halflife_scores, cmscores, hit_flags,
+            fitness, norm_hl, norm_cm,
+        ):
             all_rows.append({
                 'generation': gen,
                 'rank_in_gen': 0,
                 'sample_id': sid,
-                'predicted_halflife': score,
+                'fitness': f,
+                'predicted_halflife': hl,
+                'cmscore': cm if cm is not None else '',
+                'cm_hit': hit,
+                'norm_halflife': nhl,
+                'norm_cmscore': ncm,
+                'mutation_rate': current_mutation_rate,
                 'sequence': seq,
                 'length': len(seq),
                 'mutations_from_seed': sum(a != b for a, b in zip(seq, seed_3utr_seq)
                                            if len(seq) == len(seed_3utr_seq)),
             })
 
-        # Sort by score descending
-        ranked = sorted(zip(scores, population, utr_ids),
-                        key=lambda x: x[0], reverse=True)
-        for rank, (sc, sq, sid) in enumerate(ranked):
-            # update rank in all_rows
+        # Sort by combined fitness descending
+        ranked = sorted(
+            zip(fitness, population, utr_ids, halflife_scores, cmscores, hit_flags),
+            key=lambda x: x[0], reverse=True,
+        )
+        for rank, (f, sq, sid, hl, cm, hit) in enumerate(ranked):
             for row in all_rows:
                 if row['sample_id'] == sid:
                     row['rank_in_gen'] = rank + 1
 
-        best_score, best_seq, best_id = ranked[0]
+        best_fitness, best_seq, best_id, best_halflife, best_cmscore, best_hit = ranked[0]
         gen_elapsed = time.time() - gen_start
-        log.info(f"  Best this gen : {best_score:.4f}  ({best_id})")
-        log.info(f"  Worst this gen: {ranked[-1][0]:.4f}")
-        log.info(f"  Mean          : {sum(scores)/len(scores):.4f}")
-        log.info(f"  Elapsed       : {gen_elapsed:.1f}s")
+        n_hits = sum(hit_flags) if use_cm else population_size
+        log.info(f"  Best fitness this gen : {best_fitness:.4f}  ({best_id}, "
+                 f"halflife={best_halflife:.4f}, "
+                 f"cmscore={'n/a' if best_cmscore is None else f'{best_cmscore:.2f}'})")
+        log.info(f"  Worst fitness this gen: {ranked[-1][0]:.4f}")
+        log.info(f"  Mean fitness          : {sum(fitness)/len(fitness):.4f}")
+        if use_cm:
+            log.info(f"  CM hits               : {n_hits}/{population_size}")
+        log.info(f"  Elapsed               : {gen_elapsed:.1f}s")
 
         best_per_gen.append({
             'generation': gen,
-            'best_score': best_score,
-            'mean_score': sum(scores) / len(scores),
-            'worst_score': ranked[-1][0],
+            'best_fitness': best_fitness,
+            'mean_fitness': sum(fitness) / len(fitness),
+            'worst_fitness': ranked[-1][0],
+            'best_halflife': best_halflife,
+            'best_cmscore': best_cmscore,
+            'n_cm_hits': n_hits,
+            'mutation_rate': current_mutation_rate,
             'best_id': best_id,
             'best_sequence': best_seq,
         })
 
-        if best_score > all_time_best_score:
-            all_time_best_score = best_score
-            all_time_best_seq   = best_seq
-            log.info(f"  ★ New all-time best: {all_time_best_score:.4f}")
+        if best_fitness > all_time_best_fitness:
+            all_time_best_fitness  = best_fitness
+            all_time_best_seq      = best_seq
+            all_time_best_halflife = best_halflife
+            all_time_best_cmscore  = best_cmscore
+            log.info(f"  ★ New all-time best fitness: {all_time_best_fitness:.4f}")
 
         if gen == generations:
             break
 
         # ── Breed next generation ─────────────────────────────────────────
-        elite_seqs = [sq for _, sq, _ in ranked[:n_elite]]
-        non_elite_scores = [sc for sc, _, _ in ranked]
-        non_elite_seqs   = [sq for _, sq, _ in ranked]
+        elite_seqs = [sq for _, sq, _, _, _, _ in ranked[:n_elite]]
+        pool_fitness = [f for f, _, _, _, _, _ in ranked]
+        pool_seqs    = [sq for _, sq, _, _, _, _ in ranked]
 
         next_gen = list(elite_seqs)
 
         while len(next_gen) < population_size:
-            parent_a = tournament_select(non_elite_seqs, non_elite_scores,
-                                         tournament_k, rng)
+            parent_a = tournament_select(pool_seqs, pool_fitness, tournament_k, rng)
             if rng.random() < crossover_rate:
-                parent_b = tournament_select(non_elite_seqs, non_elite_scores,
-                                              tournament_k, rng)
+                parent_b = tournament_select(pool_seqs, pool_fitness, tournament_k, rng)
                 child = uniform_crossover(parent_a, parent_b, rng)
             else:
                 child = parent_a
 
-            child = point_mutate(child, mutation_rate, rng)
+            child = point_mutate(child, current_mutation_rate, rng)
             next_gen.append(child)
 
         population = next_gen
@@ -719,32 +1031,51 @@ def run_ga(
     with open(summary_path, 'w') as fh:
         fh.write("3' UTR Genetic Algorithm — Evolution Summary\n")
         fh.write("=" * 60 + "\n\n")
-        fh.write(f"Generations     : {generations}\n")
-        fh.write(f"Population size : {population_size}\n")
-        fh.write(f"Mutation rate   : {mutation_rate}\n")
-        fh.write(f"Crossover rate  : {crossover_rate}\n")
-        fh.write(f"Elite fraction  : {elite_frac}  ({n_elite} individuals)\n")
-        fh.write(f"Tournament k    : {tournament_k}\n")
-        fh.write(f"RNG seed        : {rng_seed}\n\n")
+        fh.write(f"Generations         : {generations}\n")
+        fh.write(f"Population size     : {population_size}\n")
+        fh.write(f"Mutation rate       : {mutation_rate_start} → {mutation_rate_end} "
+                 f"({cooling_schedule} cooling, k={cooling_rate})\n")
+        fh.write(f"Crossover rate      : {crossover_rate}\n")
+        fh.write(f"Elite fraction      : {elite_frac}  ({n_elite} individuals)\n")
+        fh.write(f"Tournament k        : {tournament_k}\n")
+        fh.write(f"RNG seed            : {rng_seed}\n")
+        if use_cm:
+            fh.write(f"CM model            : {cm_model}\n")
+            fh.write(f"cmsearch E-value    : <= {cm_evalue_threshold}\n")
+            fh.write(f"Fitness weights     : halflife={halflife_weight}, cmscore={cm_weight}\n")
+            fh.write(f"No-hit penalty      : {no_hit_penalty}\n")
+        else:
+            fh.write("CM model            : (none) — cmscore constraint disabled\n")
+        fh.write("\n")
         fh.write(f"Seed 3UTR length : {len(seed_3utr_seq)} nt\n")
         fh.write(f"Best 3UTR length : {len(all_time_best_seq)} nt\n\n")
-        fh.write(f"Seed predicted half-life  : {best_per_gen[0]['best_score']:.4f}  "
-                 f"(generation 1 best)\n")
-        fh.write(f"Final best half-life      : {all_time_best_score:.4f}\n\n")
+        fh.write(f"Generation 1 best fitness : {best_per_gen[0]['best_fitness']:.4f}\n")
+        fh.write(f"Final best fitness        : {all_time_best_fitness:.4f}\n")
+        fh.write(f"Final best predicted half-life : {all_time_best_halflife:.4f}\n")
+        if all_time_best_cmscore is not None:
+            fh.write(f"Final best cmscore (bits)      : {all_time_best_cmscore:.2f}\n")
+        fh.write("\n")
         mutations = sum(a != b for a, b in zip(seed_3utr_seq, all_time_best_seq)
                         if len(seed_3utr_seq) == len(all_time_best_seq))
         fh.write(f"Point mutations from seed : {mutations} / {len(seed_3utr_seq)}\n\n")
-        fh.write("Generation-by-generation best scores:\n")
+        fh.write("Generation-by-generation best fitness:\n")
         for row in best_per_gen:
-            fh.write(f"  Gen {row['generation']:>3d} : {row['best_score']:.4f}  "
-                     f"(mean {row['mean_score']:.4f}, worst {row['worst_score']:.4f})\n")
+            cm_str = 'n/a' if row['best_cmscore'] is None else f"{row['best_cmscore']:.2f}"
+            fh.write(
+                f"  Gen {row['generation']:>3d} : fitness {row['best_fitness']:.4f} "
+                f"(mean {row['mean_fitness']:.4f}, worst {row['worst_fitness']:.4f}) | "
+                f"halflife {row['best_halflife']:.4f} | cmscore {cm_str} | "
+                f"mut_rate {row['mutation_rate']:.5f} | cm_hits {row['n_cm_hits']}\n"
+            )
         fh.write("\nBest evolved 3UTR sequence:\n")
         for i in range(0, len(all_time_best_seq), 60):
             fh.write(all_time_best_seq[i:i + 60] + '\n')
 
     log.info(f"Wrote {summary_path}")
     log.info("\n" + "═" * 60)
-    log.info(f"GA complete.  All-time best predicted half-life: {all_time_best_score:.4f}")
+    log.info(f"GA complete.  All-time best fitness: {all_time_best_fitness:.4f} "
+             f"(halflife={all_time_best_halflife:.4f}, "
+             f"cmscore={'n/a' if all_time_best_cmscore is None else f'{all_time_best_cmscore:.2f}'})")
     log.info(f"Results in: {results_dir}")
     log.info("═" * 60)
 
@@ -785,9 +1116,27 @@ def main():
                         help="Population size per generation (default: 50).")
     parser.add_argument('--generations', type=int, default=30, metavar='N',
                         help="Number of GA generations (default: 30).")
-    parser.add_argument('--mutation-rate', type=float, default=0.02,
-                        dest='mutation_rate', metavar='RATE',
-                        help="Per-nucleotide point mutation probability (default: 0.02).")
+    parser.add_argument('--mutation-rate-start', type=float, default=0.05,
+                        dest='mutation_rate_start', metavar='RATE',
+                        help="Per-nucleotide mutation probability at generation 1 "
+                             "(default: 0.05).")
+    parser.add_argument('--mutation-rate-end', type=float, default=0.005,
+                        dest='mutation_rate_end', metavar='RATE',
+                        help="Per-nucleotide mutation probability at the final "
+                             "generation (default: 0.005).")
+    parser.add_argument('--cooling-schedule', choices=['exponential', 'linear'],
+                        default='exponential', dest='cooling_schedule',
+                        help="How the mutation rate is annealed from start to end "
+                             "(default: exponential, simulated-annealing style).")
+    parser.add_argument('--cooling-rate', type=float, default=3.0,
+                        dest='cooling_rate', metavar='K',
+                        help="Decay constant for exponential cooling; larger values "
+                             "cool faster early on (default: 3.0). Ignored for "
+                             "--cooling-schedule linear.")
+    parser.add_argument('--mutation-rate', type=float, default=None,
+                        dest='mutation_rate_legacy', metavar='RATE',
+                        help="Deprecated: sets a single constant mutation rate "
+                             "(disables annealing) for backward compatibility.")
     parser.add_argument('--crossover-rate', type=float, default=0.5,
                         dest='crossover_rate', metavar='RATE',
                         help="Probability of crossover vs. cloning (default: 0.5).")
@@ -799,6 +1148,37 @@ def main():
                         help="Tournament selection size (default: 3).")
     parser.add_argument('--seed', type=int, default=42, metavar='INT',
                         help="Random seed for reproducibility (default: 42).")
+
+    # ── Structural (cmscore) constraint ──────────────────────────────────
+    parser.add_argument('--cm-model', default=None, dest='cm_model', metavar='FILE',
+                        help="Calibrated Infernal covariance model (.cm, from "
+                             "cmbuild + cmcalibrate on the original 3' UTR structure). "
+                             "If omitted, the structural constraint is skipped and "
+                             "fitness is normalised predicted half-life alone.")
+    parser.add_argument('--cmsearch-bin', default='cmsearch', dest='cmsearch_bin',
+                        metavar='PATH', help="Path to the cmsearch executable (default: 'cmsearch').")
+    parser.add_argument('--cm-evalue-threshold', type=float, default=0.01,
+                        dest='cm_evalue_threshold', metavar='EVALUE',
+                        help="E-value cutoff for a cmsearch hit against the original "
+                             "structure (default: 0.01). Sequences with no hit at or "
+                             "below this threshold receive --no-hit-penalty as fitness.")
+    parser.add_argument('--cm-cpu', type=int, default=4, dest='cm_cpu', metavar='N',
+                        help="Number of CPU threads for cmsearch (default: 4).")
+    parser.add_argument('--halflife-weight', type=float, default=0.5,
+                        dest='halflife_weight', metavar='W',
+                        help="Weight of normalised predicted half-life in the combined "
+                             "fitness function (default: 0.5).")
+    parser.add_argument('--cm-weight', type=float, default=0.5,
+                        dest='cm_weight', metavar='W',
+                        help="Weight of normalised cmscore in the combined fitness "
+                             "function (default: 0.5).")
+    parser.add_argument('--no-hit-penalty', type=float, default=-1000.0,
+                        dest='no_hit_penalty', metavar='VALUE',
+                        help="Fitness assigned to individuals with no cmsearch hit "
+                             "against the original structure (default: -1000.0). "
+                             "Should be well below any achievable weighted combination "
+                             "of normalised half-life and cmscore (which lies in "
+                             "[0, halflife-weight + cm-weight]).")
 
     # ── Output ────────────────────────────────────────────────────────────
     parser.add_argument('--output-dir', '-o', default='ga_output',
@@ -814,17 +1194,42 @@ def main():
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
+    # ── Backward-compat: a single --mutation-rate disables annealing ──────
+    mutation_rate_start = args.mutation_rate_start
+    mutation_rate_end = args.mutation_rate_end
+    if args.mutation_rate_legacy is not None:
+        log.warning(
+            "--mutation-rate is deprecated; using it as a constant rate "
+            "(annealing disabled). Prefer --mutation-rate-start/--mutation-rate-end."
+        )
+        mutation_rate_start = args.mutation_rate_legacy
+        mutation_rate_end = args.mutation_rate_legacy
+
     # ── Validate paths ────────────────────────────────────────────────────
-    for label, path_str in [
+    required_paths = [
         ('--fasta-5utr', args.fasta_5utr),
         ('--fasta-cds',  args.fasta_cds),
         ('--fasta-3utr', args.fasta_3utr),
         ('--metrics-script', args.metrics_script),
         ('--predict-script', args.predict_script),
-    ]:
+    ]
+    for label, path_str in required_paths:
         p = Path(path_str)
         if not p.exists():
             log.error(f"{label} not found: {p}")
+            sys.exit(1)
+
+    cm_model_path: Optional[Path] = None
+    if args.cm_model is not None:
+        cm_model_path = Path(args.cm_model)
+        if not cm_model_path.exists():
+            log.error(f"--cm-model not found: {cm_model_path}")
+            sys.exit(1)
+        if shutil.which(args.cmsearch_bin) is None and not Path(args.cmsearch_bin).exists():
+            log.error(
+                f"cmsearch executable not found on PATH or as a file: "
+                f"'{args.cmsearch_bin}'. Install Infernal or pass --cmsearch-bin."
+            )
             sys.exit(1)
 
     # ── Load fixed sequences ──────────────────────────────────────────────
@@ -853,11 +1258,21 @@ def main():
         output_dir      = Path(args.output_dir),
         population_size = args.population,
         generations     = args.generations,
-        mutation_rate   = args.mutation_rate,
+        mutation_rate_start = mutation_rate_start,
+        mutation_rate_end   = mutation_rate_end,
+        cooling_schedule    = args.cooling_schedule,
+        cooling_rate        = args.cooling_rate,
         crossover_rate  = args.crossover_rate,
         elite_frac      = args.elite_frac,
         tournament_k    = args.tournament_k,
         rng_seed        = args.seed,
+        cm_model            = cm_model_path,
+        cmsearch_bin        = args.cmsearch_bin,
+        cm_evalue_threshold = args.cm_evalue_threshold,
+        cm_cpu              = args.cm_cpu,
+        halflife_weight     = args.halflife_weight,
+        cm_weight           = args.cm_weight,
+        no_hit_penalty      = args.no_hit_penalty,
         make_plot       = not args.no_plot,
     )
 
