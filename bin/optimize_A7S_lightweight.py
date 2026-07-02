@@ -662,17 +662,33 @@ def _junctions_default_row(transcript_id: str, gene_id: str, cds_len: int) -> di
 
 
 def _architecture_default_row(transcript_id: str, gene_id: str, cds_len: int) -> dict:
-    """Single-exon transcript; intron stats all NaN."""
+    """Single-exon transcript: no introns, no internal exons.
+
+    Column set and names must match the real metrics/architecture.py plugin
+    output exactly — transcript_id, gene_id, strand, n_exons,
+    n_internal_exons, first_exon_length, last_exon_length,
+    internal_exon_mean/median/sd, intron_mean/median/sd — since
+    01c_predict.py's feature merge requires these specific columns and will
+    abort with "feature(s) missing from merged data" if any are absent.
+    For a single-exon transcript (our no-GFF fallback case) n_exons=1,
+    n_internal_exons=0, and all internal-exon/intron stat columns are NA
+    (left blank here so they read back as NaN), matching the real plugin's
+    documented single-exon behaviour.
+    """
     return {
-        'transcript_id':      transcript_id,
-        'gene_id':            transcript_id,
-        'n_exons':            1,
-        'strand':             '+',
-        'first_exon_length':  '',
-        'last_exon_length':   '',
-        'intron_mean':        '',
-        'intron_median':      '',
-        'intron_sd':          '',
+        'transcript_id':        transcript_id,
+        'gene_id':              transcript_id,
+        'strand':               '+',
+        'n_exons':              1,
+        'n_internal_exons':     0,
+        'first_exon_length':    '',
+        'last_exon_length':     '',
+        'internal_exon_mean':   '',
+        'internal_exon_median': '',
+        'internal_exon_sd':     '',
+        'intron_mean':          '',
+        'intron_median':        '',
+        'intron_sd':            '',
     }
 
 
