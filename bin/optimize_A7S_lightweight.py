@@ -27,9 +27,7 @@ python mutate_3utr_ga.py \\
     [--elite-frac  0.1]                \\   # fraction kept as elites (no mutation)
     [--tournament-k 3]                 \\   # tournament selection size
     [--cm-model    original_3utr.cm]   \\   # calibrated Infernal CM of the seed structure
-    [--cmsearch-bin cmsearch]          \\   # path to the cmsearch executable
     [--cm-evalue-threshold 0.01]       \\   # E-value cutoff defining a "hit"
-    [--cm-cpu 4]                       \\
     [--halflife-weight 0.5]            \\   # weight of half-life in combined fitness
     [--cm-weight 0.5]                  \\   # weight of cmscore in combined fitness
     [--no-hit-penalty -1000.0]         \\   # fitness assigned when there is no CM hit
@@ -86,6 +84,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -309,94 +308,192 @@ def run_prediction(predict_script: Path, metrics_dir: Path) -> Optional[pd.DataF
 # Structural constraint: cmsearch against the original 3' UTR covariance model
 # ══════════════════════════════════════════════════════════════════════════════
 
-def run_cmsearch(
-    cmsearch_bin: str,
-    cm_model: Path,
-    fasta_path: Path,
-    work_dir: Path,
-    evalue_threshold: float,
-    cpu: int = 4,
-) -> Dict[str, Tuple[float, float]]:
-    """
-    Run Infernal's cmsearch of *cm_model* against *fasta_path* and parse the
-    --tblout table. Returns {seq_id: (bit_score, e_value)} for every
-    sequence that produced a hit at or below evalue_threshold. Sequences
-    absent from the returned dict had NO hit against the original structure.
-    """
-    tblout = work_dir / 'cmsearch.tblout'
-    cmd = [
-        cmsearch_bin,
-        '--tblout', str(tblout),
-        '--cpu', str(cpu),
-        '-E', str(evalue_threshold),
-        '--noali',
-        str(cm_model),
-        str(fasta_path),
-    ]
-    log.debug(f"cmsearch cmd: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        log.error(
-            f"cmsearch failed (exit {result.returncode}).\n"
-            f"── stderr ──\n{result.stderr[-2000:]}"
-        )
-        return {}
+@dataclass
+class CmsearchResult:
+    query_name: str          # CM model name (from the .cm file)
+    target_name: str         # sequence id from the query FASTA (a GA individual)
+    cm_sig_name: Optional[str]
+    target_accession: str
+    score: str
+    evalue: str
+    bias: str
+    strand: str
+    seq_from: str
+    seq_to: str
+    gc: str
+    description: str
 
-    if not tblout.exists():
-        log.error(f"cmsearch did not produce tblout: {tblout}")
-        return {}
 
-    hits: Dict[str, Tuple[float, float]] = {}
-    # Infernal 1.1.x --tblout column layout (whitespace-delimited):
-    # 0 target name, 1 accession, 2 query name, 3 accession, 4 mdl,
-    # 5 mdl from, 6 mdl to, 7 seq from, 8 seq to, 9 strand, 10 trunc,
-    # 11 pass, 12 gc, 13 bias, 14 score, 15 E-value, 16 inc, 17+ description
-    with open(tblout) as fh:
+def _parse_tblout(tblout_file: str) -> List[dict]:
+    """
+    Parse an Infernal 1.1.x --tblout file into a list of dicts.
+
+    Column layout (whitespace-delimited):
+      0 target name, 1 target accession, 2 query name, 3 query accession,
+      4 mdl, 5 mdl from, 6 mdl to, 7 seq from, 8 seq to, 9 strand,
+      10 trunc, 11 pass, 12 gc, 13 bias, 14 score, 15 E-value, 16 inc,
+      17+ description of target
+    """
+    hits: List[dict] = []
+    if not os.path.exists(tblout_file):
+        return hits
+    with open(tblout_file) as fh:
         for line in fh:
             if line.startswith('#') or not line.strip():
                 continue
-            fields = line.split()
-            if len(fields) < 16:
+            fields = line.split(maxsplit=17)
+            if len(fields) < 17:
                 continue
-            target_name = fields[0]
-            try:
-                bit_score = float(fields[14])
-                e_value = float(fields[15])
-            except (IndexError, ValueError):
-                continue
-            # tblout is sorted by significance, but guard against duplicates
-            # by keeping the best (highest bit score) hit per target.
-            if target_name not in hits or bit_score > hits[target_name][0]:
-                hits[target_name] = (bit_score, e_value)
+            hits.append({
+                "target_name":      fields[0],
+                "target_accession": fields[1],
+                "query_name":       fields[2],
+                "query_accession":  fields[3],
+                "mdl":              fields[4],
+                "mdl_from":         fields[5],
+                "mdl_to":           fields[6],
+                "seq_from":         fields[7],
+                "seq_to":           fields[8],
+                "strand":           fields[9],
+                "trunc":            fields[10],
+                "pass":             fields[11],
+                "gc":               fields[12],
+                "bias":             fields[13],
+                "score":            fields[14],
+                "evalue":           fields[15],
+                "inc":              fields[16],
+                "description":      fields[17].rstrip('\n') if len(fields) > 17 else '',
+            })
     return hits
 
 
+def run_cmsearch(queries, cm_file, output_dir="."):
+    """
+    Run cmsearch for each query (a GA individual's 3' UTR) against the
+    original-structure covariance model.
+
+    Parameters
+    ----------
+    queries    : list of (name, seq) tuples
+    cm_file    : path to Infernal .cm file
+    output_dir : directory where persistent output files are written
+
+    Persistent output files (in output_dir):
+      patent_cmsearch.out     — full human-readable cmsearch output  (-o)
+      patent_cmsearch.tblout  — tabular hits                         (--tblout)
+      patent_cmsearch.sto     — Stockholm alignment of all hits      (-A)
+    """
+    if shutil.which("cmsearch") is None:
+        print("Warning: cmsearch not found on PATH — skipping CM alignment.", file=sys.stderr)
+        return [], "", None, None
+    os.makedirs(output_dir, exist_ok=True)
+    out_file    = os.path.join(output_dir, "patent_cmsearch.out")
+    tblout_file = os.path.join(output_dir, "patent_cmsearch.tblout")
+    sto_file    = os.path.join(output_dir, "patent_cmsearch.sto")
+    results: List[CmsearchResult] = []
+    with tempfile.TemporaryDirectory() as tmpdir:
+        query_fa = os.path.join(tmpdir, "queries.fa")
+        with open(query_fa, "w") as fh:
+            for qname, qseq in queries:
+                fh.write(f">{qname}\n{qseq}\n")
+        cmd = [
+            "cmsearch",
+            "--notextw",
+            "-A",      sto_file,
+            "-o",      out_file,
+            "--tblout", tblout_file,
+            "-E",      "1000",
+            cm_file,
+            query_fa,
+        ]
+        print(f"  cmsearch command: {' '.join(cmd)}", file=sys.stderr)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if r.returncode != 0:
+            print(f"cmsearch error:\n{r.stderr}", file=sys.stderr)
+        else:
+            print(f"  cmsearch output → {out_file}", file=sys.stderr)
+            print(f"  tblout          → {tblout_file}", file=sys.stderr)
+            print(f"  Stockholm aln   → {sto_file}", file=sys.stderr)
+        hits = _parse_tblout(tblout_file)
+        for h in hits:
+            results.append(CmsearchResult(
+                query_name=h["query_name"],
+                target_name=h["target_name"],
+                cm_sig_name=h["target_name"] if float(h["evalue"]) <= 0.1 else None,
+                target_accession=h["target_accession"],
+                score=h["score"],
+                evalue=h["evalue"],
+                bias=h["bias"],
+                strand=h["strand"],
+                seq_from=h["seq_from"],
+                seq_to=h["seq_to"],
+                gc=h["gc"],
+                description=h["description"],
+            ))
+        raw_out = ""
+        if os.path.exists(out_file):
+            try:
+                with open(out_file) as fh:
+                    raw_out = fh.read()
+            except Exception:
+                pass
+    return results, raw_out, tblout_file, sto_file
+
+
 def evaluate_cmscores(
-    cmsearch_bin: str,
     cm_model: Path,
-    fasta_3utr_path: Path,
     utr_ids: List[str],
+    population: List[str],
     work_dir: Path,
     evalue_threshold: float,
-    cpu: int = 4,
+    generation: Optional[int] = None,
 ) -> Tuple[List[Optional[float]], List[bool]]:
     """
-    Run cmsearch for the whole population's 3' UTR FASTA and return
-    (cmscores, hit_flags) aligned with utr_ids. cmscores[i] is None and
-    hit_flags[i] is False when sequence i had no hit against the CM.
+    Run cmsearch for the whole population's 3' UTR sequences against
+    *cm_model* and return (cmscores, hit_flags) aligned with utr_ids.
+
+    cmsearch itself is run permissively (-E 1000, i.e. "report everything"),
+    and hits are then filtered in Python against *evalue_threshold* so the
+    raw tblout/Stockholm output always contains the full picture even when
+    the GA's hit/no-hit cutoff is stricter. cmscores[i] is None and
+    hit_flags[i] is False when sequence i had no hit at or below
+    evalue_threshold (including when it had no cmsearch hit at all).
     """
-    hits = run_cmsearch(cmsearch_bin, cm_model, fasta_3utr_path, work_dir, evalue_threshold, cpu)
+    queries = list(zip(utr_ids, population))
+    gen_tag = f"gen_{generation:04d}" if generation is not None else "run"
+    cmsearch_out_dir = work_dir / 'cmsearch_logs' / gen_tag
+
+    results, _raw_out, _tblout_file, _sto_file = run_cmsearch(
+        queries, str(cm_model), str(cmsearch_out_dir)
+    )
+
+    # Keep the most significant (lowest E-value) hit per individual.
+    best_by_target: Dict[str, CmsearchResult] = {}
+    for r in results:
+        try:
+            ev = float(r.evalue)
+        except (TypeError, ValueError):
+            continue
+        current = best_by_target.get(r.target_name)
+        if current is None or ev < float(current.evalue):
+            best_by_target[r.target_name] = r
+
     cmscores: List[Optional[float]] = []
     hit_flags: List[bool] = []
     for sid in utr_ids:
-        if sid in hits:
-            cmscores.append(hits[sid][0])
+        r = best_by_target.get(sid)
+        if r is not None and float(r.evalue) <= evalue_threshold:
+            cmscores.append(float(r.score))
             hit_flags.append(True)
         else:
             cmscores.append(None)
             hit_flags.append(False)
+
     n_hits = sum(hit_flags)
-    log.info(f"  cmsearch: {n_hits}/{len(utr_ids)} sequences hit the original structure CM")
+    log.info(
+        f"  cmsearch: {n_hits}/{len(utr_ids)} sequences hit the original "
+        f"structure CM (E <= {evalue_threshold})"
+    )
     return cmscores, hit_flags
 
 
@@ -807,9 +904,7 @@ def run_ga(
     tournament_k: int,
     rng_seed: int,
     cm_model: Optional[Path],
-    cmsearch_bin: str,
     cm_evalue_threshold: float,
-    cm_cpu: int,
     halflife_weight: float,
     cm_weight: float,
     no_hit_penalty: float,
@@ -892,10 +987,9 @@ def run_ga(
 
         # ── Structural constraint: cmsearch against the original 3' UTR CM ──
         if use_cm:
-            fasta_3_path = work_dir / 'pop_3utr.fa'
             cmscores, hit_flags = evaluate_cmscores(
-                cmsearch_bin, cm_model, fasta_3_path, utr_ids,
-                work_dir, cm_evalue_threshold, cm_cpu,
+                cm_model, utr_ids, population,
+                work_dir, cm_evalue_threshold, generation=gen,
             )
         else:
             cmscores = [None] * population_size
@@ -1155,15 +1249,15 @@ def main():
                              "cmbuild + cmcalibrate on the original 3' UTR structure). "
                              "If omitted, the structural constraint is skipped and "
                              "fitness is normalised predicted half-life alone.")
-    parser.add_argument('--cmsearch-bin', default='cmsearch', dest='cmsearch_bin',
-                        metavar='PATH', help="Path to the cmsearch executable (default: 'cmsearch').")
     parser.add_argument('--cm-evalue-threshold', type=float, default=0.01,
                         dest='cm_evalue_threshold', metavar='EVALUE',
                         help="E-value cutoff for a cmsearch hit against the original "
-                             "structure (default: 0.01). Sequences with no hit at or "
-                             "below this threshold receive --no-hit-penalty as fitness.")
-    parser.add_argument('--cm-cpu', type=int, default=4, dest='cm_cpu', metavar='N',
-                        help="Number of CPU threads for cmsearch (default: 4).")
+                             "structure (default: 0.01). cmsearch itself is run "
+                             "permissively (-E 1000) so the full tblout/Stockholm "
+                             "output is preserved; this threshold is applied "
+                             "afterward to decide hit vs. no-hit. Sequences with no "
+                             "hit at or below this threshold receive --no-hit-penalty "
+                             "as fitness.")
     parser.add_argument('--halflife-weight', type=float, default=0.5,
                         dest='halflife_weight', metavar='W',
                         help="Weight of normalised predicted half-life in the combined "
@@ -1225,12 +1319,13 @@ def main():
         if not cm_model_path.exists():
             log.error(f"--cm-model not found: {cm_model_path}")
             sys.exit(1)
-        if shutil.which(args.cmsearch_bin) is None and not Path(args.cmsearch_bin).exists():
-            log.error(
-                f"cmsearch executable not found on PATH or as a file: "
-                f"'{args.cmsearch_bin}'. Install Infernal or pass --cmsearch-bin."
+        if shutil.which("cmsearch") is None:
+            log.warning(
+                "--cm-model was given but 'cmsearch' was not found on PATH — "
+                "the structural constraint will be skipped (fitness = "
+                "normalised half-life only)."
             )
-            sys.exit(1)
+            cm_model_path = None
 
     # ── Load fixed sequences ──────────────────────────────────────────────
     try:
@@ -1267,9 +1362,7 @@ def main():
         tournament_k    = args.tournament_k,
         rng_seed        = args.seed,
         cm_model            = cm_model_path,
-        cmsearch_bin        = args.cmsearch_bin,
         cm_evalue_threshold = args.cm_evalue_threshold,
-        cm_cpu              = args.cm_cpu,
         halflife_weight     = args.halflife_weight,
         cm_weight           = args.cm_weight,
         no_hit_penalty      = args.no_hit_penalty,
