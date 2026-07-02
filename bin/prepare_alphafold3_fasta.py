@@ -167,13 +167,13 @@ def main():
                     help="Model seed(s) to use, can repeat this flag for "
                          "multiple seeds. Default: single seed 1.")
     # SLURM options (mirrors the example script's defaults)
-    p.add_argument("--partition", default="aoraki_gpu_L40")
-    p.add_argument("--time", default="24:00:00")
-    p.add_argument("--mem", default="32G")
-    p.add_argument("--cpus-per-task", type=int, default=8)
-    p.add_argument("--gres", default="gpu:1")
+    p.add_argument("--partition", default="aoraki_gpu_L40", help="SLURM partition default: %(default)s")
+    p.add_argument("--time", default="24:00:00", help="SLURM time default: %(default)s")
+    p.add_argument("--mem", default="32G", help="SLURM mem default: %(default)s")
+    p.add_argument("--cpus-per-task", type=int, default=8, help="SLURM cpus-per-task default: %(default)s")
+    p.add_argument("--gres", default="gpu:1", help="SLURM gres default: %(default)s")
     p.add_argument("--exclude", default="aoraki18",
-                    help="Nodes to exclude, comma separated. Pass '' to not exclude any.")
+                    help="Nodes to exclude, comma separated. Pass '' to not exclude any. Default: %(default)s")
     p.add_argument("--array-max-parallel", type=int, default=None,
                     help="Cap on simultaneously running array tasks, e.g. 4 "
                          "for '--array=0-9%%4'. Default: no cap.")
