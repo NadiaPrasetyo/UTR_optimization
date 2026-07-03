@@ -1,0 +1,669 @@
+# cmsearch :: search CM(s) against a sequence database
+# INFERNAL 1.1.5 (Sep 2023)
+# Copyright (C) 2023 Howard Hughes Medical Institute.
+# Freely distributed under the BSD open source license.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query CM file:                         A7_analysis/patent.cm
+# target sequence database:              /tmp/tmp1pgify47/queries.fa
+# output directed to file:               optimization_a7/38gen/_workspace/cmsearch_logs/gen_0006/patent_cmsearch.out
+# MSA of significant hits saved to file: optimization_a7/38gen/_workspace/cmsearch_logs/gen_0006/patent_cmsearch.sto
+# tabular output of hits:                optimization_a7/38gen/_workspace/cmsearch_logs/gen_0006/patent_cmsearch.tblout
+# max ASCII text line length:            unlimited
+# sequence reporting threshold:          E-value <= 1000
+# number of worker threads:              4
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       patent_aligned  [CLEN=36]
+Hit scores:
+ rank     E-value  score  bias  sequence        start    end   mdl trunc   gc  description
+ ----   --------- ------ -----  -------------- ------ ------   --- ----- ----  -----------
+  (1) !   2.4e-16   66.3   0.0  ind_0006_00048    147    182 +  cm    no 0.64  -
+  (2) !   1.1e-13   56.2   0.0  ind_0006_00033    147    182 +  cm    no 0.67  -
+  (3) !   3.5e-12   50.6   0.0  ind_0006_00024    147    182 +  cm    no 0.64  -
+  (4) !   3.7e-12   50.5   0.0  ind_0006_00001    147    182 +  cm    no 0.64  -
+  (5) !   5.7e-12   49.8   0.0  ind_0006_00000    147    180 +  cm    no 0.68  -
+  (6) !   7.9e-12   49.3   0.0  ind_0006_00006    147    182 +  cm    no 0.56  -
+  (7) !   3.1e-11   47.0   0.0  ind_0006_00002    147    182 +  cm    no 0.64  -
+  (8) !   3.1e-11   47.0   0.0  ind_0006_00003    147    182 +  cm    no 0.64  -
+  (9) !   3.4e-11   46.9   0.0  ind_0006_00043    147    182 +  cm    no 0.58  -
+ (10) !   3.7e-11   46.8   0.0  ind_0006_00026    147    182 +  cm    no 0.64  -
+ (11) !   4.5e-11   46.4   0.0  ind_0006_00004    147    182 +  cm    no 0.61  -
+ (12) !   1.2e-10   44.8   0.0  ind_0006_00013    147    182 +  cm    no 0.67  -
+ (13) !   2.8e-10   43.4   0.0  ind_0006_00045    147    182 +  cm    no 0.56  -
+ (14) !   4.5e-10   42.7   0.0  ind_0006_00022    147    180 +  cm    no 0.65  -
+ (15) !   7.7e-10   41.8   0.0  ind_0006_00028    147    182 +  cm    no 0.58  -
+ (16) !   1.6e-09   40.6   0.0  ind_0006_00032    147    179 +  cm    no 0.67  -
+ (17) !   2.1e-09   40.2   0.0  ind_0006_00034    147    180 +  cm    no 0.71  -
+ (18) !   4.9e-09   38.7   0.0  ind_0006_00035    147    182 +  cm    no 0.61  -
+ (19) !   5.8e-09   38.5   0.0  ind_0006_00046    147    180 +  cm    no 0.68  -
+ (20) !   7.9e-09   38.0   0.0  ind_0006_00005    147    182 +  cm    no 0.58  -
+ (21) !   7.9e-09   38.0   0.0  ind_0006_00023    147    182 +  cm    no 0.58  -
+ (22) !   8.3e-09   37.9   0.0  ind_0006_00041    147    182 +  cm    no 0.61  -
+ (23) !   1.4e-08   37.0   0.0  ind_0006_00010    147    182 +  cm    no 0.56  -
+ (24) !   1.1e-07   33.7   0.0  ind_0006_00044    147    182 +  cm    no 0.61  -
+ (25) !   2.6e-07   32.3   0.0  ind_0006_00011    147    182 +  cm    no 0.58  -
+ (26) !   5.1e-07   31.2   0.0  ind_0006_00007    147    182 +  cm    no 0.64  -
+ (27) !   5.6e-07   31.0   0.0  ind_0006_00015    147    182 +  cm    no 0.67  -
+ (28) !   6.5e-07   30.8   0.0  ind_0006_00019    147    182 +  cm    no 0.61  -
+ (29) !   6.8e-07   30.7   0.0  ind_0006_00027    147    180 +  cm    no 0.59  -
+ (30) !   7.5e-07   30.5   0.0  ind_0006_00037    147    180 +  cm    no 0.65  -
+ (31) !   1.1e-06   29.9   0.0  ind_0006_00029    147    182 +  cm    no 0.61  -
+ (32) !   1.2e-06   29.8   0.0  ind_0006_00030    147    182 +  cm    no 0.58  -
+ (33) !   1.3e-06   29.6   0.0  ind_0006_00018    147    182 +  cm    no 0.56  -
+ (34) !   2.5e-06   28.6   0.0  ind_0006_00042    147    180 +  cm    no 0.56  -
+ (35) !   3.9e-06   27.8   0.0  ind_0006_00031    147    181 +  cm    no 0.63  -
+ (36) !     4e-06   27.8   0.0  ind_0006_00021    147    181 +  cm    no 0.60  -
+ (37) !   9.7e-06   26.3   0.0  ind_0006_00020    147    180 +  cm    no 0.62  -
+ (38) !   1.4e-05   25.7   0.0  ind_0006_00039    147    182 +  cm    no 0.61  -
+ (39) !   1.7e-05   25.4   0.0  ind_0006_00038    147    174 +  cm    no 0.68  -
+ (40) !   2.6e-05   24.7   0.0  ind_0006_00008    147    182 +  cm    no 0.61  -
+ (41) !   3.9e-05   24.1   0.0  ind_0006_00016    147    182 +  cm    no 0.61  -
+ (42) !   0.00013   22.1   0.0  ind_0006_00036    147    182 +  cm    no 0.64  -
+ (43) !   0.00023   21.2   0.0  ind_0006_00014    147    182 +  cm    no 0.61  -
+ (44) !    0.0056   15.9   0.0  ind_0006_00040    147    180 +  cm    no 0.68  -
+ ------ inclusion threshold ------
+ (45) ?     0.014   14.5   0.0  ind_0006_00047    147    182 +  cm    no 0.56  -
+ (46) ?     0.015   14.3   0.0  ind_0006_00012    147    182 +  cm    no 0.56  -
+ (47) ?      0.12   10.9   0.0  ind_0006_00017    147    182 +  cm    no 0.61  -
+ (48) ?   9.5e+02   -3.8   0.0  ind_0006_00030    186    197 +  cm    3' 0.50  -
+
+
+Hit alignments:
+>> ind_0006_00048  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (1) !   2.4e-16   66.3   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.64
+
+                                                          NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU
+  ind_0006_00048 147 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 182
+                     ************************************ PP
+
+>> ind_0006_00033  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (2) !   1.1e-13   56.2   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.67
+
+                                  v             v         NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCAGACCCUGG CCGGGGCAAUGGG CCACUGUU
+  ind_0006_00033 147 GGUCAGACCCUGGUCCGGGGCAAUGGGCCCACUGUU 182
+                     ************************************ PP
+
+>> ind_0006_00024  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (3) !   3.5e-12   50.6   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.64
+
+                                                          NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GG CAGA CCUGGUCCGGGGCA UGGGACCACU UU
+  ind_0006_00024 147 GGACAGAGCCUGGUCCGGGGCAUUGGGACCACUCUU 182
+                     ************************************ PP
+
+>> ind_0006_00001  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (4) !   3.7e-12   50.5   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.64
+
+                                   v           v          NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCAGACCCUGGU CGGGG AAUGG ACCACUGUU
+  ind_0006_00001 147 GGUCAGACCCUGGUCCGGGGGAAUGGCACCACUGUU 182
+                     ************************************ PP
+
+>> ind_0006_00000  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (5) !   5.7e-12   49.8   0.0  cm        1       36 []         147         180 + .. 1.00    no 0.68
+
+                          vv                           vv NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     G UCAGACCCUGGUCCGGGGCAA GGGACCACUG  
+  ind_0006_00000 147 GUUCAGACCCUGGUCCGGGGCAACGGGACCACUG-- 180
+                     **********************************.. PP
+
+>> ind_0006_00006  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (6) !   7.9e-12   49.3   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.56
+
+                                                          NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCA:ACC UGGUCCGGGG AA GGGACCACUGU:
+  ind_0006_00006 147 GGUCAAACCUUGGUCCGGGGAAAAGGGACCACUGUU 182
+                     ************************************ PP
+
+>> ind_0006_00002  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (7) !   3.1e-11   47.0   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.64
+
+                            v                         v   NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GG CAGA CCUGGUCCGGGGCA UGGGACCACU UU
+  ind_0006_00002 147 GGACAGACCCUGGUCCGGGGCAUUGGGACCACUCUU 182
+                     ************************************ PP
+
+>> ind_0006_00003  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (8) !   3.1e-11   47.0   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.64
+
+                            v                         v   NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GG CAGA CCUGGUCCGGGGCA UGGGACCACU UU
+  ind_0006_00003 147 GGACAGACCCUGGUCCGGGGCAUUGGGACCACUCUU 182
+                     ************************************ PP
+
+>> ind_0006_00043  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+  (9) !   3.4e-11   46.9   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.58
+
+                                 v               v        NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCAGACCCUG UCC GGG AAUGGGA CACUGUU
+  ind_0006_00043 147 GGUCAGACCCUGGUCCUGGGUAAUGGGAGCACUGUU 182
+                     ************************************ PP
+
+>> ind_0006_00026  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (10) !   3.7e-11   46.8   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.64
+
+                                    v         v           NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCAGACCCUGGUC GGGG AAUG GACCAC GUU
+  ind_0006_00026 147 GGUCAGACCCUGGUCCGGGGAAAUGCGACCACCGUU 182
+                     ************************************ PP
+
+>> ind_0006_00004  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (11) !   4.5e-11   46.4   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.61
+
+                                 v               v        NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GG CAGACCCUG UC GGGGCAAUG GA CACUGUU
+  ind_0006_00004 147 GGACAGACCCUGUUCGGGGGCAAUGCGACCACUGUU 182
+                     ************************************ PP
+
+>> ind_0006_00013  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (12) !   1.2e-10   44.8   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.67
+
+                                   v           v          NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCA:ACCCUGGU CGGGGCAAU G ACCAC GU:
+  ind_0006_00013 147 GGUCAGACCCUGGUCCGGGGCAAUAGCACCACCGUC 182
+                     ************************************ PP
+
+>> ind_0006_00045  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (13) !   2.8e-10   43.4   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.56
+
+                                 v  v         v  v        NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCAGACCCUG UC GGGG AAUG GA CACUGUU
+  ind_0006_00045 147 GGUCAGACCCUGCUCUGGGGAAAUGUGACCACUGUU 182
+                     ************************************ PP
+
+>> ind_0006_00022  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (14) !   4.5e-10   42.7   0.0  cm        1       36 []         147         180 + .. 1.00    no 0.65
+
+                          vv                           vv NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     G U AGACCCUGGUCCGGGGCAAU GGACCACUG  
+  ind_0006_00022 147 GCUGAGACCCUGGUCCGGGGCAAUAGGACCACUG-- 180
+                     **********************************.. PP
+
+>> ind_0006_00028  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (15) !   7.7e-10   41.8   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.58
+
+                                 v               v        NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCAGACCCUG UCCGG G AAUGGGA CA UGUU
+  ind_0006_00028 147 GGUCAGACCCUGGUCCGGCGUAAUGGGAGCAUUGUU 182
+                     ************************************ PP
+
+>> ind_0006_00032  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (16) !   1.6e-09   40.6   0.0  cm        1       36 []         147         179 + .. 1.00    no 0.67
+
+                          vvv      v           v      vvv NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCAGACCCUGGU CGGGG AAUGG ACCACU   
+  ind_0006_00032 147 GGUCAGACCCUGGUCCGGGGGAAUGGCACCACU--- 179
+                     *********************************... PP
+
+>> ind_0006_00034  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (17) !   2.1e-09   40.2   0.0  cm        1       36 []         147         180 + .. 1.00    no 0.71
+
+                          vv   v                   v   vv NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     G UCAGACCC GGUCCGGGGCAA GGGACC CUG  
+  ind_0006_00034 147 GUUCAGACCCGGGUCCGGGGCAACGGGACCACUG-- 180
+                     **********************************.. PP
+
+>> ind_0006_00035  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (18) !   4.9e-09   38.7   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.61
+
+                                   v           v          NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGU AGACCCUGGU  GGGG AAUG  ACCACUGUU
+  ind_0006_00035 147 GGUGAGACCCUGGUCUGGGGGAAUGGCACCACUGUU 182
+                     ************************************ PP
+
+>> ind_0006_00046  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (19) !   5.8e-09   38.5   0.0  cm        1       36 []         147         180 + .. 1.00    no 0.68
+
+                          vv                           vv NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                       UCAGACCCUGGUCCGGGG AA GGGACCACUG  
+  ind_0006_00046 147 CUUCAGACCCUGGUCCGGGGGAACGGGACCACUG-- 180
+                     **********************************.. PP
+
+>> ind_0006_00005  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (20) !   7.9e-09   38.0   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.58
+
+                                 v  v         v  v        NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCAGACCCUG UC G GG AAUG GA CACUGUU
+  ind_0006_00005 147 GGUCAGACCCUGGUCCGAGGUAAUGCGAGCACUGUU 182
+                     ************************************ PP
+
+>> ind_0006_00023  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (21) !   7.9e-09   38.0   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.58
+
+                                 v  v         v  v        NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCAGACCCUG UC G GG AAUG GA CACUGUU
+  ind_0006_00023 147 GGUCAGACCCUGGUCCGAGGUAAUGCGAGCACUGUU 182
+                     ************************************ PP
+
+>> ind_0006_00041  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (22) !   8.3e-09   37.9   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.61
+
+                            v      v           v      v   NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCAGA CCUGGU CGGGGCA UGG ACCAC  UU
+  ind_0006_00041 147 GGUCAGACCCUGGUCCGGGGCAUUGGCACCACAUUU 182
+                     ************************************ PP
+
+>> ind_0006_00010  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (23) !   1.4e-08   37.0   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.56
+
+                                 v               v        NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GG CAGAC CUG UC GG GCAAUG GA CACUGUU
+  ind_0006_00010 147 GGACAGACUCUGUUCGGGAGCAAUGCGACCACUGUU 182
+                     ************************************ PP
+
+>> ind_0006_00044  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (24) !   1.1e-07   33.7   0.0  cm        1       36 []         147         182 + .. 0.99    no 0.61
+
+                                   v           v          NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     G UCAGACCCUGGU CG GG AAU G ACCACUGUU
+  ind_0006_00044 147 GCUCAGACCCUGGUCCGCGGGAAUAGCACCACUGUU 182
+                     ************************************ PP
+
+>> ind_0006_00011  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (25) !   2.6e-07   32.3   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.58
+
+                               v   v           v   v      NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCAGACC  GGU  GGGG AAUG  ACC CUGUU
+  ind_0006_00011 147 GGUCAGACCUUGGUCUGGGGGAAUGGCACCUCUGUU 182
+                     ************************************ PP
+
+>> ind_0006_00007  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (26) !   5.1e-07   31.2   0.0  cm        1       36 []         147         182 + .. 0.97    no 0.64
+
+                                                     NC
+                     :::::<<<--<<<<<~~~~~~>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUC*[11]*GACCACUGUU 36 
+                     GG CAGACCCUGGUC      GACCACUGUU
+  ind_0006_00007 147 GGGCAGACCCUGGUC*[11]*GACCACUGUU 182
+                     **************9...9..9********* PP
+
+>> ind_0006_00015  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (27) !   5.6e-07   31.0   0.0  cm        1       36 []         147         182 + .. 1.00    no 0.67
+
+                                   v           v          NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GG CAGACCCUGGU C GGG A UGG ACCAC GUU
+  ind_0006_00015 147 GGGCAGACCCUGGUCCUGGGUACUGGCACCACCGUU 182
+                     ************************************ PP
+
+>> ind_0006_00019  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (28) !   6.5e-07   30.8   0.0  cm        1       36 []         147         182 + .. 0.99    no 0.61
+
+                                   vv         vv          NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCAGA CCUGGU  GGGG AAUG  ACCAC  UU
+  ind_0006_00019 147 GGUCAGAUCCUGGUCUGGGGGAAUGCCACCACCGUU 182
+                     *************************99********* PP
+
+>> ind_0006_00027  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (29) !   6.8e-07   30.7   0.0  cm        1       36 []         147         180 + .. 1.00    no 0.59
+
+                          vv                           vv NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCA ACC UGGU CGGGG AAU G ACCAC G  
+  ind_0006_00027 147 GGUCAAACCUUGGUGCGGGGAAAUAGCACCACCG-- 180
+                     **********************************.. PP
+
+>> ind_0006_00037  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (30) !   7.5e-07   30.5   0.0  cm        1       36 []         147         180 + .. 1.00    no 0.65
+
+                          vv       v           v       vv NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCA ACCCUGGU CGGGG AAUGG ACCA  G  
+  ind_0006_00037 147 GGUCAAACCCUGGUCCGGGGGAAUGGCACCAACG-- 180
+                     **********************************.. PP
+
+>> ind_0006_00029  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (31) !   1.1e-06   29.9   0.0  cm        1       36 []         147         182 + .. 0.99    no 0.61
+
+                           v       vv         vv       v  NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCAG CCCUGGU  GGGG AAUG  ACCAC G U
+  ind_0006_00029 147 GGUCAGUCCCUGGUCUGGGGAAAUGCCACCACCGUU 182
+                     *************************99********* PP
+
+>> ind_0006_00030  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (32) !   1.2e-06   29.8   0.0  cm        1       36 []         147         182 + .. 0.92    no 0.58
+
+                                   v           v          NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCAGACC UGGU   GGG AAUG  ACCAC GUU
+  ind_0006_00030 147 GGUCAGACCUUGGUAUCGGGGAAUGGCACCACCGUU 182
+                     **************8666666*****9********* PP
+
+>> ind_0006_00018  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (33) !   1.3e-06   29.6   0.0  cm        1       36 []         147         182 + .. 0.99    no 0.56
+
+                            v    v               v    v   NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCAGA C UG UCCGG GCAAUGGGA CA   UU
+  ind_0006_00018 147 GGUCAGACCUUGCUCCGGUGCAAUGGGACCAACAUU 182
+                     ************************************ PP
+
+>> ind_0006_00042  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (34) !   2.5e-06   28.6   0.0  cm        1       36 []         147         180 + .. 0.99    no 0.56
+
+                          vv       v           v       vv NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCAGACC UGGU   GGG AAUG  ACCACUG  
+  ind_0006_00042 147 GGUCAGACCUUGGUGUAGGGGAAUGGAACCACUG-- 180
+                     **********************************.. PP
+
+>> ind_0006_00031  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (35) !   3.9e-06   27.8   0.0  cm        1       36 []         147         181 + .. 0.98    no 0.63
+
+                          v        vv         vv        v NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                      GUCAGACCCUGGU  GGGGCAAU   ACCAC GU 
+  ind_0006_00031 147 CGUCAGACCCUGGUCUGGGGCAAUACCACCACCGU- 181
+                     ************************988********. PP
+
+>> ind_0006_00021  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (36) !     4e-06   27.8   0.0  cm        1       36 []         147         181 + .. 0.96    no 0.60
+
+                          v        vv         vv        v NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCAGACCCUGGU  GGGG AAU   ACCAC GU 
+  ind_0006_00021 147 GGUCAGACCCUGGUCUGGGGAAAUACCACCACCGU- 181
+                     **************99****9999888********. PP
+
+>> ind_0006_00020  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (37) !   9.7e-06   26.3   0.0  cm        1       36 []         147         180 + .. 0.95    no 0.62
+
+                          vv                           vv NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUC GACC UGGUC   GG AAUG GACCACUG  
+  ind_0006_00020 147 GGUCGGACCUUGGUCUUCGGGAAUGGGACCACUG-- 180
+                     ***************877777*************.. PP
+
+>> ind_0006_00039  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (38) !   1.4e-05   25.7   0.0  cm        1       36 []         147         182 + .. 0.98    no 0.61
+
+                               v  v             v  v      NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCA:ACCC GG  CGGGGCAA  G  CC  UGU:
+  ind_0006_00039 147 GGUCAAACCCCGGUGCGGGGCAAAAGCUCCCUUGUU 182
+                     *********************9988*********** PP
+
+>> ind_0006_00038  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (39) !   1.7e-05   25.4   0.0  cm        1       36 []         147         174 + .. 1.00    no 0.68
+
+                          vv   vvvv             vvvv   vv NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCAGACCC++ UCCGGGGCAAUGGG      G  
+  ind_0006_00038 147 GGUCAGACCCAUCUCCGGGGCAAUGGG------G-- 174
+                     ***************************......9.. PP
+
+>> ind_0006_00008  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (40) !   2.6e-05   24.7   0.0  cm        1       36 []         147         182 + .. 0.87    no 0.61
+
+                                   vv        vv          NC
+                     :::::<<<--<<<<<<___~~~~~>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGG*[6]*GGACCACUGUU 36 
+                     GGUCA ACCCUGGUC+GGG       ACCAC GU 
+  ind_0006_00008 147 GGUCACACCCUGGUCUGGG*[8]*--ACCACCGUG 182
+                     **************55555..7....********* PP
+
+>> ind_0006_00016  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (41) !   3.9e-05   24.1   0.0  cm        1       36 []         147         182 + .. 0.99    no 0.61
+
+                                                          NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCA:ACC U GUC  GGG  AUG GAC AC GU:
+  ind_0006_00016 147 GGUCAGACCUUUGUCUUGGGGGAUGGGACGACCGUC 182
+                     *******************999************** PP
+
+>> ind_0006_00036  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (42) !   0.00013   22.1   0.0  cm        1       36 []         147         182 + .. 0.99    no 0.64
+
+                            v   v  v           v  v   v   NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GG CAGA CCU GU CGGGG A UGG AC ACU UU
+  ind_0006_00036 147 GGACAGACCCUGGUCCGGGGGAUUGGCACGACUCUU 182
+                     ************************************ PP
+
+>> ind_0006_00014  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (43) !   0.00023   21.2   0.0  cm        1       36 []         147         182 + .. 0.80    no 0.61
+
+                                 v        v        NC
+                     :::::<<<--<<<<~~~~~~>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGU*[13]*ACCACUGUU 36 
+                     GG CAGACCCUG U      A CACUGUU
+  ind_0006_00014 147 GGCCAGACCCUGUU*[13]*ACCACUGUU 182
+                     ************55...6..66******* PP
+
+>> ind_0006_00040  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (44) !    0.0056   15.9   0.0  cm        1       36 []         147         180 + .. 0.83    no 0.68
+
+                          vv    v  v            v  v    vv NC
+                     :::::<<<--<<<<<<_____.____>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGC.AAUGGGACCACUGUU 36 
+                     GG CAGACCCU GU C GGGC  A GG AC ACUG  
+  ind_0006_00040 147 GGGCAGACCCUAGU-CUGGGCgCAAGGCACCACUG-- 180
+                     **************.5566666444567*******.. PP
+
+>> ind_0006_00047  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (45) ?     0.014   14.5   0.0  cm        1       36 []         147         182 + .. 0.88    no 0.56
+
+                                   v           v          NC
+                     :::::<<<--<<<<<<_________>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUU 36 
+                     GGUCA:ACC U GU   GGG A UG  AC AC GU:
+  ind_0006_00047 147 GGUCAGACCUUUGUCUUGGGGAUUGGCACGACAGUC 182
+                     **************7777777777777********* PP
+
+>> ind_0006_00012  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (46) ?     0.015   14.3   0.0  cm        1       36 []         147         182 + .. 0.75    no 0.56
+
+                                             NC
+                     :::::<<<--<~~~~~~>-->>> CS
+  patent_aligned   1 GGUCAGACCCU*[19]*ACUGUU 36 
+                     GGUCA:ACCCU      AC GU:
+  ind_0006_00012 147 GGUCAGACCCU*[19]*ACCGUC 182
+                     **********9...6..999*** PP
+
+>> ind_0006_00017  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (47) ?      0.12   10.9   0.0  cm        1       36 []         147         182 + .. 0.77    no 0.61
+
+                          v      v v           v v      v NC
+                     :::::<<<--<<<<<<____~~~~~>>>>>>-->>> CS
+  patent_aligned   1 GGUCAGACCCUGGUCCGGGG*[5]*GGACCACUGUU 36 
+                     GGUCA ACC UG U   GGG       A CAC GU 
+  ind_0006_00017 147 GGUCAAACCUUGGUCUUGGG*[5]*GCAGCACCGUC 182
+                     ************77555555..5..5566******* PP
+
+>> ind_0006_00030  
+ rank     E-value  score  bias mdl mdl from   mdl to       seq from      seq to       acc trunc   gc
+ ----   --------- ------ ----- --- -------- --------    ----------- -----------      ---- ----- ----
+ (48) ?   9.5e+02   -3.8   0.0  cm        1       12 [~         186         197 + .~ 0.96    3' 0.50
+
+                          ???  ??       NC
+                     :::::<<<--<<~~~~~~ CS
+  patent_aligned   1 GGUCAGACCCUG*[24]> 36 
+                      GU AGA CCU       
+  ind_0006_00030 186 CGUGAGAUCCUU*[ 0]> 197
+                     ********9998...... PP
+
+
+
+Internal CM pipeline statistics summary:
+----------------------------------------
+Query model(s):                                                  1  (36 consensus positions)
+Target sequences:                                               50  (19700 residues searched)
+Target sequences re-searched for truncated hits:                50  (10200 residues re-searched)
+Windows   passing  local HMM SSV           filter:             212  (0.417); expected (0.35)
+Windows   passing  local HMM Viterbi       filter:                  (off)
+Windows   passing  local HMM Viterbi  bias filter:                  (off)
+Windows   passing  local HMM Forward       filter:             115  (0.2098); expected (0.02)
+Windows   passing  local HMM Forward  bias filter:             115  (0.2098); expected (0.02)
+Windows   passing glocal HMM Forward       filter:              59  (0.151); expected (0.02)
+Windows   passing glocal HMM Forward  bias filter:              59  (0.151); expected (0.02)
+Envelopes passing glocal HMM envelope defn filter:              59  (0.07709); expected (0.02)
+Envelopes passing  local CM  CYK           filter:              57  (0.07418); expected (0.0001)
+Total CM hits reported:                                         48  (0.05635); includes 1 truncated hit(s)
+
+# CPU time: 0.20u 0.00s 00:00:00.20 Elapsed: 00:00:00.20
+# Alignment of 44 hits satisfying inclusion thresholds saved to: optimization_a7/38gen/_workspace/cmsearch_logs/gen_0006/patent_cmsearch.sto
+//
+[ok]
