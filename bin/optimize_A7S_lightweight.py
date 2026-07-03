@@ -1172,7 +1172,7 @@ def run_ga(
         if use_patent:
             log.info(f", patent={patent_weight}")
         else:
-            log.info()
+            log.info(f", no patent")
         log.info(f"  No-hit penalty    : {no_hit_penalty}")
     else:
         log.info("  CM model          : (none) — cmscore constraint disabled")
