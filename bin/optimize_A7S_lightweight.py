@@ -1168,7 +1168,7 @@ def run_ga(
     if use_cm:
         log.info(f"  CM model          : {cm_model}")
         log.info(f"  cmsearch E-value  : <= {cm_evalue_threshold}")
-        log.info(f"  Fitness weights   : halflife={halflife_weight}, cmscore={cm_weight}", end="")
+        log.info(f"  Fitness weights   : halflife={halflife_weight}, cmscore={cm_weight}, pid={patent_weight}")
         if use_patent:
             log.info(f", patent={patent_weight}")
         else:
