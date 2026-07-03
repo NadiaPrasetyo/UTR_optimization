@@ -31,6 +31,10 @@ python mutate_3utr_ga.py \\
     [--halflife-weight 0.5]            \\   # weight of half-life in combined fitness
     [--cm-weight 0.5]                  \\   # weight of cmscore in combined fitness
     [--no-hit-penalty -1000.0]         \\   # fitness assigned when there is no CM hit
+    [--use-default-patents]            \\   # enable A7 patent filtering
+    [--patent-pid-threshold 80.0]      \\   # PID threshold (%) for patent filtering
+    [--patent-weight 0.0]              \\   # weight of low-PID reward in combined fitness
+    [--patent-pid-penalty -1000.0]     \\   # fitness assigned when PID >= threshold
     [--seed        42]                 \\
     [--no-plot]                        \\   # skip generating the fitness plot
 
@@ -99,6 +103,18 @@ logging.basicConfig(
 log = logging.getLogger('ga_3utr')
 
 NUCLEOTIDES = ['A', 'T', 'G', 'C']
+
+# ── Patent sequences (from US/international patent applications) ──────────
+# Used for PID (percent identity) filtering to avoid re-patenting existing motifs
+PATENT_SEQUENCES = [
+    {"id": "A7_30nt", "start": 9651, "end": 9680, "seq": "CAGACCCTGGTCCGGGGCAATGGGACCACT"},
+    {"id": "A7_32nt", "start": 9650, "end": 9681, "seq": "TCAGACCCTGGTCCGGGGCAAATGGGACCACTG"},
+    {"id": "A7_34nt", "start": 9649, "end": 9682, "seq": "GTCAGACCCTGGTCCGGGGCAATGGGACCACTGT"},
+    {"id": "A7_36nt", "start": 9648, "end": 9683, "seq": "GGTCAGACCCTGGTCCGGGGCAAATGGGACCACTGTT"},
+    {"id": "A7_40nt", "start": 9646, "end": 9685, "seq": "TGGGTCAGACCCTGGTCCGGGGCAAATGGGACCACTGTTTC"},
+    {"id": "A7_43nt", "start": 9646, "end": 9688, "seq": "TGGGTCAGACCCTGGTCCGGGGCAATGGGACCACTGTTTCGCG"},
+    {"id": "A7_47nt", "start": 9646, "end": 9692, "seq": "TGGGTCAGACCCTGGTCCGGGGCAATGGGACCACTGTTTCGCGTTTA"},
+]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -206,6 +222,167 @@ def tournament_select(population: List[str], fitness: List[float],
     contestants = rng.sample(range(len(population)), min(k, len(population)))
     winner = max(contestants, key=lambda i: fitness[i])
     return population[winner]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Patent sequence identity (PID) checking via Smith-Waterman alignment
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _sw_pure(seq_a: str, seq_b: str) -> dict:
+    """
+    Pure-Python Smith-Waterman local alignment.
+    Returns {'query': ..., 'subject': ..., 'identities': int, 'alignment_length': int}
+    for the highest-scoring local alignment found.
+    """
+    match_score = 2
+    mismatch_score = -1
+    gap_score = -1
+
+    # DP matrix
+    m, n = len(seq_a), len(seq_b)
+    H = [[0] * (n + 1) for _ in range(m + 1)]
+    max_score = 0
+    max_i, max_j = 0, 0
+
+    for i in range(1, m + 1):
+        for j in range(1, n + 1):
+            if seq_a[i - 1] == seq_b[j - 1]:
+                score = H[i - 1][j - 1] + match_score
+            else:
+                score = H[i - 1][j - 1] + mismatch_score
+            score = max(score, H[i - 1][j] + gap_score, H[i][j - 1] + gap_score, 0)
+            H[i][j] = score
+            if score > max_score:
+                max_score = score
+                max_i, max_j = i, j
+
+    # Traceback from (max_i, max_j) back to start of local alignment
+    align_a, align_b = [], []
+    i, j = max_i, max_j
+    while i > 0 and j > 0 and H[i][j] > 0:
+        if seq_a[i - 1] == seq_b[j - 1]:
+            align_a.append(seq_a[i - 1])
+            align_b.append(seq_b[j - 1])
+            i -= 1
+            j -= 1
+        elif H[i - 1][j - 1] >= H[i - 1][j] and H[i - 1][j - 1] >= H[i][j - 1]:
+            align_a.append(seq_a[i - 1])
+            align_b.append(seq_b[j - 1])
+            i -= 1
+            j -= 1
+        elif H[i - 1][j] > H[i][j - 1]:
+            align_a.append(seq_a[i - 1])
+            align_b.append('-')
+            i -= 1
+        else:
+            align_a.append('-')
+            align_b.append(seq_b[j - 1])
+            j -= 1
+
+    align_a = ''.join(reversed(align_a))
+    align_b = ''.join(reversed(align_b))
+    identities = sum(a == b and a != '-' for a, b in zip(align_a, align_b))
+    alignment_length = max(len(align_a), len(align_b))
+
+    return {
+        'query': align_a,
+        'subject': align_b,
+        'identities': identities,
+        'alignment_length': alignment_length,
+    }
+
+
+def _sw_biopython(seq_a: str, seq_b: str) -> Optional[dict]:
+    """
+    Smith-Waterman alignment using BioPython's pairwise2 module.
+    Returns a dict with 'query', 'subject', 'identities', 'alignment_length'
+    or None if BioPython is not available.
+    """
+    try:
+        from Bio import pairwise2
+        from Bio.Seq import Seq
+    except ImportError:
+        return None
+
+    seq_a_bio = Seq(seq_a)
+    seq_b_bio = Seq(seq_b)
+
+    # Use BLOSUM62-like scoring adapted for nucleotides
+    match_score = 2
+    mismatch_score = -1
+    gap_open = -1
+    gap_extend = -1
+
+    alignments = pairwise2.align.localms(
+        seq_a_bio, seq_b_bio,
+        match_score, mismatch_score,
+        gap_open, gap_extend,
+    )
+    if not alignments:
+        return None
+
+    best = alignments[0]
+    align_a = str(best[0])
+    align_b = str(best[1])
+    identities = sum(a == b and a != '-' for a, b in zip(align_a, align_b))
+    alignment_length = max(len(align_a), len(align_b))
+
+    return {
+        'query': align_a,
+        'subject': align_b,
+        'identities': identities,
+        'alignment_length': alignment_length,
+    }
+
+
+def smith_waterman(seq_a: str, seq_b: str) -> dict:
+    """
+    Smith-Waterman local alignment; tries BioPython first, falls back to pure Python.
+    Returns {'query': ..., 'subject': ..., 'identities': int, 'alignment_length': int}.
+    """
+    try:
+        result = _sw_biopython(seq_a, seq_b)
+        if result:
+            return result
+    except Exception:
+        pass
+    return _sw_pure(seq_a, seq_b)
+
+
+def calculate_pid(seq_query: str, seq_subject: str) -> float:
+    """
+    Calculate percent identity (PID) between two sequences using Smith-Waterman.
+    PID = (identities / length_of_shorter_sequence) * 100
+    """
+    alignment = smith_waterman(seq_query, seq_subject)
+    shorter_len = min(len(seq_query), len(seq_subject))
+    if shorter_len == 0:
+        return 0.0
+    pid = (alignment['identities'] / shorter_len) * 100.0
+    return pid
+
+
+def check_patent_pid(
+    sequence: str,
+    patent_seqs: List[dict],
+    pid_threshold: float = 80.0,
+) -> Tuple[List[float], bool]:
+    """
+    Check the query sequence against all patent sequences.
+
+    Returns (pid_list, passes_filter) where:
+      - pid_list: list of PID values (%) aligned with patent_seqs
+      - passes_filter: True if the sequence has < pid_threshold PID to *all* patents
+                       False if it has >= pid_threshold PID to *any* patent
+    """
+    pids = []
+    for patent in patent_seqs:
+        pid = calculate_pid(sequence, patent['seq'])
+        pids.append(pid)
+
+    # Passes filter if ALL PIDs are below threshold
+    passes = all(pid < pid_threshold for pid in pids)
+    return pids, passes
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -505,22 +682,31 @@ def compute_fitness(
     halflife_scores: List[float],
     cmscores: List[Optional[float]],
     hit_flags: List[bool],
+    patent_pids: List[List[float]],
+    patent_pid_flags: List[bool],
     halflife_weight: float,
     cm_weight: float,
+    patent_weight: float,
     no_hit_penalty: float,
-) -> Tuple[List[float], List[float], List[float]]:
+    patent_pid_penalty: float,
+) -> Tuple[List[float], List[float], List[float], List[float]]:
     """
-    Combine predicted half-life and cmscore into a single fitness value.
+    Combine predicted half-life, cmscore, and patent PID into a single fitness value.
 
-    Both components are min-max normalised to [0, 1] across the *current*
-    population before being combined, so the two weights are comparable
-    regardless of the raw score scales. Individuals with no CM hit
-    (hit_flags[i] is False) bypass the weighted combination entirely and
-    receive *no_hit_penalty* as their fitness, guaranteeing they lose
-    selection against any individual that does preserve the structure
-    (as long as no_hit_penalty is set below the achievable combined range).
+    All three components are min-max normalised to [0, 1] across the *current*
+    population before being combined, so the three weights are comparable
+    regardless of the raw score scales.
 
-    Returns (fitness, normalised_halflife, normalised_cmscore).
+    Patent PID filtering:
+      - Individuals with >= 80% PID to any patent receive *patent_pid_penalty*
+        (overriding the weighted combination), guaranteeing they lose selection.
+      - Individuals with < 80% PID to all patents participate in normal
+        weighted fitness.
+
+    CM hit filtering (existing):
+      - Individuals with no CM hit receive *no_hit_penalty*.
+
+    Returns (fitness, normalised_halflife, normalised_cmscore, normalised_patent_pid).
     """
     valid_hl = [s for s in halflife_scores if s is not None and s != float('-inf')]
     hl_min, hl_max = (min(valid_hl), max(valid_hl)) if valid_hl else (0.0, 1.0)
@@ -530,14 +716,36 @@ def compute_fitness(
     cm_min, cm_max = (min(valid_cm), max(valid_cm)) if valid_cm else (0.0, 1.0)
     cm_range = (cm_max - cm_min) or 1.0
 
+    # Patent PID: lower is better (we want < 80%), so we normalize as (1 - normalized_pid)
+    # Extract the max PID (worst match to any patent) for each sequence
+    max_pids = [max(pids) if pids else 0.0 for pids in patent_pids]
+    valid_pp = [p for p in max_pids if p is not None]
+    pp_min, pp_max = (min(valid_pp), max(valid_pp)) if valid_pp else (0.0, 100.0)
+    pp_range = (pp_max - pp_min) or 1.0
+
     fitness: List[float] = []
     norm_hl_list: List[float] = []
     norm_cm_list: List[float] = []
+    norm_pp_list: List[float] = []
 
-    for hl, cm, hit in zip(halflife_scores, cmscores, hit_flags):
+    for hl, cm, hit, max_pid, patent_pass in zip(
+        halflife_scores, cmscores, hit_flags, max_pids, patent_pid_flags
+    ):
         norm_hl = 0.0 if (hl is None or hl == float('-inf')) else (hl - hl_min) / hl_range
         norm_hl_list.append(norm_hl)
 
+        # Patent PID penalty: if >= 80% to any patent, penalize heavily
+        if not patent_pass:
+            norm_pp_list.append(0.0)
+            fitness.append(patent_pid_penalty)
+            continue
+
+        # For passing sequences, normalize patent PID such that lower is better
+        # (0 at pp_min, 1 at pp_max); we want to reward sequences with low max_pid
+        norm_pp = 1.0 - (max_pid - pp_min) / pp_range
+        norm_pp_list.append(norm_pp)
+
+        # No CM hit penalty
         if not hit:
             norm_cm_list.append(0.0)
             fitness.append(no_hit_penalty)
@@ -545,9 +753,16 @@ def compute_fitness(
 
         norm_cm = (cm - cm_min) / cm_range
         norm_cm_list.append(norm_cm)
-        fitness.append(halflife_weight * norm_hl + cm_weight * norm_cm)
 
-    return fitness, norm_hl_list, norm_cm_list
+        # All three constraints passed: weighted combination
+        combined = (
+            halflife_weight * norm_hl +
+            cm_weight * norm_cm +
+            patent_weight * norm_pp
+        )
+        fitness.append(combined)
+
+    return fitness, norm_hl_list, norm_cm_list, norm_pp_list
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -924,6 +1139,10 @@ def run_ga(
     halflife_weight: float,
     cm_weight: float,
     no_hit_penalty: float,
+    patent_seqs: Optional[List[dict]] = None,
+    patent_pid_threshold: float = 80.0,
+    patent_weight: float = 0.0,
+    patent_pid_penalty: float = -1000.0,
     make_plot: bool = True,
 ) -> None:
     rng = random.Random(rng_seed)
@@ -933,6 +1152,9 @@ def run_ga(
 
     n_elite = max(1, int(population_size * elite_frac))
     use_cm = cm_model is not None
+    if patent_seqs is None:
+        patent_seqs = []
+    use_patent = len(patent_seqs) > 0
 
     log.info("═" * 60)
     log.info("3' UTR Genetic Algorithm")
@@ -946,11 +1168,24 @@ def run_ga(
     if use_cm:
         log.info(f"  CM model          : {cm_model}")
         log.info(f"  cmsearch E-value  : <= {cm_evalue_threshold}")
-        log.info(f"  Fitness weights   : halflife={halflife_weight}, cmscore={cm_weight}")
+        log.info(f"  Fitness weights   : halflife={halflife_weight}, cmscore={cm_weight}", end="")
+        if use_patent:
+            log.info(f", patent={patent_weight}")
+        else:
+            log.info()
         log.info(f"  No-hit penalty    : {no_hit_penalty}")
     else:
-        log.info("  CM model          : (none) — cmscore constraint disabled, "
-                 "fitness = normalised half-life only")
+        log.info("  CM model          : (none) — cmscore constraint disabled")
+        if use_patent:
+            log.info(f"  Fitness weights   : halflife={halflife_weight}, patent={patent_weight}")
+        else:
+            log.info("  Fitness weights   : halflife only")
+    if use_patent:
+        log.info(f"  Patent sequences  : {len(patent_seqs)} motifs")
+        log.info(f"  Patent PID thresh : < {patent_pid_threshold}%")
+        log.info(f"  Patent penalty    : {patent_pid_penalty}")
+    else:
+        log.info("  Patent sequences  : (none) — patent PID constraint disabled")
     log.info(f"  Output            : {output_dir}")
     log.info("═" * 60)
 
@@ -970,6 +1205,7 @@ def run_ga(
     all_time_best_seq     = seed_3utr_seq
     all_time_best_halflife = None
     all_time_best_cmscore  = None
+    all_time_best_patent_pid = None
 
     work_dir = output_dir / '_workspace'
     work_dir.mkdir(exist_ok=True)
@@ -1011,16 +1247,31 @@ def run_ga(
             cmscores = [None] * population_size
             hit_flags = [True] * population_size
 
-        fitness, norm_hl, norm_cm = compute_fitness(
+        # ── Patent PID constraint: avoid re-patenting existing motifs ──
+        if use_patent:
+            all_pids = []
+            patent_pid_flags = []
+            for seq in population:
+                pids, passes = check_patent_pid(seq, patent_seqs, patent_pid_threshold)
+                all_pids.append(pids)
+                patent_pid_flags.append(passes)
+        else:
+            all_pids = [[] for _ in range(population_size)]
+            patent_pid_flags = [True] * population_size
+
+        fitness, norm_hl, norm_cm, norm_pp = compute_fitness(
             halflife_scores, cmscores, hit_flags,
-            halflife_weight, cm_weight, no_hit_penalty,
+            all_pids, patent_pid_flags,
+            halflife_weight, cm_weight, patent_weight,
+            no_hit_penalty, patent_pid_penalty,
         )
 
         # ── Record results ────────────────────────────────────────────────
-        for sid, seq, hl, cm, hit, f, nhl, ncm in zip(
+        for sid, seq, hl, cm, hit, pids, p_pass, f, nhl, ncm, npp in zip(
             utr_ids, population, halflife_scores, cmscores, hit_flags,
-            fitness, norm_hl, norm_cm,
+            all_pids, patent_pid_flags, fitness, norm_hl, norm_cm, norm_pp,
         ):
+            max_pid = max(pids) if pids else None
             all_rows.append({
                 'generation': gen,
                 'rank_in_gen': 0,
@@ -1029,8 +1280,11 @@ def run_ga(
                 'predicted_halflife': hl,
                 'cmscore': cm if cm is not None else '',
                 'cm_hit': hit,
+                'max_patent_pid': max_pid if max_pid is not None else '',
+                'patent_pid_pass': p_pass,
                 'norm_halflife': nhl,
                 'norm_cmscore': ncm,
+                'norm_patent_pid': npp,
                 'mutation_rate': current_mutation_rate,
                 'sequence': seq,
                 'length': len(seq),
@@ -1040,53 +1294,67 @@ def run_ga(
 
         # Sort by combined fitness descending
         ranked = sorted(
-            zip(fitness, population, utr_ids, halflife_scores, cmscores, hit_flags),
+            zip(fitness, population, utr_ids, halflife_scores, cmscores, hit_flags,
+                all_pids, patent_pid_flags),
             key=lambda x: x[0], reverse=True,
         )
-        for rank, (f, sq, sid, hl, cm, hit) in enumerate(ranked):
+        for rank, (f, sq, sid, hl, cm, hit, pids, p_pass) in enumerate(ranked):
             for row in all_rows:
                 if row['sample_id'] == sid:
                     row['rank_in_gen'] = rank + 1
 
-        best_fitness, best_seq, best_id, best_halflife, best_cmscore, best_hit = ranked[0]
+        best_fitness, best_seq, best_id, best_halflife, best_cmscore, best_hit, best_pids, best_p_pass = ranked[0]
+        best_max_pid = max(best_pids) if best_pids else None
         gen_elapsed = time.time() - gen_start
         n_hits = sum(hit_flags) if use_cm else population_size
+        n_patent_pass = sum(patent_pid_flags) if use_patent else population_size
+        
+        patent_str = ""
+        if use_patent and best_max_pid is not None:
+            patent_str = f", max_patent_pid={best_max_pid:.1f}%"
+        
         log.info(f"  Best fitness this gen : {best_fitness:.4f}  ({best_id}, "
                  f"halflife={best_halflife:.4f}, "
-                 f"cmscore={'n/a' if best_cmscore is None else f'{best_cmscore:.2f}'})")
+                 f"cmscore={'n/a' if best_cmscore is None else f'{best_cmscore:.2f}'}{patent_str})")
         log.info(f"  Worst fitness this gen: {ranked[-1][0]:.4f}")
         log.info(f"  Mean fitness          : {sum(fitness)/len(fitness):.4f}")
         if use_cm:
             log.info(f"  CM hits               : {n_hits}/{population_size}")
+        if use_patent:
+            log.info(f"  Patent PID pass       : {n_patent_pass}/{population_size}")
         log.info(f"  Elapsed               : {gen_elapsed:.1f}s")
 
-        best_per_gen.append({
+        best_per_gen_dict = {
             'generation': gen,
             'best_fitness': best_fitness,
             'mean_fitness': sum(fitness) / len(fitness),
             'worst_fitness': ranked[-1][0],
             'best_halflife': best_halflife,
             'best_cmscore': best_cmscore,
+            'best_max_patent_pid': best_max_pid,
             'n_cm_hits': n_hits,
+            'n_patent_pass': n_patent_pass,
             'mutation_rate': current_mutation_rate,
             'best_id': best_id,
             'best_sequence': best_seq,
-        })
+        }
+        best_per_gen.append(best_per_gen_dict)
 
         if best_fitness > all_time_best_fitness:
             all_time_best_fitness  = best_fitness
             all_time_best_seq      = best_seq
             all_time_best_halflife = best_halflife
             all_time_best_cmscore  = best_cmscore
+            all_time_best_patent_pid = best_max_pid
             log.info(f"  ★ New all-time best fitness: {all_time_best_fitness:.4f}")
 
         if gen == generations:
             break
 
         # ── Breed next generation ─────────────────────────────────────────
-        elite_seqs = [sq for _, sq, _, _, _, _ in ranked[:n_elite]]
-        pool_fitness = [f for f, _, _, _, _, _ in ranked]
-        pool_seqs    = [sq for _, sq, _, _, _, _ in ranked]
+        elite_seqs = [sq for _, sq, _, _, _, _, _, _ in ranked[:n_elite]]
+        pool_fitness = [f for f, _, _, _, _, _, _, _ in ranked]
+        pool_seqs    = [sq for _, sq, _, _, _, _, _, _ in ranked]
 
         next_gen = list(elite_seqs)
 
@@ -1152,10 +1420,20 @@ def run_ga(
         if use_cm:
             fh.write(f"CM model            : {cm_model}\n")
             fh.write(f"cmsearch E-value    : <= {cm_evalue_threshold}\n")
-            fh.write(f"Fitness weights     : halflife={halflife_weight}, cmscore={cm_weight}\n")
+            fh.write(f"Fitness weights     : halflife={halflife_weight}, cmscore={cm_weight}")
+            if use_patent:
+                fh.write(f", patent={patent_weight}\n")
+            else:
+                fh.write("\n")
             fh.write(f"No-hit penalty      : {no_hit_penalty}\n")
         else:
             fh.write("CM model            : (none) — cmscore constraint disabled\n")
+            if use_patent:
+                fh.write(f"Fitness weights     : halflife={halflife_weight}, patent={patent_weight}\n")
+        if use_patent:
+            fh.write(f"Patent sequences    : {len(patent_seqs)} motifs\n")
+            fh.write(f"Patent PID threshold: < {patent_pid_threshold}%\n")
+            fh.write(f"Patent penalty      : {patent_pid_penalty}\n")
         fh.write("\n")
         fh.write(f"Seed 3UTR length : {len(seed_3utr_seq)} nt\n")
         fh.write(f"Best 3UTR length : {len(all_time_best_seq)} nt\n\n")
@@ -1164,6 +1442,8 @@ def run_ga(
         fh.write(f"Final best predicted half-life : {all_time_best_halflife:.4f}\n")
         if all_time_best_cmscore is not None:
             fh.write(f"Final best cmscore (bits)      : {all_time_best_cmscore:.2f}\n")
+        if all_time_best_patent_pid is not None:
+            fh.write(f"Final best max patent PID      : {all_time_best_patent_pid:.1f}%\n")
         fh.write("\n")
         mutations = sum(a != b for a, b in zip(seed_3utr_seq, all_time_best_seq)
                         if len(seed_3utr_seq) == len(all_time_best_seq))
@@ -1171,11 +1451,12 @@ def run_ga(
         fh.write("Generation-by-generation best fitness:\n")
         for row in best_per_gen:
             cm_str = 'n/a' if row['best_cmscore'] is None else f"{row['best_cmscore']:.2f}"
+            patent_str = f" | patent_pass {row['n_patent_pass']}" if use_patent else ""
             fh.write(
                 f"  Gen {row['generation']:>3d} : fitness {row['best_fitness']:.4f} "
                 f"(mean {row['mean_fitness']:.4f}, worst {row['worst_fitness']:.4f}) | "
                 f"halflife {row['best_halflife']:.4f} | cmscore {cm_str} | "
-                f"mut_rate {row['mutation_rate']:.5f} | cm_hits {row['n_cm_hits']}\n"
+                f"mut_rate {row['mutation_rate']:.5f} | cm_hits {row['n_cm_hits']}{patent_str}\n"
             )
         fh.write("\nBest evolved 3UTR sequence:\n")
         for i in range(0, len(all_time_best_seq), 60):
@@ -1183,9 +1464,12 @@ def run_ga(
 
     log.info(f"Wrote {summary_path}")
     log.info("\n" + "═" * 60)
+    patent_str_final = ""
+    if all_time_best_patent_pid is not None:
+        patent_str_final = f", max_patent_pid={all_time_best_patent_pid:.1f}%"
     log.info(f"GA complete.  All-time best fitness: {all_time_best_fitness:.4f} "
              f"(halflife={all_time_best_halflife:.4f}, "
-             f"cmscore={'n/a' if all_time_best_cmscore is None else f'{all_time_best_cmscore:.2f}'})")
+             f"cmscore={'n/a' if all_time_best_cmscore is None else f'{all_time_best_cmscore:.2f}'}{patent_str_final})")
     log.info(f"Results in: {results_dir}")
     log.info("═" * 60)
 
@@ -1290,6 +1574,25 @@ def main():
                              "of normalised half-life and cmscore (which lies in "
                              "[0, halflife-weight + cm-weight]).")
 
+    # ── Patent sequence constraint ───────────────────────────────────────
+    parser.add_argument('--use-default-patents', action='store_true',
+                        dest='use_default_patents',
+                        help="Use built-in A7 patent sequences (default: False). "
+                             "Sequences with >= 80%% PID to any patent receive a penalty.")
+    parser.add_argument('--patent-pid-threshold', type=float, default=80.0,
+                        dest='patent_pid_threshold', metavar='PCT',
+                        help="PID threshold for patent filtering (default: 80.0). "
+                             "Sequences with >= this PID to any patent are penalized.")
+    parser.add_argument('--patent-weight', type=float, default=0.0,
+                        dest='patent_weight', metavar='W',
+                        help="Weight of normalised patent PID avoidance in combined "
+                             "fitness (default: 0.0, i.e., patent constraint is soft "
+                             "penalty-only). Set > 0 to actively reward low PID.")
+    parser.add_argument('--patent-pid-penalty', type=float, default=-1000.0,
+                        dest='patent_pid_penalty', metavar='VALUE',
+                        help="Fitness penalty assigned to sequences with >= patent-pid-threshold "
+                             "PID to any patent (default: -1000.0).")
+
     # ── Output ────────────────────────────────────────────────────────────
     parser.add_argument('--output-dir', '-o', default='ga_output',
                         dest='output_dir', metavar='DIR',
@@ -1382,6 +1685,10 @@ def main():
         halflife_weight     = args.halflife_weight,
         cm_weight           = args.cm_weight,
         no_hit_penalty      = args.no_hit_penalty,
+        patent_seqs         = PATENT_SEQUENCES if args.use_default_patents else None,
+        patent_pid_threshold = args.patent_pid_threshold,
+        patent_weight       = args.patent_weight,
+        patent_pid_penalty  = args.patent_pid_penalty,
         make_plot       = not args.no_plot,
     )
 
