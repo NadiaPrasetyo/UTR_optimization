@@ -1,0 +1,136 @@
+3' UTR Genetic Algorithm — Evolution Summary
+============================================================
+
+Generations         : 100
+Population size     : 50
+Mutation rate       : 0.05 → 0.001 (exponential cooling, k=3.0)
+Crossover rate      : 0.5
+Elite fraction      : 0.1  (5 individuals)
+Tournament k        : 3
+RNG seed            : 42
+CM model            : A7_analysis/a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2.cm
+cmsearch E-value    : <= 0.01
+Fitness weights     : halflife=0.5, cmscore=0.5, patent=0.0
+No-hit penalty      : -1000.0
+Patent sequences    : 7 motifs
+Patent PID threshold: < 80.0%
+Patent penalty      : -1000.0
+
+Seed 3UTR length : 197 nt
+Best 3UTR length : 197 nt
+
+Generation 1 best fitness : 0.3009
+Final best fitness        : 1.0000
+Final best predicted half-life : -0.1640
+Final best cmscore (bits)      : 78.60
+Final best max patent PID      : 76.7%
+
+Point mutations from seed : 115 / 197
+
+Generation-by-generation best fitness:
+  Gen   1 : fitness 0.3009 (mean -919.9788, worst -1000.0000) | halflife -1.7016 | cmscore 31.00 | mut_rate 0.05000 | cm_hits 33 | patent_pass 11
+  Gen   2 : fitness 0.2725 (mean -799.9667, worst -1000.0000) | halflife -1.5300 | cmscore 20.40 | mut_rate 0.04854 | cm_hits 24 | patent_pass 25
+  Gen   3 : fitness 0.4917 (mean -819.9546, worst -1000.0000) | halflife -1.7016 | cmscore 31.00 | mut_rate 0.04712 | cm_hits 14 | patent_pass 30
+  Gen   4 : fitness 0.7102 (mean -759.9161, worst -1000.0000) | halflife -1.5820 | cmscore 31.00 | mut_rate 0.04574 | cm_hits 15 | patent_pass 35
+  Gen   5 : fitness 0.7428 (mean -739.8815, worst -1000.0000) | halflife -1.5435 | cmscore 30.70 | mut_rate 0.04441 | cm_hits 14 | patent_pass 33
+  Gen   6 : fitness 0.7759 (mean -639.8122, worst -1000.0000) | halflife -1.3334 | cmscore 25.50 | mut_rate 0.04311 | cm_hits 20 | patent_pass 37
+  Gen   7 : fitness 0.7520 (mean -619.8207, worst -1000.0000) | halflife -1.3334 | cmscore 25.50 | mut_rate 0.04185 | cm_hits 29 | patent_pass 31
+  Gen   8 : fitness 0.6894 (mean -559.7729, worst -1000.0000) | halflife -1.5110 | cmscore 31.50 | mut_rate 0.04063 | cm_hits 26 | patent_pass 42
+  Gen   9 : fitness 0.7721 (mean -499.7459, worst -1000.0000) | halflife -1.4837 | cmscore 34.10 | mut_rate 0.03945 | cm_hits 31 | patent_pass 38
+  Gen  10 : fitness 0.8633 (mean -539.7701, worst -1000.0000) | halflife -1.2698 | cmscore 33.60 | mut_rate 0.03830 | cm_hits 25 | patent_pass 43
+  Gen  11 : fitness 0.9273 (mean -439.7276, worst -1000.0000) | halflife -1.2698 | cmscore 33.60 | mut_rate 0.03719 | cm_hits 30 | patent_pass 41
+  Gen  12 : fitness 0.9855 (mean -539.7990, worst -1000.0000) | halflife -1.1071 | cmscore 37.10 | mut_rate 0.03611 | cm_hits 27 | patent_pass 37
+  Gen  13 : fitness 0.9667 (mean -459.7306, worst -1000.0000) | halflife -1.1071 | cmscore 37.10 | mut_rate 0.03506 | cm_hits 33 | patent_pass 38
+  Gen  14 : fitness 0.9279 (mean -319.6936, worst -1000.0000) | halflife -1.1071 | cmscore 37.10 | mut_rate 0.03405 | cm_hits 38 | patent_pass 45
+  Gen  15 : fitness 0.9065 (mean -419.7133, worst -1000.0000) | halflife -1.1071 | cmscore 37.10 | mut_rate 0.03306 | cm_hits 34 | patent_pass 42
+  Gen  16 : fitness 0.8360 (mean -439.7326, worst -1000.0000) | halflife -0.8156 | cmscore 30.40 | mut_rate 0.03210 | cm_hits 35 | patent_pass 36
+  Gen  17 : fitness 0.8053 (mean -299.6530, worst -1000.0000) | halflife -0.8156 | cmscore 30.40 | mut_rate 0.03117 | cm_hits 39 | patent_pass 40
+  Gen  18 : fitness 0.8067 (mean -379.7239, worst -1000.0000) | halflife -0.8156 | cmscore 30.40 | mut_rate 0.03027 | cm_hits 38 | patent_pass 39
+  Gen  19 : fitness 0.7851 (mean -179.6420, worst -1000.0000) | halflife -1.0423 | cmscore 39.60 | mut_rate 0.02940 | cm_hits 46 | patent_pass 44
+  Gen  20 : fitness 0.6687 (mean -419.7411, worst -1000.0000) | halflife -1.0423 | cmscore 39.60 | mut_rate 0.02855 | cm_hits 37 | patent_pass 39
+  Gen  21 : fitness 0.6312 (mean -299.7145, worst -1000.0000) | halflife -0.6071 | cmscore 24.10 | mut_rate 0.02773 | cm_hits 42 | patent_pass 39
+  Gen  22 : fitness 0.6943 (mean -479.7802, worst -1000.0000) | halflife -1.0423 | cmscore 39.60 | mut_rate 0.02693 | cm_hits 35 | patent_pass 39
+  Gen  23 : fitness 0.8264 (mean -439.7318, worst -1000.0000) | halflife -0.8754 | cmscore 47.80 | mut_rate 0.02616 | cm_hits 32 | patent_pass 39
+  Gen  24 : fitness 0.8803 (mean -459.7338, worst -1000.0000) | halflife -0.8222 | cmscore 50.10 | mut_rate 0.02541 | cm_hits 41 | patent_pass 32
+  Gen  25 : fitness 0.8321 (mean -199.5972, worst -1000.0000) | halflife -0.8222 | cmscore 50.10 | mut_rate 0.02468 | cm_hits 45 | patent_pass 42
+  Gen  26 : fitness 0.7642 (mean -139.5772, worst -1000.0000) | halflife -0.8222 | cmscore 50.10 | mut_rate 0.02397 | cm_hits 50 | patent_pass 43
+  Gen  27 : fitness 0.8788 (mean -219.5009, worst -1000.0000) | halflife -0.7380 | cmscore 49.10 | mut_rate 0.02329 | cm_hits 49 | patent_pass 39
+  Gen  28 : fitness 0.8621 (mean -39.5143, worst -1000.0000) | halflife -0.7072 | cmscore 49.10 | mut_rate 0.02262 | cm_hits 50 | patent_pass 48
+  Gen  29 : fitness 0.9316 (mean -179.5018, worst -1000.0000) | halflife -0.5863 | cmscore 49.60 | mut_rate 0.02198 | cm_hits 50 | patent_pass 41
+  Gen  30 : fitness 0.8988 (mean -79.5867, worst -1000.0000) | halflife -0.5863 | cmscore 49.60 | mut_rate 0.02135 | cm_hits 49 | patent_pass 46
+  Gen  31 : fitness 0.8624 (mean -99.5602, worst -1000.0000) | halflife -0.5863 | cmscore 49.60 | mut_rate 0.02074 | cm_hits 50 | patent_pass 45
+  Gen  32 : fitness 0.7368 (mean -99.5236, worst -1000.0000) | halflife -0.5863 | cmscore 49.60 | mut_rate 0.02015 | cm_hits 50 | patent_pass 45
+  Gen  33 : fitness 0.6610 (mean -99.6288, worst -1000.0000) | halflife -0.5863 | cmscore 49.60 | mut_rate 0.01958 | cm_hits 50 | patent_pass 45
+  Gen  34 : fitness 0.9413 (mean -39.4323, worst -1000.0000) | halflife -0.4595 | cmscore 55.40 | mut_rate 0.01903 | cm_hits 50 | patent_pass 48
+  Gen  35 : fitness 0.8590 (mean -199.5443, worst -1000.0000) | halflife -0.4595 | cmscore 55.40 | mut_rate 0.01849 | cm_hits 50 | patent_pass 40
+  Gen  36 : fitness 0.8653 (mean -159.5126, worst -1000.0000) | halflife -0.4595 | cmscore 55.40 | mut_rate 0.01797 | cm_hits 50 | patent_pass 42
+  Gen  37 : fitness 0.7648 (mean -179.6218, worst -1000.0000) | halflife -0.4540 | cmscore 55.70 | mut_rate 0.01746 | cm_hits 50 | patent_pass 41
+  Gen  38 : fitness 0.7720 (mean -259.6341, worst -1000.0000) | halflife -0.4951 | cmscore 60.10 | mut_rate 0.01697 | cm_hits 50 | patent_pass 37
+  Gen  39 : fitness 0.8078 (mean -119.5513, worst -1000.0000) | halflife -0.3284 | cmscore 54.90 | mut_rate 0.01649 | cm_hits 50 | patent_pass 44
+  Gen  40 : fitness 0.8017 (mean -239.5625, worst -1000.0000) | halflife -0.3931 | cmscore 58.00 | mut_rate 0.01603 | cm_hits 50 | patent_pass 38
+  Gen  41 : fitness 0.8626 (mean -119.5126, worst -1000.0000) | halflife -0.2383 | cmscore 54.90 | mut_rate 0.01558 | cm_hits 50 | patent_pass 44
+  Gen  42 : fitness 0.9084 (mean -139.5142, worst -1000.0000) | halflife -0.2702 | cmscore 59.00 | mut_rate 0.01515 | cm_hits 50 | patent_pass 43
+  Gen  43 : fitness 0.9741 (mean -99.4488, worst -1000.0000) | halflife -0.2385 | cmscore 60.90 | mut_rate 0.01472 | cm_hits 50 | patent_pass 45
+  Gen  44 : fitness 0.9292 (mean -99.4697, worst -1000.0000) | halflife -0.2209 | cmscore 60.10 | mut_rate 0.01431 | cm_hits 50 | patent_pass 45
+  Gen  45 : fitness 0.9563 (mean -59.4000, worst -1000.0000) | halflife -0.2209 | cmscore 60.10 | mut_rate 0.01392 | cm_hits 50 | patent_pass 47
+  Gen  46 : fitness 0.9773 (mean -39.3249, worst -1000.0000) | halflife -0.2066 | cmscore 60.90 | mut_rate 0.01353 | cm_hits 50 | patent_pass 48
+  Gen  47 : fitness 0.9514 (mean -79.4048, worst -1000.0000) | halflife -0.2066 | cmscore 60.90 | mut_rate 0.01316 | cm_hits 50 | patent_pass 46
+  Gen  48 : fitness 0.9345 (mean -99.3989, worst -1000.0000) | halflife -0.2066 | cmscore 60.90 | mut_rate 0.01279 | cm_hits 50 | patent_pass 45
+  Gen  49 : fitness 0.9004 (mean -99.3489, worst -1000.0000) | halflife -0.2066 | cmscore 60.90 | mut_rate 0.01244 | cm_hits 50 | patent_pass 45
+  Gen  50 : fitness 0.9387 (mean -39.4022, worst -1000.0000) | halflife -0.2088 | cmscore 64.20 | mut_rate 0.01210 | cm_hits 50 | patent_pass 48
+  Gen  51 : fitness 0.9318 (mean -99.3802, worst -1000.0000) | halflife -0.2088 | cmscore 64.20 | mut_rate 0.01177 | cm_hits 50 | patent_pass 45
+  Gen  52 : fitness 0.9225 (mean -59.4537, worst -1000.0000) | halflife -0.2088 | cmscore 64.20 | mut_rate 0.01145 | cm_hits 50 | patent_pass 47
+  Gen  53 : fitness 0.9543 (mean -39.3604, worst -1000.0000) | halflife -0.2040 | cmscore 64.50 | mut_rate 0.01114 | cm_hits 50 | patent_pass 48
+  Gen  54 : fitness 0.8908 (mean -19.4288, worst -1000.0000) | halflife -0.1935 | cmscore 66.60 | mut_rate 0.01083 | cm_hits 50 | patent_pass 49
+  Gen  55 : fitness 0.9139 (mean -59.3486, worst -1000.0000) | halflife -0.1671 | cmscore 66.00 | mut_rate 0.01054 | cm_hits 50 | patent_pass 47
+  Gen  56 : fitness 0.9233 (mean -19.2887, worst -1000.0000) | halflife -0.2146 | cmscore 71.10 | mut_rate 0.01025 | cm_hits 50 | patent_pass 49
+  Gen  57 : fitness 0.9361 (mean -99.3921, worst -1000.0000) | halflife -0.1640 | cmscore 71.70 | mut_rate 0.00998 | cm_hits 50 | patent_pass 45
+  Gen  58 : fitness 0.9705 (mean -99.3631, worst -1000.0000) | halflife -0.1640 | cmscore 71.70 | mut_rate 0.00971 | cm_hits 50 | patent_pass 45
+  Gen  59 : fitness 0.9545 (mean -59.3695, worst -1000.0000) | halflife -0.1640 | cmscore 72.00 | mut_rate 0.00945 | cm_hits 50 | patent_pass 47
+  Gen  60 : fitness 0.9946 (mean -59.2823, worst -1000.0000) | halflife -0.1640 | cmscore 73.40 | mut_rate 0.00920 | cm_hits 50 | patent_pass 47
+  Gen  61 : fitness 0.9934 (mean -79.2646, worst -1000.0000) | halflife -0.1640 | cmscore 73.40 | mut_rate 0.00895 | cm_hits 50 | patent_pass 46
+  Gen  62 : fitness 0.9585 (mean -39.2881, worst -1000.0000) | halflife -0.1671 | cmscore 73.70 | mut_rate 0.00872 | cm_hits 50 | patent_pass 48
+  Gen  63 : fitness 0.9162 (mean -59.3349, worst -1000.0000) | halflife -0.1671 | cmscore 73.70 | mut_rate 0.00849 | cm_hits 50 | patent_pass 47
+  Gen  64 : fitness 0.9825 (mean -19.2779, worst -1000.0000) | halflife -0.1671 | cmscore 73.70 | mut_rate 0.00826 | cm_hits 50 | patent_pass 49
+  Gen  65 : fitness 0.9313 (mean -39.2777, worst -1000.0000) | halflife -0.1671 | cmscore 73.70 | mut_rate 0.00805 | cm_hits 50 | patent_pass 48
+  Gen  66 : fitness 0.9172 (mean -39.2928, worst -1000.0000) | halflife -0.1671 | cmscore 73.70 | mut_rate 0.00784 | cm_hits 50 | patent_pass 48
+  Gen  67 : fitness 0.9836 (mean -99.3869, worst -1000.0000) | halflife -0.1640 | cmscore 76.50 | mut_rate 0.00763 | cm_hits 50 | patent_pass 45
+  Gen  68 : fitness 0.9726 (mean 0.7246, worst 0.2546) | halflife -0.1640 | cmscore 76.50 | mut_rate 0.00743 | cm_hits 50 | patent_pass 50
+  Gen  69 : fitness 0.9351 (mean -19.2597, worst -1000.0000) | halflife -0.1640 | cmscore 76.50 | mut_rate 0.00724 | cm_hits 50 | patent_pass 49
+  Gen  70 : fitness 0.9075 (mean -79.3105, worst -1000.0000) | halflife -0.1640 | cmscore 76.50 | mut_rate 0.00706 | cm_hits 50 | patent_pass 46
+  Gen  71 : fitness 0.9342 (mean -19.2869, worst -1000.0000) | halflife -0.1640 | cmscore 76.50 | mut_rate 0.00687 | cm_hits 50 | patent_pass 49
+  Gen  72 : fitness 0.9722 (mean -19.2203, worst -1000.0000) | halflife -0.1530 | cmscore 76.50 | mut_rate 0.00670 | cm_hits 50 | patent_pass 49
+  Gen  73 : fitness 0.9504 (mean -79.2737, worst -1000.0000) | halflife -0.1671 | cmscore 77.30 | mut_rate 0.00653 | cm_hits 50 | patent_pass 46
+  Gen  74 : fitness 0.9634 (mean -79.3493, worst -1000.0000) | halflife -0.1530 | cmscore 76.70 | mut_rate 0.00636 | cm_hits 50 | patent_pass 46
+  Gen  75 : fitness 0.9774 (mean -19.2299, worst -1000.0000) | halflife -0.1530 | cmscore 76.70 | mut_rate 0.00620 | cm_hits 50 | patent_pass 49
+  Gen  76 : fitness 0.9586 (mean -59.3198, worst -1000.0000) | halflife -0.1530 | cmscore 76.70 | mut_rate 0.00605 | cm_hits 50 | patent_pass 47
+  Gen  77 : fitness 0.9931 (mean -79.2373, worst -1000.0000) | halflife -0.1530 | cmscore 77.10 | mut_rate 0.00590 | cm_hits 50 | patent_pass 46
+  Gen  78 : fitness 0.9608 (mean 0.7480, worst 0.2013) | halflife -0.1530 | cmscore 77.10 | mut_rate 0.00575 | cm_hits 50 | patent_pass 50
+  Gen  79 : fitness 0.9793 (mean -39.3001, worst -1000.0000) | halflife -0.1640 | cmscore 78.40 | mut_rate 0.00561 | cm_hits 50 | patent_pass 48
+  Gen  80 : fitness 0.9789 (mean 0.8308, worst 0.0000) | halflife -0.1640 | cmscore 78.40 | mut_rate 0.00547 | cm_hits 50 | patent_pass 50
+  Gen  81 : fitness 0.9711 (mean -19.2347, worst -1000.0000) | halflife -0.1671 | cmscore 78.60 | mut_rate 0.00534 | cm_hits 50 | patent_pass 49
+  Gen  82 : fitness 0.9279 (mean 0.7744, worst 0.0612) | halflife -0.1671 | cmscore 78.60 | mut_rate 0.00521 | cm_hits 50 | patent_pass 50
+  Gen  83 : fitness 0.9904 (mean -19.2521, worst -1000.0000) | halflife -0.1640 | cmscore 78.40 | mut_rate 0.00508 | cm_hits 50 | patent_pass 49
+  Gen  84 : fitness 0.9909 (mean -19.1894, worst -1000.0000) | halflife -0.1640 | cmscore 78.40 | mut_rate 0.00496 | cm_hits 50 | patent_pass 49
+  Gen  85 : fitness 0.9868 (mean -39.2471, worst -1000.0000) | halflife -0.1640 | cmscore 78.40 | mut_rate 0.00484 | cm_hits 50 | patent_pass 48
+  Gen  86 : fitness 1.0000 (mean -39.2046, worst -1000.0000) | halflife -0.1640 | cmscore 78.60 | mut_rate 0.00473 | cm_hits 50 | patent_pass 48
+  Gen  87 : fitness 1.0000 (mean -19.2656, worst -1000.0000) | halflife -0.1530 | cmscore 78.60 | mut_rate 0.00462 | cm_hits 50 | patent_pass 49
+  Gen  88 : fitness 0.8795 (mean -19.2453, worst -1000.0000) | halflife -0.1530 | cmscore 78.60 | mut_rate 0.00451 | cm_hits 50 | patent_pass 49
+  Gen  89 : fitness 0.9488 (mean -19.3465, worst -1000.0000) | halflife -0.1640 | cmscore 80.70 | mut_rate 0.00440 | cm_hits 50 | patent_pass 49
+  Gen  90 : fitness 0.9339 (mean -79.2980, worst -1000.0000) | halflife -0.1640 | cmscore 80.70 | mut_rate 0.00430 | cm_hits 50 | patent_pass 46
+  Gen  91 : fitness 0.9617 (mean -39.3086, worst -1000.0000) | halflife -0.1640 | cmscore 81.40 | mut_rate 0.00420 | cm_hits 50 | patent_pass 48
+  Gen  92 : fitness 0.9744 (mean -19.2186, worst -1000.0000) | halflife -0.1671 | cmscore 81.70 | mut_rate 0.00411 | cm_hits 50 | patent_pass 49
+  Gen  93 : fitness 0.9518 (mean 0.7662, worst 0.4120) | halflife -0.1671 | cmscore 81.70 | mut_rate 0.00402 | cm_hits 50 | patent_pass 50
+  Gen  94 : fitness 0.9966 (mean -19.1643, worst -1000.0000) | halflife -0.1530 | cmscore 81.60 | mut_rate 0.00393 | cm_hits 50 | patent_pass 49
+  Gen  95 : fitness 0.9533 (mean 0.7112, worst 0.3147) | halflife -0.1530 | cmscore 81.60 | mut_rate 0.00384 | cm_hits 50 | patent_pass 50
+  Gen  96 : fitness 0.9943 (mean -39.2197, worst -1000.0000) | halflife -0.1530 | cmscore 81.60 | mut_rate 0.00375 | cm_hits 50 | patent_pass 48
+  Gen  97 : fitness 1.0000 (mean -19.2664, worst -1000.0000) | halflife -0.1530 | cmscore 81.70 | mut_rate 0.00367 | cm_hits 50 | patent_pass 49
+  Gen  98 : fitness 1.0000 (mean -19.1472, worst -1000.0000) | halflife -0.1530 | cmscore 81.70 | mut_rate 0.00359 | cm_hits 50 | patent_pass 49
+  Gen  99 : fitness 1.0000 (mean -59.1894, worst -1000.0000) | halflife -0.1530 | cmscore 81.70 | mut_rate 0.00351 | cm_hits 50 | patent_pass 47
+  Gen 100 : fitness 0.9835 (mean -19.1947, worst -1000.0000) | halflife -0.1530 | cmscore 81.70 | mut_rate 0.00344 | cm_hits 50 | patent_pass 49
+
+Best evolved 3UTR sequence:
+GCCTATGCCATCGTCTAGTCCGCCTCTCATCTCGGTTCCGGCTGGAGCCCCCTAAACGGA
+GGCCGGACCAGCCTCGCCCACAGGTGGCGGCGCCCATCCCCATGAATAGAGCCGAACGGG
+ACGGGACAACAGCCTACCTTCGCGTAGGCCGGACCTTGCTGCGGGGCAATAGCAGCACCG
+TTCCGGGTTGACGCCTC
