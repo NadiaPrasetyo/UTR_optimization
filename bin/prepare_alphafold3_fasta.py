@@ -106,6 +106,7 @@ def build_af3_json(job_name: str, chains, model_seeds):
             mol_type: {
                 "id": chain["id"],
                 "sequence": chain["sequence"],
+                "unpairedMsa": ""
             }
         })
 
