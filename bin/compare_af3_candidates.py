@@ -292,10 +292,22 @@ cmd.hide("everything")
 cmd.show("cartoon")
 cmd.color("skyblue", "structA")
 cmd.color("salmon", "structB")
-cmd.bg_color("white")
+cmd.bg_color("black")
 cmd.set("cartoon_ring_mode", 3)   # nice nucleic-acid ring rendering
 cmd.set("cartoon_ring_finder", 1)
-cmd.set("ray_opaque_background", 0)
+
+# Force a fully opaque black background in the rendered PNG (instead of a
+# transparent one), and make sure nothing in the scene is see-through by
+# zeroing out every transparency-related setting that could apply to the
+# rendered representations.
+cmd.set("ray_opaque_background", 1)
+cmd.set("cartoon_transparency", 0)
+cmd.set("surface_transparency", 0)
+cmd.set("stick_transparency", 0)
+cmd.set("sphere_transparency", 0)
+cmd.set("transparency", 0)
+cmd.set("ray_shadows", 1)
+cmd.set("depth_cue", 0)  # no fog fade-to-background on distant atoms
 
 # 'super' is sequence-independent structural superposition -- appropriate
 # even if numbering/sequence differ slightly between the two inputs.
@@ -319,8 +331,9 @@ def pymol_super_and_render(cif1: str, cif2: str, outdir: str,
     """
     Independently superimpose the two structures in PyMOL (run headlessly
     as a subprocess: `pymol -cq -r <worker script>`) using the
-    sequence-independent `super` command, save an overlay image (PNG)
-    and a PyMOL session (.pse) for interactive inspection.
+    sequence-independent `super` command, save an overlay image (PNG,
+    opaque black background) and a PyMOL session (.pse) for interactive
+    inspection.
 
     Returns the RMSD reported by PyMOL's `super`, or None if the `pymol`
     executable isn't available (in which case this step is skipped and
