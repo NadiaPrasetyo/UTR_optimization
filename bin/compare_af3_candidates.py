@@ -39,6 +39,7 @@ Run with -h for all options.
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -82,6 +83,7 @@ def run(cmd: List[str], **kwargs) -> subprocess.CompletedProcess:
 class DssrResult:
     cif_path: str
     json_path: str
+    txt_path: str = ""
     dbn: str = ""
     sequence: str = ""
     chain_id: str = ""
@@ -91,10 +93,11 @@ class DssrResult:
     num_helices: int = 0
     num_hairpins: int = 0
     num_multiplets: int = 0
+    pseudoknot_order: int = 0
 
 
 def run_dssr(cif_path: str, outdir: str, dssr_bin: str = "x3dna-dssr") -> DssrResult:
-    """Run x3dna-dssr on a single .cif file and return its JSON path."""
+    """Run x3dna-dssr on a single .cif file (JSON mode) and return its JSON path."""
     if check_executable(dssr_bin) is None:
         raise FileNotFoundError(
             f"'{dssr_bin}' not found on PATH. Install/license x3dna-dssr "
@@ -114,29 +117,81 @@ def run_dssr(cif_path: str, outdir: str, dssr_bin: str = "x3dna-dssr") -> DssrRe
     return DssrResult(cif_path=cif_path, json_path=json_path)
 
 
+def run_dssr_text_summary(cif_path: str, outdir: str,
+                           dssr_bin: str = "x3dna-dssr") -> str:
+    """
+    Run x3dna-dssr in its default (plain-text) mode -- i.e. *without*
+    --json -- and return the full text summary. This is the same kind
+    of report shown in the DSSR examples: it has a stable, documented
+    "Secondary structures in dot-bracket notation (dbn) as a whole and
+    per chain" section that is much more reliable to parse than
+    reverse-engineering the JSON schema (which varies across DSSR
+    builds/versions), and it correctly represents pseudoknots with
+    multiple bracket types (), [], {}, etc.
+    """
+    if check_executable(dssr_bin) is None:
+        raise FileNotFoundError(
+            f"'{dssr_bin}' not found on PATH. Install/license x3dna-dssr "
+            f"(https://x3dna.org) or pass --dssr-path."
+        )
+
+    os.makedirs(outdir, exist_ok=True)
+    base = os.path.splitext(os.path.basename(cif_path))[0]
+    txt_path = os.path.join(outdir, f"{base}.dssr.txt")
+
+    cmd = [dssr_bin, f"-i={os.path.abspath(cif_path)}", "--format=mmcif",
+           f"-o={os.path.abspath(txt_path)}"]
+    run(cmd, cwd=outdir)
+
+    with open(txt_path) as fh:
+        return fh.read(), txt_path
+
+
+def parse_dbn_block(text: str) -> Tuple[str, str]:
+    """
+    Extract (sequence, dot-bracket) from the plain-text DSSR summary's
+    "Secondary structures in dot-bracket notation" section. Each entry
+    there looks like:
+
+        >label nts=N [whole]
+        SEQUENCE
+        DOT.BRACKET.STRING
+
+    with one entry for the whole complex ("[whole]") and one per chain
+    ("[chain]"). We prefer the "[whole]" entry (the correct choice even
+    for single-chain structures, since some builds omit "[whole]" and
+    only emit "[chain]" -- handled by the fallback below).
+    """
+    entries = re.findall(
+        r"^>(\S+)\s+nts=(\d+)[^\[\n]*\[(\w+)\][^\n]*\n(\S+)\n(\S+)",
+        text, re.MULTILINE)
+    if not entries:
+        return "", ""
+
+    for _label, _nts, tag, seq, dbn in entries:
+        if tag == "whole":
+            return seq, dbn
+
+    # Fallback: no explicit "[whole]" tag found (e.g. some DSSR builds
+    # only emit a "[chain]" entry for single-chain structures) -- use
+    # the first entry found.
+    _label, _nts, _tag, seq, dbn = entries[0]
+    return seq, dbn
+
+
+def parse_pseudoknot_order(text: str) -> int:
+    """Return the pseudoknot order reported by DSSR, or 0 if none."""
+    m = re.search(r"contains (\d+)-order pseudoknot", text)
+    return int(m.group(1)) if m else 0
+
+
 def parse_dssr_json(result: DssrResult) -> DssrResult:
-    """Populate a DssrResult with dot-bracket, sequence and summary counts."""
+    """Populate a DssrResult with summary counts from the JSON output."""
     with open(result.json_path) as fh:
         data = json.load(fh)
 
-    # dot-bracket / sequence: DSSR reports this per structure ("dbn") and
-    # per chain ("chains" -> "<id>" -> "dbn" / "bseq") depending on version.
-    dbn_block = data.get("dbn", {})
-    if isinstance(dbn_block, dict):
-        # whole-structure entry typically has key "all_chains" or similar;
-        # fall back to the first entry if the exact key isn't found.
-        whole = dbn_block.get("all_chains") or next(iter(dbn_block.values()), {})
-        result.sequence = whole.get("sequence", "")
-        result.dbn = whole.get("secstr", "")
-    else:
-        result.sequence = ""
-        result.dbn = ""
-
     nts = data.get("nts", [])
     result.nt_ids = [nt.get("nt_id", "") for nt in nts]
-    if not result.sequence:
-        # fall back: build the sequence directly from the nts list
-        result.sequence = "".join(nt.get("nt_code", "?") for nt in nts)
     if result.nt_ids:
         result.chain_id = result.nt_ids[0].split(".")[0]
 
@@ -150,8 +205,29 @@ def parse_dssr_json(result: DssrResult) -> DssrResult:
 
 
 def get_dssr_summary(cif_path: str, outdir: str, dssr_bin: str) -> DssrResult:
-    result = run_dssr(cif_path, outdir, dssr_bin)
-    return parse_dssr_json(result)
+    """
+    Run x3dna-dssr twice: once in --json mode (for structured counts of
+    pairs/stems/helices/etc.) and once in its default plain-text mode
+    (for a reliable, pseudoknot-aware dot-bracket + sequence). Merges
+    both into a single DssrResult.
+    """
+    json_result = run_dssr(cif_path, outdir, dssr_bin)
+    json_result = parse_dssr_json(json_result)
+
+    text, txt_path = run_dssr_text_summary(cif_path, outdir, dssr_bin)
+    json_result.txt_path = txt_path
+    json_result.sequence, json_result.dbn = parse_dbn_block(text)
+    json_result.pseudoknot_order = parse_pseudoknot_order(text)
+
+    if not json_result.sequence:
+        # last-resort fallback: build the sequence directly from the
+        # JSON nts list if even the text-based parse came up empty
+        with open(json_result.json_path) as fh:
+            data = json.load(fh)
+        json_result.sequence = "".join(
+            nt.get("nt_code", "?") for nt in data.get("nts", []))
+
+    return json_result
 
 
 # --------------------------------------------------------------------------
@@ -379,15 +455,17 @@ def print_dbn_comparison(name1: str, r1: DssrResult, name2: str, r2: DssrResult)
     print(f"\n{'-'*78}")
     print("Secondary structure (dot-bracket notation)")
     print(f"{'-'*78}")
+    pk1 = f", pseudoknot order {r1.pseudoknot_order}" if r1.pseudoknot_order else ""
+    pk2 = f", pseudoknot order {r2.pseudoknot_order}" if r2.pseudoknot_order else ""
     print(f"{name1} ({len(r1.sequence)} nt, {r1.num_pairs} bp, "
           f"{r1.num_stems} stems, {r1.num_helices} helices, "
-          f"{r1.num_hairpins} hairpins, {r1.num_multiplets} multiplets)")
+          f"{r1.num_hairpins} hairpins, {r1.num_multiplets} multiplets{pk1})")
     print(r1.sequence)
     print(r1.dbn)
     print()
     print(f"{name2} ({len(r2.sequence)} nt, {r2.num_pairs} bp, "
           f"{r2.num_stems} stems, {r2.num_helices} helices, "
-          f"{r2.num_hairpins} hairpins, {r2.num_multiplets} multiplets)")
+          f"{r2.num_hairpins} hairpins, {r2.num_multiplets} multiplets{pk2})")
     print(r2.sequence)
     print(r2.dbn)
 
@@ -412,11 +490,13 @@ def write_report(path: str, name1, name2, dssr1: DssrResult, dssr2: DssrResult,
         fh.write(f"Structure 2: {name2}\n\n")
 
         fh.write("-- Secondary structure (x3dna-dssr) --\n")
+        pk1 = f", pseudoknot order {dssr1.pseudoknot_order}" if dssr1.pseudoknot_order else ""
+        pk2 = f", pseudoknot order {dssr2.pseudoknot_order}" if dssr2.pseudoknot_order else ""
         fh.write(f"{name1}: {len(dssr1.sequence)} nt, {dssr1.num_pairs} bp, "
-                  f"{dssr1.num_stems} stems, {dssr1.num_helices} helices\n")
+                  f"{dssr1.num_stems} stems, {dssr1.num_helices} helices{pk1}\n")
         fh.write(f"  seq: {dssr1.sequence}\n  dbn: {dssr1.dbn}\n")
         fh.write(f"{name2}: {len(dssr2.sequence)} nt, {dssr2.num_pairs} bp, "
-                  f"{dssr2.num_stems} stems, {dssr2.num_helices} helices\n")
+                  f"{dssr2.num_stems} stems, {dssr2.num_helices} helices{pk2}\n")
         fh.write(f"  seq: {dssr2.sequence}\n  dbn: {dssr2.dbn}\n\n")
 
         fh.write("-- RMSD (Biopython Superimposer, sequence-aligned atoms) --\n")
