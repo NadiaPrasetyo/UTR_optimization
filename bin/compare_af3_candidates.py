@@ -567,47 +567,59 @@ def format_alignment_table(summaries: List[AlignmentSummary]) -> str:
 _PYMOL_WORKER_SCRIPT = r'''
 import sys
 import json
+import traceback
 from pymol import cmd
 
 cif1, cif2, png_out, pse_out, json_out = sys.argv[1:6]
 
-cmd.load(cif1, "structA")
-cmd.load(cif2, "structB")
+def write_result(rmsd_pymol, error=None):
+    with open(json_out, "w") as fh:
+        json.dump({"rmsd": rmsd_pymol, "error": error}, fh)
 
-cmd.hide("everything")
-cmd.show("cartoon")
-cmd.color("skyblue", "structA")
-cmd.color("salmon", "structB")
-cmd.bg_color("black")
-cmd.set("cartoon_ring_mode", 3)   # nice nucleic-acid ring rendering
-cmd.set("cartoon_ring_finder", 1)
+try:
+    cmd.load(cif1, "structA")
+    cmd.load(cif2, "structB")
 
-# Force a fully opaque black background in the rendered PNG (instead of a
-# transparent one), and make sure nothing in the scene is see-through by
-# zeroing out every transparency-related setting that could apply to the
-# rendered representations.
-cmd.set("ray_opaque_background", 1)
-cmd.set("cartoon_transparency", 0)
-cmd.set("surface_transparency", 0)
-cmd.set("stick_transparency", 0)
-cmd.set("sphere_transparency", 0)
-cmd.set("transparency", 0)
-cmd.set("ray_shadows", 1)
-cmd.set("depth_cue", 0)  # no fog fade-to-background on distant atoms
+    cmd.hide("everything")
+    cmd.show("cartoon")
+    cmd.color("skyblue", "structA")
+    cmd.color("salmon", "structB")
+    cmd.bg_color("black")
+    cmd.set("cartoon_ring_mode", 3)   # nice nucleic-acid ring rendering
+    cmd.set("cartoon_ring_finder", 1)
 
-# 'super' is sequence-independent structural superposition -- appropriate
-# even if numbering/sequence differ slightly between the two inputs.
-result = cmd.super("structB", "structA")
-rmsd_pymol = result[0] if result else None
+    # Force a fully opaque black background in the rendered PNG (instead of
+    # a transparent one), and make sure nothing in the scene is see-through
+    # by zeroing out every transparency-related setting that could apply
+    # to the rendered representations.
+    cmd.set("ray_opaque_background", 1)
+    cmd.set("cartoon_transparency", 0)
+    cmd.set("surface_transparency", 0)
+    cmd.set("stick_transparency", 0)
+    cmd.set("sphere_transparency", 0)
+    cmd.set("transparency", 0)
+    cmd.set("ray_shadows", 1)
+    cmd.set("depth_cue", 0)  # no fog fade-to-background on distant atoms
 
-cmd.orient()
-cmd.zoom(buffer=5)
-cmd.ray(1600, 1200)
-cmd.png(png_out, dpi=300)
-cmd.save(pse_out)
+    # 'super' is sequence-independent structural superposition -- appropriate
+    # even if numbering/sequence differ slightly between the two inputs.
+    result = cmd.super("structB", "structA")
+    rmsd_pymol = result[0] if result else None
 
-with open(json_out, "w") as fh:
-    json.dump({"rmsd": rmsd_pymol}, fh)
+    cmd.orient()
+    cmd.zoom(buffer=5)
+    cmd.ray(1600, 1200)
+    cmd.png(png_out, dpi=300)
+    cmd.save(pse_out)
+
+    write_result(rmsd_pymol)
+
+except Exception as exc:
+    # Never fail silently: PyMOL's -cq/-r batch mode can swallow exceptions
+    # and still exit 0, so we catch everything here and record it, rather
+    # than leaving the caller with no result file and no clue why.
+    write_result(None, error=f"{exc}\n{traceback.format_exc()}")
+    raise
 '''
 
 
@@ -622,8 +634,9 @@ def pymol_super_and_render(cif1: str, cif2: str, outdir: str,
     inspection.
 
     Returns the RMSD reported by PyMOL's `super`, or None if the `pymol`
-    executable isn't available (in which case this step is skipped and
-    only the Biopython RMSD is reported).
+    executable isn't available, or if the PyMOL run itself failed (in
+    which case this step is skipped and only the Biopython/TM-align
+    results are reported; the failure reason is printed either way).
     """
     if check_executable(pymol_bin) is None:
         print(f"WARNING: '{pymol_bin}' not found on PATH -- skipping PyMOL "
@@ -645,15 +658,32 @@ def pymol_super_and_render(cif1: str, cif2: str, outdir: str,
         os.path.abspath(png_out), os.path.abspath(pse_out),
         os.path.abspath(json_out),
     ]
-    run(cmd_list)
+
+    try:
+        proc = run(cmd_list)
+    except RuntimeError as exc:
+        # run() already embeds stdout/stderr in the exception message
+        print(f"WARNING: PyMOL exited with an error -- skipping PyMOL "
+              f"step.\n{exc}", file=sys.stderr)
+        return None
 
     if not os.path.exists(json_out):
-        print("WARNING: PyMOL ran but produced no result file -- check "
-              f"{worker_path} output manually.", file=sys.stderr)
+        print("WARNING: PyMOL exited successfully but produced no result "
+              f"file -- this usually means the worker script crashed in a "
+              f"way PyMOL's batch mode swallowed. Full PyMOL stdout/stderr "
+              f"below (also check {worker_path}):\n"
+              f"--- stdout ---\n{proc.stdout}\n"
+              f"--- stderr ---\n{proc.stderr}", file=sys.stderr)
         return None
 
     with open(json_out) as fh:
         data = json.load(fh)
+
+    if data.get("error"):
+        print(f"WARNING: PyMOL worker script raised an error -- skipping "
+              f"PyMOL RMSD/render.\n{data['error']}", file=sys.stderr)
+        return None
+
     return data.get("rmsd")
 
 
