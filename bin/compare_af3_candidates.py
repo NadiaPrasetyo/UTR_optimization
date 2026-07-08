@@ -1,523 +1,513 @@
 #!/usr/bin/env python3
 """
 compare_af3_candidates.py
+==========================
 
-Compare a set of AlphaFold3-predicted candidate structures against a single
-AlphaFold3-predicted "patented" reference structure, using AF3's standard
-output directory layout (see AF3 docs: <job_name>_model.cif, <job_name>_data.json).
+Compare two RNA (or DNA/RNA) structure files in mmCIF format:
 
-For every candidate this computes:
-
-  1. RMSD          - structural distance to the patented structure, after a
-                      sequence-guided global superposition (Kabsch algorithm
-                      over matched, non-gap aligned residues).
-  2. Seq. difference - percent sequence difference (100 - percent identity)
-                      from the patented sequence, from the same alignment.
-  3. cmscore        - bit score of the candidate sequence against an Infernal
-                      covariance model (.cm) of the patented RNA family.
-                      Requires Infernal (`cmsearch`) and a --cm-model file.
-  4. MFE difference - |MFE(candidate) - MFE(patented)|, minimum free energy
-                      of the secondary structure computed with ViennaRNA's
-                      RNAfold ("similar to the base" = closeness to the
-                      patented sequence's own MFE).
-
-All four metrics are min-max normalized across the candidate set and
-combined into a single composite score with EQUAL weights (0.25 each by
-default, configurable). Composite score is scaled to [0, 1], where 1 =
-most similar to the patented reference across all four metrics, 0 = least
-similar. If a metric can't be computed for every candidate (e.g. Infernal
-or RNAfold isn't installed, or no --cm-model was given), it is dropped and
-the remaining weights are renormalized automatically, with a warning.
+  1. Runs `x3dna-dssr` on each .cif to derive secondary structure
+     (dot-bracket notation, base pairs, helices, stems, motifs).
+  2. Uses Biopython to parse both structures, align matching residues
+     (via a pairwise sequence alignment of the DSSR-derived sequences)
+     and compute RMSD with Bio.PDB.Superimposer after least-squares
+     superposition.
+  3. Uses PyMOL (via the `pymol2` API) to independently superimpose the
+     two structures (sequence-independent, `super` command), render a
+     side-by-side / overlay image, and save a .pse session so the
+     result can be inspected interactively.
+  4. Prints a side-by-side dot-bracket comparison and a text summary
+     report; writes everything to an output directory.
 
 Requirements
 ------------
-- Python packages: biopython  (pip install biopython --break-system-packages)
-- Optional external tools (only needed for the corresponding metric):
-    * RNAfold   (ViennaRNA)   -> for MFE
-    * cmsearch  (Infernal)    -> for cmscore (also need a .cm model file)
-
-Expected input layout
-----------------------
-This is designed to plug directly into AF3 output directories:
-
-  patented-dir/
-      <job_name>_model.cif
-      <job_name>_data.json      # AF3's echo of the input, has the sequence(s)
-
-  candidates-dir/
-      candidate_1/
-          candidate_1_model.cif
-          candidate_1_data.json
-      candidate_2/
-          ...
-
-(this is exactly what `prepare_af3_jobs.py` + AF3 produce: candidates-dir ==
- <work-dir>/af3_output/, with one subdirectory per job name.)
+  - x3dna-dssr executable on PATH (licensed binary, see https://x3dna.org)
+  - PyMOL with the `pymol2` python module (open-source PyMOL via conda:
+        conda install -c conda-forge pymol-open-source
+    or the commercial PyMOL, which also ships pymol2)
+  - Biopython  (pip install biopython)
 
 Usage
 -----
-python3 compare_af3_candidates.py \\
-    --patented-dir  /path/to/af3_output/patented_job \\
-    --candidates-dir /path/to/af3_output \\
-    --exclude patented_job \\
-    --cm-model /path/to/family.cm \\
-    --out comparison.csv
+    python3 compare_af3_candidates.py structA.cif structB.cif \
+        --outdir results/ \
+        --atom "C1'" \
+        --chain1 A --chain2 A
+
+Run with -h for all options.
 """
 
 import argparse
-import csv
 import json
+import os
 import shutil
 import subprocess
 import sys
-import tempfile
-from pathlib import Path
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple
 
-from Bio.PDB import MMCIFParser, Superimposer
-from Bio.Align import PairwiseAligner, substitution_matrices
-
-# --------------------------------------------------------------------------
-# Residue -> one-letter code
-# --------------------------------------------------------------------------
-THREE_TO_ONE = {
-    # RNA
-    "A": "A", "C": "C", "G": "G", "U": "U",
-    # DNA
-    "DA": "A", "DC": "C", "DG": "G", "DT": "T",
-    # Protein (20 standard)
-    "ALA": "A", "ARG": "R", "ASN": "N", "ASP": "D", "CYS": "C",
-    "GLN": "Q", "GLU": "E", "GLY": "G", "HIS": "H", "ILE": "I",
-    "LEU": "L", "LYS": "K", "MET": "M", "PHE": "F", "PRO": "P",
-    "SER": "S", "THR": "T", "TRP": "W", "TYR": "Y", "VAL": "V",
-}
-
-# preferred representative atom per residue class, in priority order
-NUCLEIC_ATOM_PRIORITY = ["C1'", "C1*", "P"]
-PROTEIN_ATOM_PRIORITY = ["CA"]
-
-
-def resname_one_letter(resname: str):
-    return THREE_TO_ONE.get(resname.strip().upper())
-
-
-def representative_atom(residue):
-    resname = residue.get_resname().strip().upper()
-    priorities = PROTEIN_ATOM_PRIORITY if resname in (
-        "ALA", "ARG", "ASN", "ASP", "CYS", "GLN", "GLU", "GLY", "HIS", "ILE",
-        "LEU", "LYS", "MET", "PHE", "PRO", "SER", "THR", "TRP", "TYR", "VAL",
-    ) else NUCLEIC_ATOM_PRIORITY
-    for atom_name in priorities:
-        if residue.has_id(atom_name):
-            return residue[atom_name]
-    # fallback: first atom in the residue
-    atoms = list(residue.get_atoms())
-    return atoms[0] if atoms else None
+try:
+    from Bio.PDB import MMCIFParser, Superimposer
+    from Bio.Align import PairwiseAligner
+except ImportError:
+    print("ERROR: Biopython is required. Install with: pip install biopython",
+          file=sys.stderr)
+    sys.exit(1)
 
 
 # --------------------------------------------------------------------------
-# Structure loading
+# Small utilities
 # --------------------------------------------------------------------------
-def find_model_cif(af3_output_dir: Path):
-    """Find the top-ranking <job_name>_model.cif in an AF3 output dir."""
-    candidates = sorted(af3_output_dir.glob("*_model.cif"))
-    if not candidates:
-        # fall back to any .cif directly in the dir (not in seed-*/sample-* subdirs)
-        candidates = sorted(af3_output_dir.glob("*.cif"))
-    if not candidates:
-        raise FileNotFoundError(f"No *_model.cif found in {af3_output_dir}")
-    return candidates[0]
+
+def check_executable(name: str) -> Optional[str]:
+    """Return the resolved path of an executable, or None if missing."""
+    return shutil.which(name)
 
 
-def find_data_json(af3_output_dir: Path):
-    matches = sorted(af3_output_dir.glob("*_data.json"))
-    return matches[0] if matches else None
+def run(cmd: List[str], **kwargs) -> subprocess.CompletedProcess:
+    """Run a subprocess, raising a helpful error if it fails."""
+    proc = subprocess.run(cmd, capture_output=True, text=True, **kwargs)
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"Command failed ({' '.join(cmd)}):\n"
+            f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+        )
+    return proc
 
 
-def load_sequences_from_data_json(data_json_path: Path):
-    """Returns list of (chain_id, sequence, molecule_type)."""
-    data = json.loads(data_json_path.read_text())
-    out = []
-    for entry in data.get("sequences", []):
-        for mol_type, info in entry.items():
-            chain_id = info.get("id")
-            seq = info.get("sequence")
-            if isinstance(chain_id, list):  # AF3 allows id lists for identical copies
-                for cid in chain_id:
-                    out.append((cid, seq, mol_type))
-            else:
-                out.append((chain_id, seq, mol_type))
-    return out
+# --------------------------------------------------------------------------
+# Step 1: x3dna-dssr wrapper
+# --------------------------------------------------------------------------
+
+@dataclass
+class DssrResult:
+    cif_path: str
+    json_path: str
+    dbn: str = ""
+    sequence: str = ""
+    chain_id: str = ""
+    nt_ids: List[str] = field(default_factory=list)   # e.g. "A.U1"
+    num_pairs: int = 0
+    num_stems: int = 0
+    num_helices: int = 0
+    num_hairpins: int = 0
+    num_multiplets: int = 0
 
 
-def load_chains_from_cif(cif_path: Path):
-    """Returns dict chain_id -> {"seq": str, "residues": [Bio.PDB residue,...]}"""
+def run_dssr(cif_path: str, outdir: str, dssr_bin: str = "x3dna-dssr") -> DssrResult:
+    """Run x3dna-dssr on a single .cif file and return its JSON path."""
+    if check_executable(dssr_bin) is None:
+        raise FileNotFoundError(
+            f"'{dssr_bin}' not found on PATH. Install/license x3dna-dssr "
+            f"(https://x3dna.org) or pass --dssr-path."
+        )
+
+    os.makedirs(outdir, exist_ok=True)
+    base = os.path.splitext(os.path.basename(cif_path))[0]
+    json_path = os.path.join(outdir, f"{base}.dssr.json")
+
+    # NB: x3dna-dssr writes auxiliary dssr-*.pdb files into the CWD, so we
+    # run it from within outdir to keep things tidy.
+    cmd = [dssr_bin, f"-i={os.path.abspath(cif_path)}", "--format=mmcif",
+           "--json", f"-o={os.path.abspath(json_path)}"]
+    run(cmd, cwd=outdir)
+
+    return DssrResult(cif_path=cif_path, json_path=json_path)
+
+
+def parse_dssr_json(result: DssrResult) -> DssrResult:
+    """Populate a DssrResult with dot-bracket, sequence and summary counts."""
+    with open(result.json_path) as fh:
+        data = json.load(fh)
+
+    # dot-bracket / sequence: DSSR reports this per structure ("dbn") and
+    # per chain ("chains" -> "<id>" -> "dbn" / "bseq") depending on version.
+    dbn_block = data.get("dbn", {})
+    if isinstance(dbn_block, dict):
+        # whole-structure entry typically has key "all_chains" or similar;
+        # fall back to the first entry if the exact key isn't found.
+        whole = dbn_block.get("all_chains") or next(iter(dbn_block.values()), {})
+        result.sequence = whole.get("sequence", "")
+        result.dbn = whole.get("secstr", "")
+    else:
+        result.sequence = ""
+        result.dbn = ""
+
+    nts = data.get("nts", [])
+    result.nt_ids = [nt.get("nt_id", "") for nt in nts]
+    if not result.sequence:
+        # fall back: build the sequence directly from the nts list
+        result.sequence = "".join(nt.get("nt_code", "?") for nt in nts)
+    if result.nt_ids:
+        result.chain_id = result.nt_ids[0].split(".")[0]
+
+    result.num_pairs = len(data.get("pairs", []))
+    result.num_stems = len(data.get("stems", []))
+    result.num_helices = len(data.get("helices", []))
+    result.num_hairpins = len(data.get("hairpins", []))
+    result.num_multiplets = len(data.get("multiplets", []))
+
+    return result
+
+
+def get_dssr_summary(cif_path: str, outdir: str, dssr_bin: str) -> DssrResult:
+    result = run_dssr(cif_path, outdir, dssr_bin)
+    return parse_dssr_json(result)
+
+
+# --------------------------------------------------------------------------
+# Step 2: Biopython structural alignment + RMSD
+# --------------------------------------------------------------------------
+
+@dataclass
+class RmsdResult:
+    n_matched: int
+    n_total_1: int
+    n_total_2: int
+    rmsd: float
+    atom_name: str
+
+
+def load_structure(cif_path: str, struct_id: str):
     parser = MMCIFParser(QUIET=True)
-    structure = parser.get_structure(cif_path.stem, str(cif_path))
-    model = next(structure.get_models())
-    chains = {}
-    for chain in model:
-        seq_chars = []
-        residues = []
-        for residue in chain:
-            code = resname_one_letter(residue.get_resname())
-            if code is None:
-                continue  # skip waters/heteroatoms/ligands we can't map
-            seq_chars.append(code)
-            residues.append(residue)
-        if residues:
-            chains[chain.id] = {"seq": "".join(seq_chars), "residues": residues}
-    return chains
+    return parser.get_structure(struct_id, cif_path)
 
 
-# --------------------------------------------------------------------------
-# Sequence alignment
-# --------------------------------------------------------------------------
-def make_aligner(is_protein: bool):
+def get_chain(structure, chain_id: Optional[str]):
+    model = next(iter(structure))
+    if chain_id:
+        return model[chain_id]
+    # default: first chain in the model
+    return next(iter(model))
+
+
+def residue_sequence(chain) -> Tuple[List, str]:
+    """Return (list of residue objects, one-letter sequence string)."""
+    residues = [res for res in chain if res.id[0] == " "]  # skip het/waters
+    one_letter = {
+        "A": "A", "C": "C", "G": "G", "U": "U", "T": "T",
+        "DA": "A", "DC": "C", "DG": "G", "DT": "T",
+    }
+    seq = "".join(one_letter.get(res.resname.strip(), "N") for res in residues)
+    return residues, seq
+
+
+def align_sequences(seq1: str, seq2: str) -> List[Tuple[int, int]]:
+    """
+    Pairwise-align two sequences and return a list of (i, j) index pairs
+    for columns where both sequences have an aligned, identical residue.
+    Indices are 0-based positions into seq1 / seq2 respectively.
+    """
     aligner = PairwiseAligner()
     aligner.mode = "global"
-    if is_protein:
-        aligner.substitution_matrix = substitution_matrices.load("BLOSUM62")
-        aligner.open_gap_score = -10
-        aligner.extend_gap_score = -0.5
-    else:
-        aligner.match_score = 2
-        aligner.mismatch_score = -1
-        aligner.open_gap_score = -6
-        aligner.extend_gap_score = -0.5
-    return aligner
+    aligner.open_gap_score = -10
+    aligner.extend_gap_score = -0.5
+    aligner.match_score = 2
+    aligner.mismatch_score = -1
 
-
-def align_chains(seq_a, seq_b):
-    """Global-align two sequences. Returns (aligned_a, aligned_b) as equal-length strings with '-' gaps."""
-    looks_protein = any(c not in "ACGUT-" for c in (seq_a + seq_b).upper())
-    aligner = make_aligner(looks_protein)
-    alignment = aligner.align(seq_a, seq_b)[0]
-    # Index the Alignment object directly (not str() parsing, which line-wraps
-    # for long sequences and breaks under naive splitting).
-    aligned_a, aligned_b = str(alignment[0]), str(alignment[1])
-    return aligned_a, aligned_b
-
-
-def match_residue_pairs(residues_a, seq_a, residues_b, seq_b):
-    """
-    Align seq_a vs seq_b, and return parallel lists of matched (non-gap,
-    non-mismatch-agnostic - all aligned columns with a residue on both
-    sides count) residue objects from residues_a and residues_b, plus
-    counts of (matches, aligned_columns) for identity calculation.
-    """
-    aligned_a, aligned_b = align_chains(seq_a, seq_b)
-    ia = ib = 0
-    matched_a, matched_b = [], []
-    n_match, n_aligned_cols = 0, 0
-    for ca, cb in zip(aligned_a, aligned_b):
-        a_has = ca != "-"
-        b_has = cb != "-"
-        if a_has and b_has:
-            matched_a.append(residues_a[ia])
-            matched_b.append(residues_b[ib])
-            n_aligned_cols += 1
-            if ca == cb:
-                n_match += 1
-        elif a_has and not b_has:
-            n_aligned_cols += 1
-        elif b_has and not a_has:
-            n_aligned_cols += 1
-        if a_has:
-            ia += 1
-        if b_has:
-            ib += 1
-    return matched_a, matched_b, n_match, n_aligned_cols
-
-
-def greedy_match_chains(patented_chains, candidate_chains):
-    """
-    Pair up patented chain IDs with candidate chain IDs by best sequence
-    identity (simple greedy matching - fine for the common monomer /
-    small-complex case).
-    """
+    alignment = aligner.align(seq1, seq2)[0]
     pairs = []
-    remaining_cand = dict(candidate_chains)
-    for p_id, p_info in patented_chains.items():
-        best_id, best_score = None, -1
-        for c_id, c_info in remaining_cand.items():
-            aligned_a, aligned_b = align_chains(p_info["seq"], c_info["seq"])
-            score = sum(1 for a, b in zip(aligned_a, aligned_b) if a == b and a != "-")
-            if score > best_score:
-                best_score, best_id = score, c_id
-        if best_id is not None:
-            pairs.append((p_id, best_id))
-            del remaining_cand[best_id]
+    for (s1, e1), (s2, e2) in zip(*alignment.aligned):
+        for offset in range(e1 - s1):
+            i, j = s1 + offset, s2 + offset
+            if seq1[i] == seq2[j]:
+                pairs.append((i, j))
     return pairs
 
 
-# --------------------------------------------------------------------------
-# RMSD + sequence identity across (possibly multi-chain) structures
-# --------------------------------------------------------------------------
-def compute_rmsd_and_identity(patented_chains, candidate_chains):
-    chain_pairs = greedy_match_chains(patented_chains, candidate_chains)
-    if not chain_pairs:
-        return None, None
+def compute_rmsd(cif1: str, cif2: str,
+                  chain1: Optional[str], chain2: Optional[str],
+                  atom_name: str = "C1'") -> RmsdResult:
+    """
+    Superimpose structure 2 onto structure 1 using matched residues
+    (from a sequence alignment) and a chosen representative atom per
+    residue (default C1', a good sequence-independent backbone marker
+    for nucleic acids; use "CA" for proteins).
+    """
+    s1 = load_structure(cif1, "struct1")
+    s2 = load_structure(cif2, "struct2")
 
-    all_atoms_p, all_atoms_c = [], []
-    total_match, total_cols = 0, 0
+    c1 = get_chain(s1, chain1)
+    c2 = get_chain(s2, chain2)
 
-    for p_id, c_id in chain_pairs:
-        p_info, c_info = patented_chains[p_id], candidate_chains[c_id]
-        matched_res_p, matched_res_c, n_match, n_cols = match_residue_pairs(
-            p_info["residues"], p_info["seq"], c_info["residues"], c_info["seq"]
+    res1, seq1 = residue_sequence(c1)
+    res2, seq2 = residue_sequence(c2)
+
+    matched_idx = align_sequences(seq1, seq2)
+
+    atoms1, atoms2 = [], []
+    for i, j in matched_idx:
+        r1, r2 = res1[i], res2[j]
+        if atom_name in r1 and atom_name in r2:
+            atoms1.append(r1[atom_name])
+            atoms2.append(r2[atom_name])
+
+    if len(atoms1) < 3:
+        raise RuntimeError(
+            f"Only {len(atoms1)} matched '{atom_name}' atoms found between "
+            f"the two chains -- need at least 3 for superposition. Check "
+            f"--chain1/--chain2/--atom options."
         )
-        total_match += n_match
-        total_cols += n_cols
-        for res_p, res_c in zip(matched_res_p, matched_res_c):
-            atom_p = representative_atom(res_p)
-            atom_c = representative_atom(res_c)
-            if atom_p is not None and atom_c is not None:
-                all_atoms_p.append(atom_p)
-                all_atoms_c.append(atom_c)
-
-    if len(all_atoms_p) < 3:
-        return None, (100.0 * (1 - total_match / total_cols) if total_cols else None)
 
     sup = Superimposer()
-    sup.set_atoms(all_atoms_p, all_atoms_c)
-    rmsd = sup.rms
-    seq_diff_pct = 100.0 * (1 - total_match / total_cols) if total_cols else None
-    return rmsd, seq_diff_pct
+    sup.set_atoms(atoms1, atoms2)
+    sup.apply(s2.get_atoms())  # move structure 2 onto structure 1 in place
+
+    return RmsdResult(
+        n_matched=len(atoms1),
+        n_total_1=len(res1),
+        n_total_2=len(res2),
+        rmsd=sup.rms,
+        atom_name=atom_name,
+    ), s2
+
+
+def save_superimposed(structure, out_path: str):
+    """Write the (now superimposed) structure 2 to disk as a new .cif."""
+    from Bio.PDB.mmcifio import MMCIFIO
+    io = MMCIFIO()
+    io.set_structure(structure)
+    io.save(out_path)
 
 
 # --------------------------------------------------------------------------
-# MFE via ViennaRNA RNAfold
+# Step 3: PyMOL cross-check + visualization
 # --------------------------------------------------------------------------
-_RNAFOLD_WARNED = False
+
+# This is written out as a standalone .py file and executed *inside*
+# PyMOL's own embedded interpreter via `pymol -cq -r <script> -- <args>`.
+# That works with any command-line PyMOL install (open-source, SBGrid
+# module, commercial, etc.) without requiring the separate `pymol2`
+# python package to be importable in the calling environment.
+_PYMOL_WORKER_SCRIPT = r'''
+import sys
+import json
+from pymol import cmd
+
+cif1, cif2, png_out, pse_out, json_out = sys.argv[1:6]
+
+cmd.load(cif1, "structA")
+cmd.load(cif2, "structB")
+
+cmd.hide("everything")
+cmd.show("cartoon")
+cmd.color("skyblue", "structA")
+cmd.color("salmon", "structB")
+cmd.bg_color("white")
+cmd.set("cartoon_ring_mode", 3)   # nice nucleic-acid ring rendering
+cmd.set("cartoon_ring_finder", 1)
+cmd.set("ray_opaque_background", 0)
+
+# 'super' is sequence-independent structural superposition -- appropriate
+# even if numbering/sequence differ slightly between the two inputs.
+result = cmd.super("structB", "structA")
+rmsd_pymol = result[0] if result else None
+
+cmd.orient()
+cmd.zoom(buffer=5)
+cmd.ray(1600, 1200)
+cmd.png(png_out, dpi=300)
+cmd.save(pse_out)
+
+with open(json_out, "w") as fh:
+    json.dump({"rmsd": rmsd_pymol}, fh)
+'''
 
 
-def compute_mfe(sequence: str):
-    global _RNAFOLD_WARNED
-    if shutil.which("RNAfold") is None:
-        if not _RNAFOLD_WARNED:
-            print("WARNING: RNAfold not found on PATH - skipping MFE metric.", file=sys.stderr)
-            _RNAFOLD_WARNED = True
+def pymol_super_and_render(cif1: str, cif2: str, outdir: str,
+                            png_out: str, pse_out: str,
+                            pymol_bin: str = "pymol") -> Optional[float]:
+    """
+    Independently superimpose the two structures in PyMOL (run headlessly
+    as a subprocess: `pymol -cq -r <worker script>`) using the
+    sequence-independent `super` command, save an overlay image (PNG)
+    and a PyMOL session (.pse) for interactive inspection.
+
+    Returns the RMSD reported by PyMOL's `super`, or None if the `pymol`
+    executable isn't available (in which case this step is skipped and
+    only the Biopython RMSD is reported).
+    """
+    if check_executable(pymol_bin) is None:
+        print(f"WARNING: '{pymol_bin}' not found on PATH -- skipping PyMOL "
+              f"visualization step. Pass --pymol-path if it's installed "
+              f"under a different name/location (e.g. an SBGrid module).",
+              file=sys.stderr)
         return None
-    rna_seq = sequence.upper().replace("T", "U")
-    try:
-        result = subprocess.run(
-            ["RNAfold", "--noPS"],
-            input=rna_seq + "\n",
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
-        # Output line 2 looks like: ....((((...)))).... (-12.30)
-        for line in result.stdout.splitlines():
-            if "(" in line and ")" in line and any(ch.isdigit() for ch in line):
-                mfe_str = line.split("(")[-1].split(")")[0].strip()
-                return float(mfe_str)
-    except Exception as exc:
-        print(f"WARNING: RNAfold failed: {exc}", file=sys.stderr)
-    return None
+
+    os.makedirs(outdir, exist_ok=True)
+
+    worker_path = os.path.join(outdir, "_pymol_worker.py")
+    json_out = os.path.join(outdir, "_pymol_result.json")
+    with open(worker_path, "w") as fh:
+        fh.write(_PYMOL_WORKER_SCRIPT)
+
+    cmd_list = [
+        pymol_bin, "-cq", "-r", worker_path, "--",
+        os.path.abspath(cif1), os.path.abspath(cif2),
+        os.path.abspath(png_out), os.path.abspath(pse_out),
+        os.path.abspath(json_out),
+    ]
+    run(cmd_list)
+
+    if not os.path.exists(json_out):
+        print("WARNING: PyMOL ran but produced no result file -- check "
+              f"{worker_path} output manually.", file=sys.stderr)
+        return None
+
+    with open(json_out) as fh:
+        data = json.load(fh)
+    return data.get("rmsd")
 
 
 # --------------------------------------------------------------------------
-# cmscore via Infernal cmsearch
+# Step 4: dot-bracket comparison / reporting
 # --------------------------------------------------------------------------
-_CMSEARCH_WARNED = False
+
+def print_dbn_comparison(name1: str, r1: DssrResult, name2: str, r2: DssrResult):
+    print(f"\n{'-'*78}")
+    print("Secondary structure (dot-bracket notation)")
+    print(f"{'-'*78}")
+    print(f"{name1} ({len(r1.sequence)} nt, {r1.num_pairs} bp, "
+          f"{r1.num_stems} stems, {r1.num_helices} helices, "
+          f"{r1.num_hairpins} hairpins, {r1.num_multiplets} multiplets)")
+    print(r1.sequence)
+    print(r1.dbn)
+    print()
+    print(f"{name2} ({len(r2.sequence)} nt, {r2.num_pairs} bp, "
+          f"{r2.num_stems} stems, {r2.num_helices} helices, "
+          f"{r2.num_hairpins} hairpins, {r2.num_multiplets} multiplets)")
+    print(r2.sequence)
+    print(r2.dbn)
+
+    if len(r1.dbn) == len(r2.dbn) and r1.dbn and r2.dbn:
+        diff = "".join("." if a == b else "^" for a, b in zip(r1.dbn, r2.dbn))
+        n_diff = diff.count("^")
+        print(f"\nPer-position agreement ('^' marks a differing bracket/dot; "
+              f"{n_diff}/{len(diff)} positions differ):")
+        print(diff)
+    else:
+        print("\n(Sequences differ in length -- position-by-position dot-bracket "
+              "diff skipped; the residue-level RMSD alignment above still "
+              "handles length differences via pairwise sequence alignment.)")
 
 
-def compute_cmscore(sequence: str, cm_model: Path, job_name: str, tmp_dir: Path):
-    global _CMSEARCH_WARNED
-    if cm_model is None:
-        return None
-    if shutil.which("cmsearch") is None:
-        if not _CMSEARCH_WARNED:
-            print("WARNING: cmsearch (Infernal) not found on PATH - skipping cmscore metric.", file=sys.stderr)
-            _CMSEARCH_WARNED = True
-        return None
+def write_report(path: str, name1, name2, dssr1: DssrResult, dssr2: DssrResult,
+                  rmsd_bio: RmsdResult, rmsd_pymol: Optional[float]):
+    with open(path, "w") as fh:
+        fh.write("RNA structure comparison report\n")
+        fh.write("=" * 60 + "\n\n")
+        fh.write(f"Structure 1: {name1}\n")
+        fh.write(f"Structure 2: {name2}\n\n")
 
-    fasta_path = tmp_dir / f"{job_name}.fa"
-    tblout_path = tmp_dir / f"{job_name}.tbl"
-    fasta_path.write_text(f">{job_name}\n{sequence}\n")
-    try:
-        subprocess.run(
-            ["cmsearch", "--tblout", str(tblout_path), "--noali", "-E", "10.0",
-             str(cm_model), str(fasta_path)],
-            capture_output=True, text=True, timeout=600, check=True,
-        )
-    except Exception as exc:
-        print(f"WARNING: cmsearch failed for {job_name}: {exc}", file=sys.stderr)
-        return None
+        fh.write("-- Secondary structure (x3dna-dssr) --\n")
+        fh.write(f"{name1}: {len(dssr1.sequence)} nt, {dssr1.num_pairs} bp, "
+                  f"{dssr1.num_stems} stems, {dssr1.num_helices} helices\n")
+        fh.write(f"  seq: {dssr1.sequence}\n  dbn: {dssr1.dbn}\n")
+        fh.write(f"{name2}: {len(dssr2.sequence)} nt, {dssr2.num_pairs} bp, "
+                  f"{dssr2.num_stems} stems, {dssr2.num_helices} helices\n")
+        fh.write(f"  seq: {dssr2.sequence}\n  dbn: {dssr2.dbn}\n\n")
 
-    if not tblout_path.exists():
-        return None
-    best_score = None
-    for line in tblout_path.read_text().splitlines():
-        if line.startswith("#") or not line.strip():
-            continue
-        fields = line.split()
-        # Infernal --tblout column 15 (0-indexed 14) is the bit score
-        try:
-            score = float(fields[14])
-        except (IndexError, ValueError):
-            continue
-        if best_score is None or score > best_score:
-            best_score = score
-    return best_score
+        fh.write("-- RMSD (Biopython Superimposer, sequence-aligned atoms) --\n")
+        fh.write(f"  atom used       : {rmsd_bio.atom_name}\n")
+        fh.write(f"  matched residues: {rmsd_bio.n_matched} "
+                  f"(of {rmsd_bio.n_total_1} / {rmsd_bio.n_total_2} total)\n")
+        fh.write(f"  RMSD            : {rmsd_bio.rmsd:.3f} A\n\n")
 
-
-# --------------------------------------------------------------------------
-# Normalization / composite score
-# --------------------------------------------------------------------------
-def minmax_normalize(values, lower_is_better):
-    present = [v for v in values if v is not None]
-    if len(present) < 2 or max(present) == min(present):
-        # can't usefully normalize -> return 1.0 for present values, None for missing
-        return [(1.0 if v is not None else None) for v in values]
-    lo, hi = min(present), max(present)
-    norm = []
-    for v in values:
-        if v is None:
-            norm.append(None)
-            continue
-        n = (v - lo) / (hi - lo)
-        norm.append(1 - n if lower_is_better else n)
-    return norm
+        fh.write("-- RMSD (PyMOL 'super', sequence-independent) --\n")
+        if rmsd_pymol is not None:
+            fh.write(f"  RMSD            : {rmsd_pymol:.3f} A\n")
+        else:
+            fh.write("  (skipped -- pymol2 module not available)\n")
 
 
 # --------------------------------------------------------------------------
 # Main
 # --------------------------------------------------------------------------
+
 def main():
-    p = argparse.ArgumentParser(
-        description="Compare AF3 candidate structures/sequences against a patented reference "
-                    "(RMSD, sequence difference, cmscore, MFE difference -> equal-weight composite).",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
-    )
-    p.add_argument("--patented-dir", required=True, type=Path,
-                    help="AF3 output directory for the patented/reference job.")
-    p.add_argument("--candidates-dir", required=True, type=Path,
-                    help="Directory containing one AF3 output subdirectory per candidate "
-                         "(e.g. <work-dir>/af3_output/).")
-    p.add_argument("--exclude", action="append", default=[],
-                    help="Candidate subdirectory name(s) to skip (e.g. the patented job itself, "
-                         "if it lives inside --candidates-dir too). Can repeat.")
-    p.add_argument("--cm-model", type=Path, default=None,
-                    help="Infernal .cm covariance model file for cmscore. Optional.")
-    p.add_argument("--weights", default="0.25,0.25,0.25,0.25",
-                    help="Comma-separated weights for rmsd,seq_diff,cmscore,mfe_diff. "
-                         "Default equal weighting: %(default)s")
-    p.add_argument("--out", type=Path, default=Path("af3_comparison.csv"),
-                    help="Output CSV path. Default: %(default)s")
-    args = p.parse_args()
+    ap = argparse.ArgumentParser(
+        description="Compare two RNA/DNA .cif structures: DSSR secondary "
+                     "structure, Biopython RMSD, and PyMOL visualization.")
+    ap.add_argument("cif1", help="First .cif file")
+    ap.add_argument("cif2", help="Second .cif file")
+    ap.add_argument("--outdir", default="rna_comparison_out",
+                     help="Directory for all outputs (default: %(default)s)")
+    ap.add_argument("--chain1", default=None,
+                     help="Chain ID to use in cif1 (default: first chain)")
+    ap.add_argument("--chain2", default=None,
+                     help="Chain ID to use in cif2 (default: first chain)")
+    ap.add_argument("--atom", default="C1'",
+                     help="Representative atom per residue for RMSD "
+                          "(default: %(default)s; use CA for protein)")
+    ap.add_argument("--dssr-path", default="x3dna-dssr",
+                     help="Path to the x3dna-dssr executable "
+                          "(default: %(default)s, i.e. must be on PATH)")
+    ap.add_argument("--pymol-path", default="pymol",
+                     help="Path/name of the PyMOL executable "
+                          "(default: %(default)s, i.e. must be on PATH -- "
+                          "works with any command-line PyMOL install, "
+                          "including SBGrid modules)")
+    ap.add_argument("--skip-pymol", action="store_true",
+                     help="Skip the PyMOL visualization/RMSD step")
+    ap.add_argument("--skip-dssr", action="store_true",
+                     help="Skip the x3dna-dssr secondary-structure step")
+    args = ap.parse_args()
 
-    weight_names = ["rmsd", "seq_diff", "cmscore", "mfe_diff"]
-    weights = dict(zip(weight_names, [float(w) for w in args.weights.split(",")]))
-    if len(weights) != 4:
-        sys.exit("ERROR: --weights must have exactly 4 comma-separated values "
-                  "(rmsd,seq_diff,cmscore,mfe_diff)")
+    os.makedirs(args.outdir, exist_ok=True)
+    name1 = os.path.splitext(os.path.basename(args.cif1))[0]
+    name2 = os.path.splitext(os.path.basename(args.cif2))[0]
 
-    # --- load patented reference ---
-    patented_cif = find_model_cif(args.patented_dir)
-    patented_chains = load_chains_from_cif(patented_cif)
-    patented_data_json = find_data_json(args.patented_dir)
-    if patented_data_json:
-        patented_full_seq = "".join(seq for _, seq, _ in load_sequences_from_data_json(patented_data_json))
+    # ---- Step 1: DSSR ----
+    dssr1 = dssr2 = None
+    if not args.skip_dssr:
+        print(f"[1/3] Running x3dna-dssr on {args.cif1} and {args.cif2} ...")
+        try:
+            dssr1 = get_dssr_summary(args.cif1, os.path.join(args.outdir, "dssr"),
+                                      args.dssr_path)
+            dssr2 = get_dssr_summary(args.cif2, os.path.join(args.outdir, "dssr"),
+                                      args.dssr_path)
+            print_dbn_comparison(name1, dssr1, name2, dssr2)
+        except (FileNotFoundError, RuntimeError) as exc:
+            print(f"WARNING: DSSR step failed/skipped: {exc}", file=sys.stderr)
+            dssr1 = dssr2 = None
     else:
-        patented_full_seq = "".join(info["seq"] for info in patented_chains.values())
-    patented_mfe = compute_mfe(patented_full_seq)
-    print(f"Patented reference: {patented_cif.name}  "
-          f"({sum(len(c['seq']) for c in patented_chains.values())} residues, "
-          f"MFE={patented_mfe})")
+        print("[1/3] Skipping x3dna-dssr step (--skip-dssr).")
 
-    # --- discover candidate job dirs ---
-    candidate_dirs = sorted(
-        d for d in args.candidates_dir.iterdir()
-        if d.is_dir() and d.name not in args.exclude and d.resolve() != args.patented_dir.resolve()
-    )
-    if not candidate_dirs:
-        sys.exit(f"ERROR: no candidate subdirectories found in {args.candidates_dir}")
+    # ---- Step 2: Biopython RMSD ----
+    print(f"\n[2/3] Computing RMSD with Biopython "
+          f"(atom='{args.atom}') ...")
+    rmsd_result, superimposed_s2 = compute_rmsd(
+        args.cif1, args.cif2, args.chain1, args.chain2, args.atom)
+    print(f"  Matched residues : {rmsd_result.n_matched} "
+          f"(of {rmsd_result.n_total_1} / {rmsd_result.n_total_2})")
+    print(f"  RMSD             : {rmsd_result.rmsd:.3f} A")
 
-    rows = []
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_dir = Path(tmp)
-        for cand_dir in candidate_dirs:
-            job_name = cand_dir.name
-            try:
-                cand_cif = find_model_cif(cand_dir)
-            except FileNotFoundError as e:
-                print(f"WARNING: {e} - skipping {job_name}", file=sys.stderr)
-                continue
-            cand_chains = load_chains_from_cif(cand_cif)
-            data_json = find_data_json(cand_dir)
-            if data_json:
-                cand_full_seq = "".join(seq for _, seq, _ in load_sequences_from_data_json(data_json))
-            else:
-                cand_full_seq = "".join(info["seq"] for info in cand_chains.values())
+    superimposed_path = os.path.join(args.outdir, f"{name2}_superimposed.cif")
+    save_superimposed(superimposed_s2, superimposed_path)
+    print(f"  Superimposed structure 2 written to: {superimposed_path}")
 
-            rmsd, seq_diff_pct = compute_rmsd_and_identity(patented_chains, cand_chains)
-            mfe = compute_mfe(cand_full_seq)
-            mfe_diff = abs(mfe - patented_mfe) if (mfe is not None and patented_mfe is not None) else None
-            cmscore = compute_cmscore(cand_full_seq, args.cm_model, job_name, tmp_dir)
+    # ---- Step 3: PyMOL visualization + cross-check RMSD ----
+    rmsd_pymol = None
+    if not args.skip_pymol:
+        print(f"\n[3/3] Rendering overlay with PyMOL ...")
+        png_out = os.path.join(args.outdir, f"{name1}_vs_{name2}.png")
+        pse_out = os.path.join(args.outdir, f"{name1}_vs_{name2}.pse")
+        rmsd_pymol = pymol_super_and_render(args.cif1, args.cif2, args.outdir,
+                                             png_out, pse_out, args.pymol_path)
+        if rmsd_pymol is not None:
+            print(f"  PyMOL 'super' RMSD: {rmsd_pymol:.3f} A")
+            print(f"  Image  : {png_out}")
+            print(f"  Session: {pse_out}")
+    else:
+        print("\n[3/3] Skipping PyMOL step (--skip-pymol).")
 
-            rows.append({
-                "job_name": job_name,
-                "rmsd": rmsd,
-                "seq_diff_pct": seq_diff_pct,
-                "cmscore": cmscore,
-                "mfe": mfe,
-                "mfe_diff": mfe_diff,
-            })
-            print(f"  {job_name}: RMSD={rmsd}, seq_diff={seq_diff_pct}%, "
-                  f"cmscore={cmscore}, MFE={mfe} (diff={mfe_diff})")
-
-    if not rows:
-        sys.exit("ERROR: no candidates could be scored.")
-
-    # --- normalize each metric across the candidate set ---
-    norm_rmsd = minmax_normalize([r["rmsd"] for r in rows], lower_is_better=True)
-    norm_seqdiff = minmax_normalize([r["seq_diff_pct"] for r in rows], lower_is_better=True)
-    norm_cmscore = minmax_normalize([r["cmscore"] for r in rows], lower_is_better=False)
-    norm_mfediff = minmax_normalize([r["mfe_diff"] for r in rows], lower_is_better=True)
-
-    for i, r in enumerate(rows):
-        r["norm_rmsd"] = norm_rmsd[i]
-        r["norm_seq_diff"] = norm_seqdiff[i]
-        r["norm_cmscore"] = norm_cmscore[i]
-        r["norm_mfe_diff"] = norm_mfediff[i]
-
-        present_weights = {}
-        for key, norm_key in [("rmsd", "norm_rmsd"), ("seq_diff", "norm_seq_diff"),
-                               ("cmscore", "norm_cmscore"), ("mfe_diff", "norm_mfe_diff")]:
-            if r[norm_key] is not None:
-                present_weights[key] = weights[key]
-        total_w = sum(present_weights.values())
-        if total_w == 0:
-            r["composite_score"] = None
-            continue
-        score = 0.0
-        for key, norm_key in [("rmsd", "norm_rmsd"), ("seq_diff", "norm_seq_diff"),
-                               ("cmscore", "norm_cmscore"), ("mfe_diff", "norm_mfe_diff")]:
-            if key in present_weights:
-                score += (present_weights[key] / total_w) * r[norm_key]
-        r["composite_score"] = score
-
-    rows.sort(key=lambda r: (r["composite_score"] is None, -(r["composite_score"] or 0)))
-
-    fieldnames = ["job_name", "rmsd", "seq_diff_pct", "cmscore", "mfe", "mfe_diff",
-                  "norm_rmsd", "norm_seq_diff", "norm_cmscore", "norm_mfe_diff", "composite_score"]
-    with open(args.out, "w", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=fieldnames)
-        writer.writeheader()
-        for r in rows:
-            writer.writerow(r)
-
-    print(f"\nWrote comparison table for {len(rows)} candidate(s) to: {args.out}")
-    print("composite_score: 1.0 = most similar to patented reference across all available "
-          "metrics, 0.0 = least similar. (equal weights unless overridden with --weights)")
-    print("\nTop candidate(s):")
-    for r in rows[:5]:
-        cs = r["composite_score"]
-        print(f"  {r['job_name']}: composite_score={cs:.3f}" if cs is not None
-              else f"  {r['job_name']}: composite_score=N/A")
+    # ---- Report ----
+    report_path = os.path.join(args.outdir, "comparison_report.txt")
+    if dssr1 and dssr2:
+        write_report(report_path, name1, name2, dssr1, dssr2,
+                     rmsd_result, rmsd_pymol)
+        print(f"\nFull report written to: {report_path}")
+    else:
+        print("\n(DSSR data unavailable -- report limited to RMSD values above.)")
 
 
 if __name__ == "__main__":
