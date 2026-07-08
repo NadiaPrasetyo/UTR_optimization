@@ -237,5 +237,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run LightGBM half-life predictions")
     parser.add_argument("-i", "--input", required=True, type=str,
                         help="Directory containing input .tsv metric files")
+                        
     args = parser.parse_args()
     main(args.input)

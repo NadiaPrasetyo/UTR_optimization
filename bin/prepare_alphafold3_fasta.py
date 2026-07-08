@@ -78,18 +78,8 @@ def sanitize_name(name: str) -> str:
     return name or "job"
 
 
-def detect_molecule_type(sequence: str) -> str:
-    """
-    Very simple heuristic to decide if a sequence is protein, DNA, or RNA.
-    AlphaFold3 JSON needs the sequence tagged as protein/dna/rna.
-    """
-    s = sequence.upper()
-    bases = set(s)
-    if bases <= set("ACGT N"):
-        return "dna"
-    if bases <= set("ACGU N"):
-        return "rna"
-    return "protein"
+def clean_RNA_seq(seq: str) -> str:
+    return seq.replace("T", "U").upper()
 
 
 # --------------------------------------------------------------------------
@@ -208,8 +198,8 @@ def main():
                 sys.exit(f"ERROR: empty sequence for record '{header}'")
             chains.append({
                 "id": next(chain_ids),
-                "sequence": seq,
-                "type": detect_molecule_type(seq),
+                "sequence": clean_RNA_seq(seq),
+                "type": "rna",
             })
         af3_json = build_af3_json(job_name, chains, model_seeds)
         json_path = inputs_dir / f"{job_name}.json"
@@ -231,8 +221,8 @@ def main():
 
             chains = [{
                 "id": "A",
-                "sequence": seq,
-                "type": detect_molecule_type(seq),
+                "sequence": clean_RNA_seq(seq),
+                "type": "rna",
             }]
             af3_json = build_af3_json(job_name, chains, model_seeds)
             json_path = inputs_dir / f"{job_name}.json"
