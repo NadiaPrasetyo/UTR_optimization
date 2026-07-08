@@ -38,6 +38,7 @@ Run with -h for all options.
 
 import argparse
 import json
+import math
 import os
 import re
 import shutil
@@ -49,8 +50,10 @@ from typing import Dict, List, Optional, Tuple
 try:
     from Bio.PDB import MMCIFParser, Superimposer
     from Bio.Align import PairwiseAligner
+    import numpy as np
 except ImportError:
-    print("ERROR: Biopython is required. Install with: pip install biopython",
+    print("ERROR: Biopython and numpy are required. "
+          "Install with: pip install biopython numpy",
           file=sys.stderr)
     sys.exit(1)
 
@@ -231,16 +234,41 @@ def get_dssr_summary(cif_path: str, outdir: str, dssr_bin: str) -> DssrResult:
 
 
 # --------------------------------------------------------------------------
-# Step 2: Biopython structural alignment + RMSD
+# Step 2: Structural alignment summary -- Smith-Waterman 3D (Biopython,
+# implemented directly) and TM-align (external US-align/TMalign binary)
 # --------------------------------------------------------------------------
+#
+# Both methods report the same standardized metric set:
+#   RMSD              -- over the aligned/equivalent residues only (not the
+#                         whole chain); lower is better, but sensitive to
+#                         which residues the method decided to align.
+#   TM-score          -- topological similarity, 0-1, length-normalized so
+#                         it doesn't just reward more aligned residues.
+#                         Reported normalized by EACH structure's own
+#                         sequence length (asymmetric -- TM-score(A) vs
+#                         TM-score(B) can differ if len(A) != len(B)).
+#   Identity          -- % of aligned/equivalent residue pairs with the
+#                         same base identity.
+#   Equivalent Residues -- number of residue pairs the alignment treats as
+#                         structurally corresponding.
+#   Sequence Length   -- total residues in each deposited chain.
+#   Modeled Residues  -- residues that actually had usable coordinates
+#                         (i.e. had the representative atom present) and
+#                         so could participate in the alignment.
 
 @dataclass
-class RmsdResult:
-    n_matched: int
-    n_total_1: int
-    n_total_2: int
+class AlignmentSummary:
+    method: str
     rmsd: float
-    atom_name: str
+    tm_score_1: float          # TM-score normalized by structure 1's length
+    tm_score_2: float          # TM-score normalized by structure 2's length
+    identity_pct: float
+    n_equivalent: int
+    seq_len_1: int
+    seq_len_2: int
+    modeled_1: int
+    modeled_2: int
+    note: str = ""
 
 
 def load_structure(cif_path: str, struct_id: str):
@@ -267,74 +295,129 @@ def residue_sequence(chain) -> Tuple[List, str]:
     return residues, seq
 
 
-def align_sequences(seq1: str, seq2: str) -> List[Tuple[int, int]]:
+def tm_score_d0(length: int, domain: str = "rna") -> float:
     """
-    Pairwise-align two sequences and return a list of (i, j) index pairs
-    for columns where both sequences have an aligned, identical residue.
-    Indices are 0-based positions into seq1 / seq2 respectively.
+    Length-dependent TM-score scale factor d0 (Angstrom). TM-score's
+    normalization constant is calibrated separately for proteins and
+    nucleic acids because they have different typical inter-residue
+    geometries (protein: CA-CA spacing; RNA: much larger C3'-C3'/C1'-C1'
+    spacing along a more extended backbone). This uses:
+      - "rna": d0 = 0.6*sqrt(L - 0.5) - 2.5, floored at 0.3 A (as used by
+        RNA-focused structural alignment tools built on the TM-score
+        framework, e.g. RNA-align / US-align's nucleic-acid mode).
+      - "protein": the original Zhang & Skolnick (2004) piecewise/CA-based
+        formula, provided for completeness if this script is ever pointed
+        at protein chains via --atom CA.
     """
-    aligner = PairwiseAligner()
-    aligner.mode = "global"
-    aligner.open_gap_score = -10
-    aligner.extend_gap_score = -0.5
-    aligner.match_score = 2
-    aligner.mismatch_score = -1
+    L = max(length, 1)
+    if domain == "rna":
+        d0 = 0.6 * math.sqrt(max(L - 0.5, 0.01)) - 2.5
+        return max(d0, 0.3)
+    # protein (classic TM-score piecewise definition)
+    if L < 12:
+        return 0.3
+    elif L < 16:
+        return 0.4
+    elif L < 20:
+        return 0.5
+    elif L < 24:
+        return 0.6
+    elif L < 30:
+        return 0.7
+    else:
+        return 1.24 * (L - 15) ** (1.0 / 3.0) - 1.8
 
-    alignment = aligner.align(seq1, seq2)[0]
-    pairs = []
-    for (s1, e1), (s2, e2) in zip(*alignment.aligned):
-        for offset in range(e1 - s1):
-            i, j = s1 + offset, s2 + offset
-            if seq1[i] == seq2[j]:
-                pairs.append((i, j))
-    return pairs
+
+def compute_tm_score_from_dists(dists: "np.ndarray", l_norm: int,
+                                 domain: str = "rna") -> float:
+    """TM-score = (1/L_norm) * sum_i [ 1 / (1 + (d_i/d0)^2) ]."""
+    d0 = tm_score_d0(l_norm, domain)
+    return float(np.sum(1.0 / (1.0 + (dists / d0) ** 2)) / l_norm)
 
 
-def compute_rmsd(cif1: str, cif2: str,
-                  chain1: Optional[str], chain2: Optional[str],
-                  atom_name: str = "C1'") -> RmsdResult:
+def smith_waterman_3d(cif1: str, cif2: str,
+                       chain1: Optional[str], chain2: Optional[str],
+                       atom_name: str = "C1'",
+                       tm_domain: str = "rna"):
     """
-    Superimpose structure 2 onto structure 1 using matched residues
-    (from a sequence alignment) and a chosen representative atom per
-    residue (default C1', a good sequence-independent backbone marker
-    for nucleic acids; use "CA" for proteins).
-    """
-    s1 = load_structure(cif1, "struct1")
-    s2 = load_structure(cif2, "struct2")
+    'Smith-Waterman 3D': a TRUE local (Smith-Waterman) alignment of the
+    two sequences establishes residue correspondence -- fast and
+    sequence-driven, exactly like the RCSB description -- followed by a
+    single rigid-body (Kabsch) superposition of every aligned residue
+    pair (matches AND mismatches within the aligned region; gaps
+    excluded). Because it's one rigid fit over a purely sequence-derived
+    alignment, a handful of badly-aligned residues (or a real local
+    conformational change) can inflate the RMSD -- this is the known
+    trade-off of the method, not a bug.
 
+    Returns (AlignmentSummary, Superimposer, structure2) where
+    Superimposer holds the fit (call .apply(...) to move structure2's
+    atoms) and structure2 is the *unmodified* Biopython structure object
+    for structure 2 (so the caller can apply the transform and save it).
+    """
+    s1 = load_structure(cif1, "sw_struct1")
+    s2 = load_structure(cif2, "sw_struct2")
     c1 = get_chain(s1, chain1)
     c2 = get_chain(s2, chain2)
-
     res1, seq1 = residue_sequence(c1)
     res2, seq2 = residue_sequence(c2)
 
-    matched_idx = align_sequences(seq1, seq2)
+    aligner = PairwiseAligner()
+    aligner.mode = "local"           # <-- true Smith-Waterman (not global)
+    aligner.match_score = 2
+    aligner.mismatch_score = -1
+    aligner.open_gap_score = -10
+    aligner.extend_gap_score = -0.5
+    alignment = aligner.align(seq1, seq2)[0]
 
-    atoms1, atoms2 = [], []
-    for i, j in matched_idx:
+    idx_pairs = []
+    for (a_start, a_end), (b_start, b_end) in zip(*alignment.aligned):
+        for offset in range(a_end - a_start):
+            idx_pairs.append((a_start + offset, b_start + offset))
+
+    atoms1, atoms2, n_identical = [], [], 0
+    for i, j in idx_pairs:
         r1, r2 = res1[i], res2[j]
-        if atom_name in r1 and atom_name in r2:
-            atoms1.append(r1[atom_name])
-            atoms2.append(r2[atom_name])
+        if atom_name not in r1 or atom_name not in r2:
+            continue
+        atoms1.append(r1[atom_name])
+        atoms2.append(r2[atom_name])
+        if seq1[i] == seq2[j]:
+            n_identical += 1
 
     if len(atoms1) < 3:
         raise RuntimeError(
-            f"Only {len(atoms1)} matched '{atom_name}' atoms found between "
-            f"the two chains -- need at least 3 for superposition. Check "
-            f"--chain1/--chain2/--atom options."
+            f"Smith-Waterman 3D: only {len(atoms1)} aligned '{atom_name}' "
+            f"atoms found between the two chains -- need at least 3. "
+            f"Check --chain1/--chain2/--atom options."
         )
 
     sup = Superimposer()
     sup.set_atoms(atoms1, atoms2)
-    sup.apply(s2.get_atoms())  # move structure 2 onto structure 1 in place
 
-    return RmsdResult(
-        n_matched=len(atoms1),
-        n_total_1=len(res1),
-        n_total_2=len(res2),
+    rot, tran = sup.rotran
+    coords1 = np.array([a.coord for a in atoms1])
+    coords2 = np.array([a.coord for a in atoms2])
+    fitted2 = coords2 @ rot + tran
+    dists = np.linalg.norm(coords1 - fitted2, axis=1)
+
+    n_equiv = len(atoms1)
+    modeled_1 = sum(1 for r in res1 if atom_name in r)
+    modeled_2 = sum(1 for r in res2 if atom_name in r)
+
+    summary = AlignmentSummary(
+        method="Smith-Waterman 3D",
         rmsd=sup.rms,
-        atom_name=atom_name,
-    ), s2
+        tm_score_1=compute_tm_score_from_dists(dists, len(res1), tm_domain),
+        tm_score_2=compute_tm_score_from_dists(dists, len(res2), tm_domain),
+        identity_pct=100.0 * n_identical / n_equiv,
+        n_equivalent=n_equiv,
+        seq_len_1=len(res1),
+        seq_len_2=len(res2),
+        modeled_1=modeled_1,
+        modeled_2=modeled_2,
+    )
+    return summary, sup, s2
 
 
 def save_superimposed(structure, out_path: str):
@@ -344,6 +427,133 @@ def save_superimposed(structure, out_path: str):
     io.set_structure(structure)
     io.save(out_path)
 
+
+# --------------------------------------------------------------------------
+# Step 2b: TM-align, via the actual US-align/TMalign executable
+# --------------------------------------------------------------------------
+#
+# TM-align's real algorithm (iterative dynamic-programming realignment
+# interleaved with rigid-body superposition, optimizing TM-score directly)
+# is genuinely complex and already exists as a mature, heavily-validated
+# tool -- reimplementing it from scratch would be a lot of code with real
+# correctness risk for little benefit over just calling the binary, the
+# same approach already used for PyMOL and DSSR in this script.
+#
+# For RNA specifically: the original TMalign only understands protein CA
+# atoms. US-align (Zhang lab's unified successor) auto-detects nucleic
+# acid chains and uses C3' atoms internally -- so US-align is strongly
+# preferred here and searched for first, with plain TMalign only as a
+# fallback (which will likely fail/misbehave on an RNA-only structure).
+
+_TMALIGN_ALIGNED_RE = re.compile(
+    r"Aligned length=\s*(\d+),\s*RMSD=\s*([\d.]+),\s*"
+    r"Seq_ID=n_identical/n_aligned=\s*([\d.]+)")
+_TMALIGN_TMSCORE_RE = re.compile(
+    r"TM-score=\s*([\d.]+)\s*\(if normalized by length of Chain_([12])")
+_TMALIGN_LEN_RE = re.compile(r"Length of Chain_([12]):\s*(\d+)\s*residues")
+
+
+def find_tmalign_binary(preferred: Optional[str] = None) -> Optional[str]:
+    """US-align first (handles RNA natively), TMalign as a fallback."""
+    candidates = [preferred] if preferred else \
+        ["USalign", "usalign", "TMalign", "tmalign"]
+    for c in candidates:
+        if c and check_executable(c):
+            return c
+    return None
+
+
+def convert_cif_to_pdb(cif_path: str, out_pdb_path: str):
+    """US-align/TMalign expect legacy PDB input; convert via Biopython."""
+    from Bio.PDB import PDBIO
+    s = load_structure(cif_path, "tmalign_tmp")
+    io = PDBIO()
+    io.set_structure(s)
+    io.save(out_pdb_path)
+
+
+def run_tmalign(cif1: str, cif2: str, outdir: str,
+                 tmalign_bin: Optional[str] = None) -> Optional[AlignmentSummary]:
+    """
+    Run US-align/TMalign on the two structures and parse its standard
+    text report into an AlignmentSummary. Returns None (with a warning)
+    if no such executable is found, or if its output can't be parsed --
+    in the latter case the raw output is still saved to
+    <outdir>/tmalign_output.txt so you can inspect it and, if this
+    particular build's phrasing differs, tell me and I'll adjust the
+    regexes.
+    """
+    resolved = find_tmalign_binary(tmalign_bin)
+    if resolved is None:
+        print("WARNING: no TM-align/US-align executable found on PATH "
+              "(tried USalign, TMalign) -- skipping TM-align step. "
+              "Get US-align from https://zhanggroup.org/US-align/ "
+              "(single-file C++, `g++ -O3 -o USalign USalign.cpp`), or "
+              "pass --tmalign-path.", file=sys.stderr)
+        return None
+
+    os.makedirs(outdir, exist_ok=True)
+    pdb1 = os.path.join(outdir, "_tmalign_1.pdb")
+    pdb2 = os.path.join(outdir, "_tmalign_2.pdb")
+    convert_cif_to_pdb(cif1, pdb1)
+    convert_cif_to_pdb(cif2, pdb2)
+
+    proc = run([resolved, pdb1, pdb2])
+    text = proc.stdout
+
+    raw_out_path = os.path.join(outdir, "tmalign_output.txt")
+    with open(raw_out_path, "w") as fh:
+        fh.write(text)
+
+    m = _TMALIGN_ALIGNED_RE.search(text)
+    if not m:
+        print(f"WARNING: could not parse {resolved} output -- raw output "
+              f"saved to {raw_out_path} for inspection. Skipping TM-align "
+              f"summary row.", file=sys.stderr)
+        return None
+
+    n_aligned = int(m.group(1))
+    rmsd = float(m.group(2))
+    seq_id_pct = float(m.group(3)) * 100.0
+
+    tm_scores = {mm.group(2): float(mm.group(1))
+                 for mm in _TMALIGN_TMSCORE_RE.finditer(text)}
+    lens = {mm.group(1): int(mm.group(2))
+            for mm in _TMALIGN_LEN_RE.finditer(text)}
+
+    return AlignmentSummary(
+        method=f"TM-align ({resolved})",
+        rmsd=rmsd,
+        tm_score_1=tm_scores.get("1", float("nan")),
+        tm_score_2=tm_scores.get("2", float("nan")),
+        identity_pct=seq_id_pct,
+        n_equivalent=n_aligned,
+        seq_len_1=lens.get("1", 0),
+        seq_len_2=lens.get("2", 0),
+        modeled_1=lens.get("1", 0),
+        modeled_2=lens.get("2", 0),
+        note=f"raw output: {raw_out_path}",
+    )
+
+
+def format_alignment_table(summaries: List[AlignmentSummary]) -> str:
+    cols = [
+        ("Method", 22, "<"), ("RMSD(A)", 8, ">"), ("TM-1", 7, ">"),
+        ("TM-2", 7, ">"), ("Ident%", 7, ">"), ("EquivRes", 9, ">"),
+        ("SeqLen1", 8, ">"), ("SeqLen2", 8, ">"),
+        ("Modeled1", 9, ">"), ("Modeled2", 9, ">"),
+    ]
+    header = "".join(f"{name:{align}{w}}" for name, w, align in cols)
+    lines = [header, "-" * len(header)]
+    for s in summaries:
+        row = (
+            f"{s.method:<22}{s.rmsd:>8.3f}{s.tm_score_1:>7.3f}"
+            f"{s.tm_score_2:>7.3f}{s.identity_pct:>7.1f}"
+            f"{s.n_equivalent:>9d}{s.seq_len_1:>8d}{s.seq_len_2:>8d}"
+            f"{s.modeled_1:>9d}{s.modeled_2:>9d}"
+        )
+        lines.append(row)
+    return "\n".join(lines)
 
 # --------------------------------------------------------------------------
 # Step 3: PyMOL cross-check + visualization
@@ -482,34 +692,41 @@ def print_dbn_comparison(name1: str, r1: DssrResult, name2: str, r2: DssrResult)
 
 
 def write_report(path: str, name1, name2, dssr1: DssrResult, dssr2: DssrResult,
-                  rmsd_bio: RmsdResult, rmsd_pymol: Optional[float]):
+                  alignment_summaries: List[AlignmentSummary],
+                  rmsd_pymol: Optional[float]):
     with open(path, "w") as fh:
         fh.write("RNA structure comparison report\n")
         fh.write("=" * 60 + "\n\n")
         fh.write(f"Structure 1: {name1}\n")
         fh.write(f"Structure 2: {name2}\n\n")
 
-        fh.write("-- Secondary structure (x3dna-dssr) --\n")
-        pk1 = f", pseudoknot order {dssr1.pseudoknot_order}" if dssr1.pseudoknot_order else ""
-        pk2 = f", pseudoknot order {dssr2.pseudoknot_order}" if dssr2.pseudoknot_order else ""
-        fh.write(f"{name1}: {len(dssr1.sequence)} nt, {dssr1.num_pairs} bp, "
-                  f"{dssr1.num_stems} stems, {dssr1.num_helices} helices{pk1}\n")
-        fh.write(f"  seq: {dssr1.sequence}\n  dbn: {dssr1.dbn}\n")
-        fh.write(f"{name2}: {len(dssr2.sequence)} nt, {dssr2.num_pairs} bp, "
-                  f"{dssr2.num_stems} stems, {dssr2.num_helices} helices{pk2}\n")
-        fh.write(f"  seq: {dssr2.sequence}\n  dbn: {dssr2.dbn}\n\n")
+        if dssr1 and dssr2:
+            fh.write("-- Secondary structure (x3dna-dssr) --\n")
+            pk1 = f", pseudoknot order {dssr1.pseudoknot_order}" if dssr1.pseudoknot_order else ""
+            pk2 = f", pseudoknot order {dssr2.pseudoknot_order}" if dssr2.pseudoknot_order else ""
+            fh.write(f"{name1}: {len(dssr1.sequence)} nt, {dssr1.num_pairs} bp, "
+                      f"{dssr1.num_stems} stems, {dssr1.num_helices} helices{pk1}\n")
+            fh.write(f"  seq: {dssr1.sequence}\n  dbn: {dssr1.dbn}\n")
+            fh.write(f"{name2}: {len(dssr2.sequence)} nt, {dssr2.num_pairs} bp, "
+                      f"{dssr2.num_stems} stems, {dssr2.num_helices} helices{pk2}\n")
+            fh.write(f"  seq: {dssr2.sequence}\n  dbn: {dssr2.dbn}\n\n")
 
-        fh.write("-- RMSD (Biopython Superimposer, sequence-aligned atoms) --\n")
-        fh.write(f"  atom used       : {rmsd_bio.atom_name}\n")
-        fh.write(f"  matched residues: {rmsd_bio.n_matched} "
-                  f"(of {rmsd_bio.n_total_1} / {rmsd_bio.n_total_2} total)\n")
-        fh.write(f"  RMSD            : {rmsd_bio.rmsd:.3f} A\n\n")
+        fh.write("-- Structural alignment summary --\n")
+        fh.write("(TM-1/TM-2 = TM-score normalized by structure 1's / "
+                  "structure 2's sequence length; Ident% over equivalent "
+                  "residues; Modeled = residues with a usable "
+                  "representative atom)\n\n")
+        fh.write(format_alignment_table(alignment_summaries) + "\n")
+        for s in alignment_summaries:
+            if s.note:
+                fh.write(f"  [{s.method}] {s.note}\n")
+        fh.write("\n")
 
         fh.write("-- RMSD (PyMOL 'super', sequence-independent) --\n")
         if rmsd_pymol is not None:
             fh.write(f"  RMSD            : {rmsd_pymol:.3f} A\n")
         else:
-            fh.write("  (skipped -- pymol2 module not available)\n")
+            fh.write("  (skipped -- pymol executable not available)\n")
 
 
 # --------------------------------------------------------------------------
@@ -529,8 +746,13 @@ def main():
     ap.add_argument("--chain2", default=None,
                      help="Chain ID to use in cif2 (default: first chain)")
     ap.add_argument("--atom", default="C1'",
-                     help="Representative atom per residue for RMSD "
+                     help="Representative atom per residue for RMSD/TM-score "
                           "(default: %(default)s; use CA for protein)")
+    ap.add_argument("--tm-score-domain", choices=["rna", "protein"],
+                     default="rna",
+                     help="Which length-normalization constants to use for "
+                          "the (self-computed) Smith-Waterman 3D TM-score "
+                          "(default: %(default)s)")
     ap.add_argument("--dssr-path", default="x3dna-dssr",
                      help="Path to the x3dna-dssr executable "
                           "(default: %(default)s, i.e. must be on PATH)")
@@ -539,10 +761,17 @@ def main():
                           "(default: %(default)s, i.e. must be on PATH -- "
                           "works with any command-line PyMOL install, "
                           "including SBGrid modules)")
+    ap.add_argument("--tmalign-path", default=None,
+                     help="Path/name of the US-align or TMalign executable "
+                          "(default: auto-detect 'USalign' then 'TMalign' "
+                          "on PATH; US-align is preferred since it natively "
+                          "supports RNA/DNA)")
     ap.add_argument("--skip-pymol", action="store_true",
                      help="Skip the PyMOL visualization/RMSD step")
     ap.add_argument("--skip-dssr", action="store_true",
                      help="Skip the x3dna-dssr secondary-structure step")
+    ap.add_argument("--skip-tmalign", action="store_true",
+                     help="Skip the TM-align step")
     args = ap.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
@@ -552,7 +781,7 @@ def main():
     # ---- Step 1: DSSR ----
     dssr1 = dssr2 = None
     if not args.skip_dssr:
-        print(f"[1/3] Running x3dna-dssr on {args.cif1} and {args.cif2} ...")
+        print(f"[1/4] Running x3dna-dssr on {args.cif1} and {args.cif2} ...")
         try:
             dssr1 = get_dssr_summary(args.cif1, os.path.join(args.outdir, "dssr"),
                                       args.dssr_path)
@@ -563,25 +792,41 @@ def main():
             print(f"WARNING: DSSR step failed/skipped: {exc}", file=sys.stderr)
             dssr1 = dssr2 = None
     else:
-        print("[1/3] Skipping x3dna-dssr step (--skip-dssr).")
+        print("[1/4] Skipping x3dna-dssr step (--skip-dssr).")
 
-    # ---- Step 2: Biopython RMSD ----
-    print(f"\n[2/3] Computing RMSD with Biopython "
-          f"(atom='{args.atom}') ...")
-    rmsd_result, superimposed_s2 = compute_rmsd(
-        args.cif1, args.cif2, args.chain1, args.chain2, args.atom)
-    print(f"  Matched residues : {rmsd_result.n_matched} "
-          f"(of {rmsd_result.n_total_1} / {rmsd_result.n_total_2})")
-    print(f"  RMSD             : {rmsd_result.rmsd:.3f} A")
+    # ---- Step 2: Smith-Waterman 3D (Biopython) ----
+    print(f"\n[2/4] Computing Smith-Waterman 3D alignment "
+          f"(atom='{args.atom}', tm-score-domain={args.tm_score_domain}) ...")
+    sw3d_summary, sup, superimposed_s2 = smith_waterman_3d(
+        args.cif1, args.cif2, args.chain1, args.chain2,
+        args.atom, args.tm_score_domain)
+    alignment_summaries = [sw3d_summary]
+    print(format_alignment_table([sw3d_summary]))
 
+    sup.apply(superimposed_s2.get_atoms())  # move structure 2 into the fit frame
     superimposed_path = os.path.join(args.outdir, f"{name2}_superimposed.cif")
     save_superimposed(superimposed_s2, superimposed_path)
     print(f"  Superimposed structure 2 written to: {superimposed_path}")
 
-    # ---- Step 3: PyMOL visualization + cross-check RMSD ----
+    # ---- Step 3: TM-align (external US-align/TMalign binary) ----
+    if not args.skip_tmalign:
+        print(f"\n[3/4] Running TM-align ...")
+        tmalign_summary = run_tmalign(args.cif1, args.cif2, args.outdir,
+                                       args.tmalign_path)
+        if tmalign_summary is not None:
+            alignment_summaries.append(tmalign_summary)
+            print(format_alignment_table([tmalign_summary]))
+    else:
+        print("\n[3/4] Skipping TM-align step (--skip-tmalign).")
+
+    if len(alignment_summaries) > 1:
+        print(f"\nCombined structural alignment summary:")
+        print(format_alignment_table(alignment_summaries))
+
+    # ---- Step 4: PyMOL visualization + cross-check RMSD ----
     rmsd_pymol = None
     if not args.skip_pymol:
-        print(f"\n[3/3] Rendering overlay with PyMOL ...")
+        print(f"\n[4/4] Rendering overlay with PyMOL ...")
         png_out = os.path.join(args.outdir, f"{name1}_vs_{name2}.png")
         pse_out = os.path.join(args.outdir, f"{name1}_vs_{name2}.pse")
         rmsd_pymol = pymol_super_and_render(args.cif1, args.cif2, args.outdir,
@@ -591,16 +836,13 @@ def main():
             print(f"  Image  : {png_out}")
             print(f"  Session: {pse_out}")
     else:
-        print("\n[3/3] Skipping PyMOL step (--skip-pymol).")
+        print("\n[4/4] Skipping PyMOL step (--skip-pymol).")
 
     # ---- Report ----
     report_path = os.path.join(args.outdir, "comparison_report.txt")
-    if dssr1 and dssr2:
-        write_report(report_path, name1, name2, dssr1, dssr2,
-                     rmsd_result, rmsd_pymol)
-        print(f"\nFull report written to: {report_path}")
-    else:
-        print("\n(DSSR data unavailable -- report limited to RMSD values above.)")
+    write_report(report_path, name1, name2, dssr1, dssr2,
+                 alignment_summaries, rmsd_pymol)
+    print(f"\nFull report written to: {report_path}")
 
 
 if __name__ == "__main__":
