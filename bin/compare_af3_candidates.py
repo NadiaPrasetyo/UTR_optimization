@@ -509,7 +509,6 @@ n_aligned_pymol = result[1] if result else None
 cmd.orient()
 cmd.zoom(buffer=5)
 cmd.ray(1600, 1200)
-set opaque_background
 cmd.png(png_out, dpi=300)
 cmd.save(pse_out)
 
