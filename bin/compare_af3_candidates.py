@@ -495,10 +495,10 @@ cmd.hide("everything")
 cmd.show("cartoon")
 cmd.color("skyblue", "structA")
 cmd.color("salmon", "structB")
-cmd.bg_color("white")
+cmd.bg_color("black")
 cmd.set("cartoon_ring_mode", 3)   # nice nucleic-acid ring rendering
 cmd.set("cartoon_ring_finder", 1)
-cmd.set("ray_opaque_background", 0)
+cmd.set("ray_opaque_background", 1)
 
 # 'super' is sequence-independent structural superposition -- appropriate
 # even if numbering/sequence differ slightly between the two inputs.
@@ -509,6 +509,7 @@ n_aligned_pymol = result[1] if result else None
 cmd.orient()
 cmd.zoom(buffer=5)
 cmd.ray(1600, 1200)
+set opaque_background
 cmd.png(png_out, dpi=300)
 cmd.save(pse_out)
 
@@ -540,8 +541,8 @@ def pymol_super_and_render(cif1: str, cif2: str, outdir: str,
 
     os.makedirs(outdir, exist_ok=True)
 
-    worker_path = os.path.join(outdir, "_pymol_worker.py")
-    json_out = os.path.join(outdir, "_pymol_result.json")
+    worker_path = os.path.join(outdir, f"{name1}_{name2}_pymol_worker.py")
+    json_out = os.path.join(outdir, f"{name1}_{name2}_pymol_result.json")
     with open(worker_path, "w") as fh:
         fh.write(_PYMOL_WORKER_SCRIPT)
 
@@ -734,7 +735,7 @@ def main():
         print("\n[4/4] Skipping PyMOL step (--skip-pymol).")
 
     # ---- Report ----
-    report_path = os.path.join(args.outdir, "comparison_report.txt")
+    report_path = os.path.join(args.outdir, f"{name1}_vs_{name2}_comparison_report.txt")
     write_report(report_path, name1, name2, dssr1, dssr2,
                  alignment_summaries, pymol_result)
     print(f"\nFull report written to: {report_path}")
