@@ -850,8 +850,8 @@ def pymol_super_and_render(cif1: str, cif2: str, outdir: str,
 
     os.makedirs(outdir, exist_ok=True)
 
-    worker_path = os.path.join(outdir, f"{os.path.basename(cif1)}_{os.path.basename(cif2)}_pymol_worker.py")
-    json_out = os.path.join(outdir, f"{os.path.basename(cif1)}_{os.path.basename(cif2)}_pymol_result.json")
+    worker_path = os.path.join(outdir, f"{os.path.splitext(os.path.basename(cif1))[0].replace("_model", "")}_{os.path.splitext(os.path.basename(cif2))[0].replace("_model", "")}_pymol_worker.py")
+    json_out = os.path.join(outdir, f"{os.path.splitext(os.path.basename(cif1))[0].replace("_model", "")}_{os.path.splitext(os.path.basename(cif2))[0].replace("_model", "")}_pymol_result.json")
     with open(worker_path, "w") as fh:
         fh.write(_PYMOL_WORKER_SCRIPT)
 
