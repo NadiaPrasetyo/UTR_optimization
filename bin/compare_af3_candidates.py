@@ -46,7 +46,7 @@ its per-atom pLDDT values are:
     confidence scheme:
 
         Very high  (pLDDT > 90)              blue
-        Confident  (90 >= pLDDT > 70)         cyan
+        Confident  (90 >= pLDDT > 70)         turquoise
         Low        (70 >= pLDDT > 50)         yellow
         Very low   (pLDDT <= 50)              red
 
@@ -163,7 +163,6 @@ def find_confidences_json(cif_path: str, explicit: Optional[str]) -> Optional[st
 
     cif_dir = os.path.dirname(os.path.abspath(cif_path))
     base = os.path.splitext(os.path.basename(cif_path))[0].replace("_model", "")
-    print(f"Trying to find molecule_confidences.json for {cif_path}:")
     candidates = [
         os.path.join(cif_dir, "molecule_confidences.json"),
         os.path.join(cif_dir, f"{base}_confidences.json"),
@@ -662,7 +661,8 @@ import json
 from pymol import cmd, stored
 
 (cif1, cif2, png_out, pse_out, json_out,
- conf1, conf2, plddt_png1, plddt_png2) = sys.argv[1:10]
+ conf1, conf2, plddt_png1, plddt_png2,
+ plddt_cif1, plddt_cif2) = sys.argv[1:12]
 
 cmd.load(cif1, "structA")
 cmd.load(cif2, "structB")
@@ -766,8 +766,14 @@ cmd.png(png_out, dpi=300)
 cmd.save(pse_out)
 
 # -- Render 2 & 3: each structure individually, colored by pLDDT confidence --
+# Also save each as its own .cif (with pLDDT baked into the B-factor
+# column) so it can be reopened/moved/edited independently later --
+# note that the *coloring itself* is a PyMOL display property and isn't
+# an mmCIF concept, but any viewer that colors-by-B-factor (PyMOL,
+# ChimeraX, etc.) will reproduce the same look from the B-factor values.
 if has_plddt_a:
     color_by_plddt("structA")
+    cmd.save(plddt_cif1, "structA")
     cmd.disable("structB")
     cmd.orient("structA")
     cmd.zoom("structA", buffer=5)
@@ -777,6 +783,7 @@ if has_plddt_a:
 
 if has_plddt_b:
     color_by_plddt("structB")
+    cmd.save(plddt_cif2, "structB")
     cmd.disable("structA")
     cmd.orient("structB")
     cmd.zoom("structB", buffer=5)
@@ -800,6 +807,7 @@ def pymol_super_and_render(cif1: str, cif2: str, outdir: str,
                             png_out: str, pse_out: str,
                             conf1: Optional[str], conf2: Optional[str],
                             plddt_png1: str, plddt_png2: str,
+                            plddt_cif1: str, plddt_cif2: str,
                             pymol_bin: str = "pymol") -> Optional[dict]:
     """
     Independently superimpose the two structures in PyMOL (run headlessly
@@ -808,7 +816,9 @@ def pymol_super_and_render(cif1: str, cif2: str, outdir: str,
     colored by structure identity, and a PyMOL session (.pse) for
     interactive inspection. If molecule_confidences.json paths are
     given, also renders each structure individually colored by its
-    per-residue pLDDT confidence.
+    per-residue pLDDT confidence, and saves each of those (final,
+    post-superposition) coordinates out as its own .cif with pLDDT
+    baked into the B-factor column, for reuse/editing elsewhere.
 
     Returns a dict with the RMSD (and number of aligned atoms) reported
     by PyMOL's `super`, plus flags for whether pLDDT coloring succeeded,
@@ -838,6 +848,7 @@ def pymol_super_and_render(cif1: str, cif2: str, outdir: str,
         os.path.abspath(conf1) if conf1 else "None",
         os.path.abspath(conf2) if conf2 else "None",
         os.path.abspath(plddt_png1), os.path.abspath(plddt_png2),
+        os.path.abspath(plddt_cif1), os.path.abspath(plddt_cif2),
     ]
     proc = run(cmd_list)
     # `run()` only raises on nonzero exit, so on success its captured
@@ -911,7 +922,9 @@ def write_report(path: str, name1, name2, dssr1: DssrResult, dssr2: DssrResult,
                   plddt_summary1: Optional[Dict] = None,
                   plddt_summary2: Optional[Dict] = None,
                   plddt_png1: Optional[str] = None,
-                  plddt_png2: Optional[str] = None):
+                  plddt_png2: Optional[str] = None,
+                  plddt_cif1: Optional[str] = None,
+                  plddt_cif2: Optional[str] = None):
     with open(path, "w") as fh:
         fh.write("RNA structure comparison report\n")
         fh.write("=" * 60 + "\n\n")
@@ -948,7 +961,7 @@ def write_report(path: str, name1, name2, dssr1: DssrResult, dssr2: DssrResult,
         fh.write("\n")
 
         fh.write("-- pLDDT confidence (molecule_confidences.json) --\n")
-        fh.write("  Bins: Very high (>90) blue | Confident (70-90) cyan | "
+        fh.write("  Bins: Very high (>90) blue | Confident (70-90) turquoise | "
                   "Low (50-70) yellow | Very low (<50) red\n\n")
         if plddt_summary1:
             fh.write(format_plddt_summary(name1, plddt_summary1) + "\n")
@@ -960,8 +973,12 @@ def write_report(path: str, name1, name2, dssr1: DssrResult, dssr2: DssrResult,
             fh.write(f"{name2}: (no confidences loaded)\n")
         if plddt_png1 and os.path.exists(plddt_png1):
             fh.write(f"\n  {name1} confidence-colored render: {plddt_png1}\n")
+        if plddt_cif1 and os.path.exists(plddt_cif1):
+            fh.write(f"  {name1} confidence-annotated cif : {plddt_cif1}\n")
         if plddt_png2 and os.path.exists(plddt_png2):
             fh.write(f"  {name2} confidence-colored render: {plddt_png2}\n")
+        if plddt_cif2 and os.path.exists(plddt_cif2):
+            fh.write(f"  {name2} confidence-annotated cif : {plddt_cif2}\n")
 
 
 # --------------------------------------------------------------------------
@@ -1104,13 +1121,16 @@ def main():
     pymol_result = None
     plddt_png1 = os.path.join(args.outdir, f"{name1}_plddt.png")
     plddt_png2 = os.path.join(args.outdir, f"{name2}_plddt.png")
+    plddt_cif1 = os.path.join(args.outdir, f"plddt/{name1}_plddt.cif")
+    plddt_cif2 = os.path.join(args.outdir, f"plddt/{name2}_plddt.cif")
     if not args.skip_pymol:
         print(f"\n[4/4] Rendering overlay with PyMOL ...")
         png_out = os.path.join(args.outdir, f"{name1}_vs_{name2}.png")
         pse_out = os.path.join(args.outdir, f"{name1}_vs_{name2}.pse")
         pymol_result = pymol_super_and_render(
             args.cif1, args.cif2, args.outdir, png_out, pse_out,
-            conf_path1, conf_path2, plddt_png1, plddt_png2, args.pymol_path)
+            conf_path1, conf_path2, plddt_png1, plddt_png2,
+            plddt_cif1, plddt_cif2, args.pymol_path)
         if pymol_result is not None and pymol_result.get("rmsd") is not None:
             print(f"  PyMOL 'super' RMSD: {pymol_result['rmsd']:.3f} A "
                   f"({pymol_result.get('n_aligned')} aligned atoms)")
@@ -1118,8 +1138,10 @@ def main():
             print(f"  Session        : {pse_out}")
         if pymol_result is not None and pymol_result.get("plddt_colored_A"):
             print(f"  {name1} pLDDT-colored render: {plddt_png1}")
+            print(f"  {name1} pLDDT-annotated cif : {plddt_cif1}")
         if pymol_result is not None and pymol_result.get("plddt_colored_B"):
             print(f"  {name2} pLDDT-colored render: {plddt_png2}")
+            print(f"  {name2} pLDDT-annotated cif : {plddt_cif2}")
     else:
         print("\n[4/4] Skipping PyMOL step (--skip-pymol).")
 
@@ -1129,7 +1151,9 @@ def main():
                  alignment_summaries, pymol_result,
                  plddt_summary1, plddt_summary2,
                  plddt_png1 if (pymol_result and pymol_result.get("plddt_colored_A")) else None,
-                 plddt_png2 if (pymol_result and pymol_result.get("plddt_colored_B")) else None)
+                 plddt_png2 if (pymol_result and pymol_result.get("plddt_colored_B")) else None,
+                 plddt_cif1 if (pymol_result and pymol_result.get("plddt_colored_A")) else None,
+                 plddt_cif2 if (pymol_result and pymol_result.get("plddt_colored_B")) else None)
     print(f"\nFull report written to: {report_path}")
 
 
