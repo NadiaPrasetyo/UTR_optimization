@@ -170,6 +170,7 @@ def find_confidences_json(cif_path: str, explicit: Optional[str]) -> Optional[st
     ]
     for c in candidates:
         if os.path.exists(c):
+            print(f"Found molecule_confidences.json: {c}")
             return c
     return None
 
