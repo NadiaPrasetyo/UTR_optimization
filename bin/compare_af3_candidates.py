@@ -1121,8 +1121,10 @@ def main():
     pymol_result = None
     plddt_png1 = os.path.join(args.outdir, f"{name1}_plddt.png")
     plddt_png2 = os.path.join(args.outdir, f"{name2}_plddt.png")
+    
     plddt_cif1 = os.path.join(args.outdir, f"plddt/{name1}_plddt.cif")
     plddt_cif2 = os.path.join(args.outdir, f"plddt/{name2}_plddt.cif")
+    os.makedirs(os.path.dirname(plddt_cif1), exist_ok=True)
     if not args.skip_pymol:
         print(f"\n[4/4] Rendering overlay with PyMOL ...")
         png_out = os.path.join(args.outdir, f"{name1}_vs_{name2}.png")
