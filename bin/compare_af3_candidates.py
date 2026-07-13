@@ -166,7 +166,7 @@ def find_confidences_json(cif_path: str, explicit: Optional[str]) -> Optional[st
     print(f"Trying to find molecule_confidences.json for {cif_path}:")
     candidates = [
         os.path.join(cif_dir, "molecule_confidences.json"),
-        os.path.join(f"{base}_confidences.json"),
+        os.path.join(cif_dir, f"{base}_confidences.json"),
         os.path.join(cif_dir, "confidences.json"),
     ]
     for c in candidates:
