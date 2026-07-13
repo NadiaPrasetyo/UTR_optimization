@@ -162,10 +162,10 @@ def find_confidences_json(cif_path: str, explicit: Optional[str]) -> Optional[st
         return explicit
 
     cif_dir = os.path.dirname(os.path.abspath(cif_path))
-    base = os.path.splitext(os.path.basename(cif_path))[0]
+    base = replace(os.path.basename(cif_path), "_model.cif", "")
     candidates = [
         os.path.join(cif_dir, "molecule_confidences.json"),
-        os.path.join(cif_dir, f"{base}_confidences.json"),
+        os.path.join(f"{base}_confidences.json"),
         os.path.join(cif_dir, "confidences.json"),
     ]
     for c in candidates:
