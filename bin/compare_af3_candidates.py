@@ -669,7 +669,7 @@ cmd.load(cif2, "structB")
 
 cmd.hide("everything")
 cmd.show("cartoon")
-cmd.bg_color("black")
+cmd.bg_color("white")
 cmd.set("cartoon_ring_mode", 3)   # nice nucleic-acid ring rendering
 cmd.set("cartoon_ring_finder", 1)
 cmd.set("ray_opaque_background", 1)
@@ -738,10 +738,10 @@ def color_by_plddt(obj_name):
     Colored from low to high so each later, narrower selection overrides
     the broader one below it.
     """
-    cmd.color("red", obj_name)
-    cmd.color("yellow", f"{obj_name} and b > 50")
-    cmd.color("cyan", f"{obj_name} and b > 70")
-    cmd.color("blue", f"{obj_name} and b > 90")
+    cmd.color("deepsalmon", obj_name)
+    cmd.color("paleyellow", f"{obj_name} and b > 50")
+    cmd.color("aquamarine", f"{obj_name} and b > 70")
+    cmd.color("slate", f"{obj_name} and b > 90")
 
 
 has_plddt_a, plddt_source_a = assign_plddt_bfactors("structA", conf1)
