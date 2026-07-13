@@ -46,7 +46,7 @@ its per-atom pLDDT values are:
     confidence scheme:
 
         Very high  (pLDDT > 90)              blue
-        Confident  (90 >= pLDDT > 70)         turquoise
+        Confident  (90 >= pLDDT > 70)         cyan
         Low        (70 >= pLDDT > 50)         yellow
         Very low   (pLDDT <= 50)              red
 
@@ -130,7 +130,7 @@ def run(cmd: List[str], **kwargs) -> subprocess.CompletedProcess:
 PLDDT_BUCKETS = [
     # (label,       predicate,               color name used in PyMOL)
     ("Very high (pLDDT > 90)",        lambda v: v > 90,             "blue"),
-    ("Confident (70 < pLDDT <= 90)",  lambda v: 70 < v <= 90,       "turquoise"),
+    ("Confident (70 < pLDDT <= 90)",  lambda v: 70 < v <= 90,       "cyan"),
     ("Low (50 < pLDDT <= 70)",        lambda v: 50 < v <= 70,       "yellow"),
     ("Very low (pLDDT <= 50)",        lambda v: v <= 50,            "red"),
 ]
@@ -732,7 +732,7 @@ def color_by_plddt(obj_name):
     """
     Discrete AlphaFold-style pLDDT confidence coloring:
       Very high (pLDDT > 90)             blue
-      Confident (70 < pLDDT <= 90)       turquoise
+      Confident (70 < pLDDT <= 90)       cyan
       Low       (50 < pLDDT <= 70)       yellow
       Very low  (pLDDT <= 50)            red
     Colored from low to high so each later, narrower selection overrides
@@ -740,7 +740,7 @@ def color_by_plddt(obj_name):
     """
     cmd.color("red", obj_name)
     cmd.color("yellow", f"{obj_name} and b > 50")
-    cmd.color("turquoise", f"{obj_name} and b > 70")
+    cmd.color("cyan", f"{obj_name} and b > 70")
     cmd.color("blue", f"{obj_name} and b > 90")
 
 
@@ -948,7 +948,7 @@ def write_report(path: str, name1, name2, dssr1: DssrResult, dssr2: DssrResult,
         fh.write("\n")
 
         fh.write("-- pLDDT confidence (molecule_confidences.json) --\n")
-        fh.write("  Bins: Very high (>90) blue | Confident (70-90) turquoise | "
+        fh.write("  Bins: Very high (>90) blue | Confident (70-90) cyan | "
                   "Low (50-70) yellow | Very low (<50) red\n\n")
         if plddt_summary1:
             fh.write(format_plddt_summary(name1, plddt_summary1) + "\n")
