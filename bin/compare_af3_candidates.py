@@ -677,24 +677,55 @@ cmd.set("ray_opaque_background", 1)
 
 def assign_plddt_bfactors(obj_name, conf_path):
     """
-    Load a molecule_confidences.json (top-level "atom_plddts", in
-    file/atom order) and stamp its pLDDT values onto the B-factor
+    Try to stamp per-atom pLDDT values from molecule_confidences.json
+    (top-level "atom_plddts", in file/atom order) onto the B-factor
     column of the already-loaded PyMOL object, in atom order.
+
+    If the JSON's atom count doesn't match what PyMOL loaded (this can
+    happen even when Biopython's atom count matched fine elsewhere in
+    this script, e.g. because PyMOL's mmCIF reader handles altlocs,
+    symmetry/assembly records, or waters differently), this does NOT
+    give up on coloring: AlphaFold-family mmCIF files already carry
+    per-atom pLDDT in the B_iso_or_equiv column, which PyMOL loads into
+    `b` automatically -- so we fall back to using whatever is already
+    there. Coloring is only truly unavailable if there's no JSON *and*
+    no usable (non-zero) B-factor signal on disk.
+
+    Returns (has_signal: bool, source: str) where source is one of
+    "json", "cif_bfactor", or "none".
     """
-    if not conf_path or conf_path == "None":
-        return False
-    with open(conf_path) as fh:
-        data = json.load(fh)
-    plddts = data.get("atom_plddts", [])
     n_atoms = cmd.count_atoms(obj_name)
-    if len(plddts) != n_atoms:
+    used_json = False
+
+    if conf_path and conf_path != "None":
+        with open(conf_path) as fh:
+            data = json.load(fh)
+        plddts = data.get("atom_plddts", [])
+        if len(plddts) == n_atoms:
+            stored.plddts = list(plddts)
+            cmd.alter(obj_name, "b = stored.plddts.pop(0)")
+            used_json = True
+        else:
+            sys.stderr.write(
+                f"WARNING: {conf_path} has {len(plddts)} atoms but "
+                f"PyMOL loaded {n_atoms} atoms for {obj_name} -- "
+                f"falling back to the B-factor values already present "
+                f"in the loaded structure instead of the JSON.\n")
+
+    b_vals = [a.b for a in cmd.get_model(obj_name).atom]
+    has_signal = any(b != 0.0 for b in b_vals)
+
+    if used_json:
+        source = "json"
+    elif has_signal:
+        source = "cif_bfactor"
+    else:
+        source = "none"
         sys.stderr.write(
-            f"WARNING: {conf_path} has {len(plddts)} atoms but {obj_name} "
-            f"has {n_atoms} -- skipping pLDDT coloring for {obj_name}.\n")
-        return False
-    stored.plddts = list(plddts)
-    cmd.alter(obj_name, "b = stored.plddts.pop(0)")
-    return True
+            f"WARNING: no usable pLDDT signal (JSON or B-factor) found "
+            f"for {obj_name} -- skipping confidence coloring.\n")
+
+    return has_signal, source
 
 
 def color_by_plddt(obj_name):
@@ -713,8 +744,10 @@ def color_by_plddt(obj_name):
     cmd.color("blue", f"{obj_name} and b > 90")
 
 
-has_plddt_a = assign_plddt_bfactors("structA", conf1)
-has_plddt_b = assign_plddt_bfactors("structB", conf2)
+has_plddt_a, plddt_source_a = assign_plddt_bfactors("structA", conf1)
+has_plddt_b, plddt_source_b = assign_plddt_bfactors("structB", conf2)
+sys.stderr.write(f"pLDDT coloring source -- structA: {plddt_source_a}, "
+                  f"structB: {plddt_source_b}\n")
 
 # -- Render 1: overlay, colored by structure identity (for RMSD comparison) --
 cmd.color("skyblue", "structA")
@@ -757,6 +790,8 @@ with open(json_out, "w") as fh:
         "n_aligned": n_aligned_pymol,
         "plddt_colored_A": has_plddt_a,
         "plddt_colored_B": has_plddt_b,
+        "plddt_source_A": plddt_source_a,
+        "plddt_source_B": plddt_source_b,
     }, fh)
 '''
 
@@ -804,7 +839,16 @@ def pymol_super_and_render(cif1: str, cif2: str, outdir: str,
         os.path.abspath(conf2) if conf2 else "None",
         os.path.abspath(plddt_png1), os.path.abspath(plddt_png2),
     ]
-    run(cmd_list)
+    proc = run(cmd_list)
+    # `run()` only raises on nonzero exit, so on success its captured
+    # stdout/stderr would otherwise be silently discarded -- print
+    # anything PyMOL wrote (this is where the pLDDT-coloring
+    # warnings/diagnostics from the worker script show up).
+    for stream_name, content in (("stdout", proc.stdout), ("stderr", proc.stderr)):
+        if content and content.strip():
+            print(f"  [pymol {stream_name}]")
+            for line in content.strip().splitlines():
+                print(f"    {line}")
 
     if not os.path.exists(json_out):
         print("WARNING: PyMOL ran but produced no result file -- check "
@@ -812,7 +856,19 @@ def pymol_super_and_render(cif1: str, cif2: str, outdir: str,
         return None
 
     with open(json_out) as fh:
-        return json.load(fh)
+        result = json.load(fh)
+
+    for label, key in (("structA", "plddt_source_A"), ("structB", "plddt_source_B")):
+        source = result.get(key)
+        if source == "cif_bfactor":
+            print(f"  Note: {label} pLDDT coloring used the B-factor values "
+                  f"already embedded in the .cif (JSON atom count didn't "
+                  f"match what PyMOL loaded).")
+        elif source == "none":
+            print(f"  Note: {label} has no usable pLDDT signal -- "
+                  f"confidence-colored render was skipped.")
+
+    return result
 
 
 # --------------------------------------------------------------------------
