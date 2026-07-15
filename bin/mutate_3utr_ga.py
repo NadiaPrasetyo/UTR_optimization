@@ -310,38 +310,62 @@ def submit_af3_population(
     array_max_parallel: Optional[int],
     model_seeds: List[int],
     generation: int,
+    batch_size: int = 25,
 ) -> Tuple[Path, Path, str]:
     """
     Build one AlphaFold3 JSON per individual (RNA monomer, chain A) using
     prepare_af3_jobs.py's own build_af3_json/sanitize_name/clean_RNA_seq,
-    write a SLURM array script covering the whole population, and submit
-    it with `sbatch`. Returns (jobs_tsv, output_root, slurm_job_id).
+    then GROUP them into batches of *batch_size* JSONs per SLURM array
+    task, and call AF3 once per batch with `--input_dir`/`--output_dir`
+    (per AF3's documented multi-input mode) instead of once per
+    individual. This is the single biggest lever on wall-clock time: a
+    lone `af3 <json> <out>` invocation pays AF3's model/database load
+    time (often several minutes) for every individual, so 1,000
+    individuals as 1,000 separate array tasks means 1,000x that load
+    time even with unlimited GPU concurrency. Batching amortizes that
+    load time across every sequence in the batch, and also means far
+    fewer array tasks are competing for whatever GPU concurrency the
+    partition actually grants (which is very likely why only 1-2 tasks
+    were ever running at once).
+
+    Set --af3-batch-size 1 to fall back to one-JSON-per-task behaviour.
+
+    Returns (jobs_tsv, output_root, slurm_job_id). jobs_tsv here is a
+    BATCH manifest (columns: batch_idx, batch_input_dir, batch_output_dir,
+    n_sequences_in_batch), not one row per individual.
     """
     gen_dir = af3_work_dir / f"gen_{generation:04d}"
     jobs_dir = gen_dir / "af3_jobs"
     inputs_dir = jobs_dir / "inputs"
     logs_dir = jobs_dir / "logs"
     output_root = gen_dir / "af3_output"
-    for d in (inputs_dir, logs_dir, output_root):
-        d.mkdir(parents=True, exist_ok=True)
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    output_root.mkdir(parents=True, exist_ok=True)
 
-    jobs = []
-    for sid, seq in zip(utr_ids, population):
-        job_name = af3prep.sanitize_name(sid)
-        chains = [{"id": "A", "sequence": af3prep.clean_RNA_seq(seq), "type": "rna"}]
-        af3_json = af3prep.build_af3_json(job_name, chains, model_seeds)
-        json_path = inputs_dir / f"{job_name}.json"
-        json_path.write_text(json.dumps(af3_json, indent=2))
-        jobs.append((job_name, json_path))
+    batch_size = max(1, batch_size)
+    pairs = list(zip(utr_ids, population))
+    batches = [pairs[i:i + batch_size] for i in range(0, len(pairs), batch_size)]
 
-    jobs_tsv = jobs_dir / "jobs.tsv"
+    batch_rows = []
+    for batch_idx, batch in enumerate(batches):
+        batch_input_dir = inputs_dir / f"batch_{batch_idx:04d}"
+        batch_output_dir = output_root / f"batch_{batch_idx:04d}"
+        batch_input_dir.mkdir(parents=True, exist_ok=True)
+        batch_output_dir.mkdir(parents=True, exist_ok=True)
+        for sid, seq in batch:
+            job_name = af3prep.sanitize_name(sid)
+            chains = [{"id": "A", "sequence": af3prep.clean_RNA_seq(seq), "type": "rna"}]
+            af3_json = af3prep.build_af3_json(job_name, chains, model_seeds)
+            (batch_input_dir / f"{job_name}.json").write_text(json.dumps(af3_json, indent=2))
+        batch_rows.append((batch_idx, batch_input_dir, batch_output_dir, len(batch)))
+
+    jobs_tsv = jobs_dir / "batches.tsv"
     with open(jobs_tsv, "w") as fh:
-        for idx, (job_name, json_path) in enumerate(jobs):
-            out_dir = output_root / job_name
-            fh.write(f"{idx}\t{job_name}\t{json_path}\t{out_dir}\n")
+        for batch_idx, batch_input_dir, batch_output_dir, n_seq in batch_rows:
+            fh.write(f"{batch_idx}\t{batch_input_dir}\t{batch_output_dir}\t{n_seq}\n")
 
-    n_jobs = len(jobs)
-    array_range = f"0-{n_jobs - 1}"
+    n_tasks = len(batches)
+    array_range = f"0-{n_tasks - 1}"
     if array_max_parallel:
         array_range += f"%{array_max_parallel}"
     exclude_line = f"#SBATCH --exclude={exclude}\n" if exclude else ""
@@ -358,6 +382,9 @@ def submit_af3_population(
 #SBATCH --array={array_range}
 #SBATCH --output={logs_dir}/af3_%A_%a.log
 {exclude_line}
+echo "=== AF3 batch task starting on $(hostname) at $(date) ==="
+echo "Array task ID: $SLURM_ARRAY_TASK_ID  (batch size <= {batch_size} sequences/task)"
+
 module purge
 module load {af3_module}
 
@@ -365,22 +392,31 @@ export AF3_DB={af3_db}
 export AF3_WD={gen_dir}
 export AF3_MODELS={af3_models}
 
-JOBS_TSV="{jobs_tsv}"
-LINE=$(awk -F'\\t' -v idx="$SLURM_ARRAY_TASK_ID" '$1 == idx {{print}}' "$JOBS_TSV")
+BATCHES_TSV="{jobs_tsv}"
+LINE=$(awk -F'\\t' -v idx="$SLURM_ARRAY_TASK_ID" '$1 == idx {{print}}' "$BATCHES_TSV")
 
 if [ -z "$LINE" ]; then
-    echo "ERROR: no job found for array task ID $SLURM_ARRAY_TASK_ID in $JOBS_TSV"
+    echo "ERROR: no batch found for array task ID $SLURM_ARRAY_TASK_ID in $BATCHES_TSV"
     exit 1
 fi
 
-JOB_NAME=$(echo "$LINE" | cut -f2)
-JSON_PATH=$(echo "$LINE" | cut -f3)
-OUT_DIR=$(echo "$LINE" | cut -f4)
-mkdir -p "$OUT_DIR"
+BATCH_INPUT_DIR=$(echo "$LINE" | cut -f2)
+BATCH_OUTPUT_DIR=$(echo "$LINE" | cut -f3)
+N_SEQ=$(echo "$LINE" | cut -f4)
+mkdir -p "$BATCH_OUTPUT_DIR"
 
-echo "Running AlphaFold3 for job: $JOB_NAME"
-af3 "$JSON_PATH" "$OUT_DIR" --run_data_pipeline=true --run_inference=true
-echo "AlphaFold3 job '$JOB_NAME' finished at $(date)."
+echo "Batch input dir  : $BATCH_INPUT_DIR  ($N_SEQ sequences)"
+echo "Batch output dir : $BATCH_OUTPUT_DIR"
+echo "--- af3 command ---"
+set -x
+af3 --input_dir="$BATCH_INPUT_DIR" --output_dir="$BATCH_OUTPUT_DIR" \\
+    --model_dir="$AF3_MODELS" --db_dir="$AF3_DB" \\
+    --run_data_pipeline=true --run_inference=true
+AF3_EXIT=$?
+set +x
+
+echo "=== AF3 batch task finished at $(date) with exit code $AF3_EXIT ==="
+exit $AF3_EXIT
 """
     script_path = jobs_dir / "run_af3_array.sh"
     script_path.write_text(script)
@@ -391,25 +427,51 @@ echo "AlphaFold3 job '$JOB_NAME' finished at $(date)."
     if result.returncode != 0:
         raise RuntimeError(f"sbatch failed for generation {generation}: {result.stderr}")
     job_id = result.stdout.strip().split(';')[0]
-    log.info(f"  Submitted AF3 array job {job_id} ({n_jobs} tasks) → {jobs_tsv}")
+    log.info(f"  Submitted AF3 array job {job_id}: {n_tasks} task(s) covering "
+             f"{len(pairs)} sequences (batch size <= {batch_size}/task)")
+    log.info(f"  Batch manifest → {jobs_tsv}")
+    log.info(f"  Per-task logs  → {logs_dir}/af3_{job_id}_<task>.log  "
+             f"(tail these directly if a generation looks stuck)")
     return jobs_tsv, output_root, job_id
 
 
 def wait_for_slurm_job(job_id: str, poll_interval: float = 30.0,
-                        timeout: Optional[float] = None) -> None:
-    """Poll `squeue` until *job_id* has no tasks left queued/running."""
+                        timeout: Optional[float] = None,
+                        logs_dir: Optional[Path] = None) -> None:
+    """
+    Poll `squeue` until *job_id* has no tasks left queued/running,
+    logging a PENDING/RUNNING breakdown each poll (not just a raw count)
+    so it's obvious whether tasks are stuck in the queue (e.g. no GPUs
+    free on the partition) versus actively running but slow.
+    """
     start = time.time()
+    logged_logs_hint = False
     while True:
-        result = subprocess.run(["squeue", "-j", job_id, "-h"],
+        result = subprocess.run(["squeue", "-j", job_id, "-h", "-o", "%T"],
                                  capture_output=True, text=True)
-        # squeue returns nonzero once the job has fully left the queue on
-        # some SLURM versions too, so treat "no rows" OR nonzero as done.
         if result.returncode != 0 or not result.stdout.strip():
             log.info(f"  SLURM array job {job_id} has left the queue.")
             return
-        n_left = len(result.stdout.strip().splitlines())
-        log.info(f"  Waiting on SLURM job {job_id}: {n_left} task(s) still queued/running "
-                 f"(poll every {poll_interval:.0f}s)...")
+
+        states = result.stdout.strip().splitlines()
+        n_pending = states.count("PENDING")
+        n_running = states.count("RUNNING")
+        n_other = len(states) - n_pending - n_running
+        other_str = f", {n_other} other" if n_other else ""
+        log.info(f"  Waiting on SLURM job {job_id}: {n_running} running, "
+                 f"{n_pending} pending{other_str} (poll every {poll_interval:.0f}s)...")
+
+        if logs_dir is not None and not logged_logs_hint:
+            log.info(f"  (per-task logs: {logs_dir}/af3_{job_id}_<task>.log)")
+            logged_logs_hint = True
+
+        if n_pending and n_running == 0 and (time.time() - start) > 120:
+            log.warning(f"  All remaining tasks for job {job_id} are PENDING (none RUNNING) — "
+                        f"this usually means the partition/GPUs are busy or the "
+                        f"requested --af3-partition/--af3-gres can't be satisfied right "
+                        f"now. Check with: squeue -j {job_id} -o '%.10i %.9P %.8T %.6D %R' "
+                        f"(the %R reason column explains why).")
+
         if timeout and (time.time() - start) > timeout:
             log.warning(f"  Timed out waiting for SLURM job {job_id} after {timeout}s "
                         f"— continuing with whatever output exists.")
@@ -417,23 +479,87 @@ def wait_for_slurm_job(job_id: str, poll_interval: float = 30.0,
         time.sleep(poll_interval)
 
 
+def report_slurm_job_failures(job_id: str, logs_dir: Path) -> None:
+    """
+    After a job has left the queue, use `sacct` to summarize per-task exit
+    states, and print the tail of the log for any task that did not
+    complete successfully — this is the "why did it fail / where are the
+    logs" diagnostic that plain squeue polling can't give you, since
+    squeue only shows queued/running tasks, not finished ones.
+    """
+    result = subprocess.run(
+        ["sacct", "-j", job_id, "--format=JobID,State,ExitCode", "-P", "--noheader"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        log.debug(f"  sacct unavailable or returned nothing for job {job_id} "
+                  f"(exit {result.returncode}) — skipping failure summary.")
+        return
+
+    states: Dict[str, str] = {}
+    for line in result.stdout.strip().splitlines():
+        parts = line.split("|")
+        if len(parts) < 2:
+            continue
+        jobid_field, state = parts[0], parts[1]
+        # Only care about the array-task rows (jobid_taskid), not the
+        # ".batch"/".extern" sub-steps sacct also reports.
+        if "." in jobid_field or "_" not in jobid_field:
+            continue
+        states[jobid_field] = state.split()[0]
+
+    if not states:
+        return
+
+    from collections import Counter
+    counts = Counter(states.values())
+    log.info(f"  sacct summary for job {job_id}: "
+             f"{', '.join(f'{k}={v}' for k, v in sorted(counts.items()))}")
+
+    failed = {k: v for k, v in states.items() if v not in ("COMPLETED",)}
+    if not failed:
+        return
+    log.warning(f"  {len(failed)}/{len(states)} AF3 task(s) did not complete "
+                f"successfully. Showing the tail of up to 3 failing logs:")
+    shown = 0
+    for jobid_field in sorted(failed):
+        task_id = jobid_field.split("_", 1)[-1]
+        log_path = logs_dir / f"af3_{job_id}_{task_id}.log"
+        if not log_path.exists():
+            log.warning(f"    [{jobid_field}] state={failed[jobid_field]} — "
+                        f"log not found at {log_path}")
+            continue
+        tail_lines = log_path.read_text(errors="replace").splitlines()[-20:]
+        log.warning(f"    [{jobid_field}] state={failed[jobid_field]} — {log_path}")
+        for line in tail_lines:
+            log.warning(f"      {line}")
+        shown += 1
+        if shown >= 3:
+            remaining = len(failed) - shown
+            if remaining > 0:
+                log.warning(f"    ... and {remaining} more failing task(s); "
+                            f"see {logs_dir} for the rest.")
+            break
+
+
 def collect_af3_cifs(output_root: Path, utr_ids: List[str],
                       model_glob: str) -> Dict[str, Optional[Path]]:
     """
-    Locate each individual's top-ranked AF3 model .cif under
-    output_root/<sanitized_job_name>/ using *model_glob* (relative,
-    e.g. "**/*_model.cif"). AF3's exact output layout/naming can vary by
-    version/site — adjust --af3-model-glob if nothing is found.
+    Locate each individual's top-ranked AF3 model .cif anywhere under
+    output_root (searching **/<sanitized_job_name>/<model_glob> so it
+    finds the job regardless of which batch_NNNN/ subdirectory AF3 wrote
+    it into). AF3's exact output layout/naming can vary by version/site
+    — adjust --af3-model-glob if nothing is found.
     """
     result: Dict[str, Optional[Path]] = {}
     for sid in utr_ids:
         job_name = af3prep.sanitize_name(sid)
-        job_out_dir = output_root / job_name
-        matches = sorted(job_out_dir.glob(model_glob))
+        matches = sorted(output_root.glob(f"**/{job_name}/{model_glob}"))
         result[sid] = matches[0] if matches else None
         if not matches:
-            log.warning(f"  No AF3 output structure found for {sid} in "
-                        f"{job_out_dir} (glob '{model_glob}') — treated as a "
+            log.warning(f"  No AF3 output structure found for {sid} "
+                        f"(job_name='{job_name}') under {output_root} "
+                        f"(pattern '**/{job_name}/{model_glob}') — treated as a "
                         f"failed prediction for this generation.")
     return result
 
@@ -946,7 +1072,7 @@ def run_ga(
     af3_work_dir: Path, af3_db: str, af3_models: str, af3_module: str,
     af3_partition: str, af3_time: str, af3_mem: str, af3_cpus: int, af3_gres: str,
     af3_exclude: str, af3_array_max_parallel: Optional[int], af3_model_seeds: List[int],
-    af3_model_glob: str, af3_poll_interval: float, af3_timeout: Optional[float],
+    af3_batch_size: int, af3_model_glob: str, af3_poll_interval: float, af3_timeout: Optional[float],
     atom_name: str, run_dssr: bool, dssr_path: str,
     output_dir: Path,
     population_size: int, n_select: int, generations: int,
@@ -964,6 +1090,8 @@ def run_ga(
     log.info("═" * 60)
     log.info("3' UTR Genetic Algorithm — point-scored, AF3-in-the-loop")
     log.info(f"  Population        : {population_size}")
+    log.info(f"  AF3 batch size    : {af3_batch_size} sequences/SLURM task "
+             f"({math.ceil(population_size / max(1, af3_batch_size))} array tasks/generation)")
     log.info(f"  n-select          : {n_select}  (weighted sampling WITH replacement)")
     log.info(f"  Generations       : {generations}")
     log.info(f"  Mutation rate     : {mutation_rate}  (flat — no annealing/boosting)")
@@ -985,9 +1113,11 @@ def run_ga(
     jobs_tsv, out_root, job_id = submit_af3_population(
         [seed_3utr_seq], [seed_id], af3_work_dir, af3_db, af3_models, af3_module,
         af3_partition, af3_time, af3_mem, af3_cpus, af3_gres, af3_exclude,
-        af3_array_max_parallel, af3_model_seeds, generation=0,
+        af3_array_max_parallel, af3_model_seeds, generation=0, batch_size=af3_batch_size,
     )
-    wait_for_slurm_job(job_id, af3_poll_interval, af3_timeout)
+    seed_logs_dir = af3_work_dir / "gen_0000" / "af3_jobs" / "logs"
+    wait_for_slurm_job(job_id, af3_poll_interval, af3_timeout, logs_dir=seed_logs_dir)
+    report_slurm_job_failures(job_id, seed_logs_dir)
     seed_cif = collect_af3_cifs(out_root, [seed_id], af3_model_glob)
     seed_rmsd_map, _seed_dbn = evaluate_af3_rmsd(
         seed_cif, [seed_id], ref_cifs, atom_name, run_dssr, dssr_path, dssr_outdir)
@@ -1024,13 +1154,17 @@ def run_ga(
         parent_rmsd_by_id = dict(zip(utr_ids, parent_rmsd))
         parent_cm_by_id = dict(zip(utr_ids, parent_cmscore))
 
-        # (1) AlphaFold3 structures, parallelized on SLURM as one array job
+        # (1) AlphaFold3 structures, parallelized on SLURM as batched array
+        #     tasks (--af3-batch-size sequences per task via AF3's
+        #     --input_dir, instead of one task per sequence)
         jobs_tsv, out_root, job_id = submit_af3_population(
             population, utr_ids, af3_work_dir, af3_db, af3_models, af3_module,
             af3_partition, af3_time, af3_mem, af3_cpus, af3_gres, af3_exclude,
-            af3_array_max_parallel, af3_model_seeds, generation=gen,
+            af3_array_max_parallel, af3_model_seeds, generation=gen, batch_size=af3_batch_size,
         )
-        wait_for_slurm_job(job_id, af3_poll_interval, af3_timeout)
+        gen_logs_dir = af3_work_dir / f"gen_{gen:04d}" / "af3_jobs" / "logs"
+        wait_for_slurm_job(job_id, af3_poll_interval, af3_timeout, logs_dir=gen_logs_dir)
+        report_slurm_job_failures(job_id, gen_logs_dir)
         cif_paths = collect_af3_cifs(out_root, utr_ids, af3_model_glob)
 
         # (2) RMSD vs. the 3 reference structures (min), + DSSR dot-bracket
@@ -1288,21 +1422,24 @@ def main():
                         help="Environment module to load (default: %(default)s).")
     parser.add_argument('--af3-model-seed', type=int, action='append', default=None,
                         dest='af3_model_seeds', help="AF3 model seed(s); repeatable (default: [1]).")
+    parser.add_argument('--af3-batch-size', type=int, default=25, dest='af3_batch_size', metavar='N',
+                        help="Number of sequences packed into a single AF3 invocation "
+                             "(via --input_dir) per SLURM array task (default: 25). This "
+                             "is the main lever for wall-clock time: AF3's model/database "
+                             "load cost is paid once per task, not once per sequence, so "
+                             "larger batches amortize that cost across more sequences and "
+                             "submit far fewer array tasks. Set to 1 to run one sequence "
+                             "per task (matches the old, much slower behaviour).")
     parser.add_argument('--af3-model-glob', default='**/*_model.cif', dest='af3_model_glob',
                         metavar='GLOB',
                         help="Glob (relative to each job's output dir) used to find the top "
                              "model .cif (default: %(default)s). Adjust to match your AF3 "
                              "version's output layout if nothing is found.")
-    parser.add_argument('--af3-partition', default='aoraki_gpu_L40', dest='af3_partition',
-                        help="SLURM partition (default: %(default)s).")
-    parser.add_argument('--af3-time', default='02:00:00', dest='af3_time',
-                        help="SLURM time (default: %(default)s).")
-    parser.add_argument('--af3-mem', default='32G', dest='af3_mem',
-                        help="SLURM memory (default: %(default)s).")
-    parser.add_argument('--af3-cpus-per-task', type=int, default=8, dest='af3_cpus',
-                        help="SLURM cpus-per-task (default: %(default)s).")
-    parser.add_argument('--af3-gres', default='gpu:1', dest='af3_gres',
-                        help="SLURM gres (default: %(default)s).")
+    parser.add_argument('--af3-partition', default='aoraki_gpu_L40', dest='af3_partition')
+    parser.add_argument('--af3-time', default='02:00:00', dest='af3_time')
+    parser.add_argument('--af3-mem', default='32G', dest='af3_mem')
+    parser.add_argument('--af3-cpus-per-task', type=int, default=8, dest='af3_cpus')
+    parser.add_argument('--af3-gres', default='gpu:1', dest='af3_gres')
     parser.add_argument('--af3-exclude', default='', dest='af3_exclude',
                         help="Nodes to exclude, comma-separated (default: none).")
     parser.add_argument('--af3-array-max-parallel', type=int, default=None,
@@ -1399,7 +1536,8 @@ def main():
         af3_module=args.af3_module, af3_partition=args.af3_partition, af3_time=args.af3_time,
         af3_mem=args.af3_mem, af3_cpus=args.af3_cpus, af3_gres=args.af3_gres,
         af3_exclude=args.af3_exclude, af3_array_max_parallel=args.af3_array_max_parallel,
-        af3_model_seeds=args.af3_model_seeds or [1], af3_model_glob=args.af3_model_glob,
+        af3_model_seeds=args.af3_model_seeds or [1], af3_batch_size=args.af3_batch_size,
+        af3_model_glob=args.af3_model_glob,
         af3_poll_interval=args.af3_poll_interval, af3_timeout=args.af3_timeout,
         atom_name=args.atom, run_dssr=not args.skip_dssr, dssr_path=args.dssr_path,
         output_dir=Path(args.output_dir),
