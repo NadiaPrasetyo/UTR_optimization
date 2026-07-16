@@ -28,6 +28,22 @@ CHECKPOINT BEHAVIOR
 To completely restart from scratch (clearing all checkpoints):
   rm -rf <output-dir>/_workspace/checkpoints
 
+AF3 BATCHED PARALLELIZATION
+─────────────────────────────
+Instead of submitting the whole generation's population as a single giant
+SLURM array job, the population is split into batches (default 100
+individuals per batch) and a sliding-window job pool keeps at most
+`--af3-max-concurrent-batches` (default 10) batch array-jobs queued/running
+at once. As soon as a batch finishes, the next queued batch is submitted.
+This avoids the situation where a single 1000-task array job sits mostly
+"pending" because the site's per-user job/task QOS limit is much lower than
+1000 — instead of racing the whole array against that limit at once, only
+a bounded number of tasks are ever in flight, and the rest are resubmitted
+as slots free up, rather than sitting queued from the very first sbatch call.
+
+Tune `--af3-batch-size` and `--af3-max-concurrent-batches` to match your
+cluster's actual per-user job/array limits (ask your admin, or check with
+`sacctmgr show assoc -p user=$USER` for MaxJobs / MaxSubmitJobs / GrpTRES).
 ─────────────────────────────────────────────────────────────────────────────
 """
 from __future__ import annotations
@@ -292,13 +308,14 @@ def check_patent_pid(sequence: str, patent_seqs: List[dict]) -> List[float]:
 
 # ══════════════════════════════════════════════════════════════════════════
 # AlphaFold3: SLURM-parallelized structure prediction for a whole
-# generation's population
+# generation's population — BATCHED sliding-window job pool
 # ══════════════════════════════════════════════════════════════════════════
 
-def submit_af3_population(
-    population: List[str],
-    utr_ids: List[str],
-    af3_work_dir: Path,
+def _build_af3_batch_script(
+    job_name_paths: List[Tuple[str, Path]],
+    jobs_dir: Path,
+    logs_dir: Path,
+    output_root: Path,
     af3_db: str,
     af3_models: str,
     af3_module: str,
@@ -309,46 +326,25 @@ def submit_af3_population(
     gres: str,
     exclude: str,
     array_max_parallel: Optional[int],
-    model_seeds: List[int],
     generation: int,
-) -> Tuple[Path, Path, str]:
-    """
-    Build one AlphaFold3 JSON per individual (RNA monomer, chain A) using
-    prepare_af3_jobs.py's own build_af3_json/sanitize_name/clean_RNA_seq,
-    write a SLURM array script covering the whole population, and submit
-    it with `sbatch`. Returns (jobs_tsv, output_root, slurm_job_id).
-    """
-    gen_dir = af3_work_dir / f"gen_{generation:04d}"
-    jobs_dir = gen_dir / "af3_jobs"
-    inputs_dir = jobs_dir / "inputs"
-    logs_dir = jobs_dir / "logs"
-    output_root = gen_dir / "af3_output"
-    for d in (inputs_dir, logs_dir, output_root):
-        d.mkdir(parents=True, exist_ok=True)
-
-    jobs = []
-    for sid, seq in zip(utr_ids, population):
-        job_name = af3prep.sanitize_name(sid)
-        chains = [{"id": "A", "sequence": af3prep.clean_RNA_seq(seq), "type": "rna"}]
-        af3_json = af3prep.build_af3_json(job_name, chains, model_seeds)
-        json_path = inputs_dir / f"{job_name}.json"
-        json_path.write_text(json.dumps(af3_json, indent=2))
-        jobs.append((job_name, json_path))
-
+    batch_idx: int,
+    gen_dir: Path,
+) -> Tuple[Path, Path]:
+    """Write jobs.tsv + the sbatch array script for a single batch. Returns (jobs_tsv, script_path)."""
     jobs_tsv = jobs_dir / "jobs.tsv"
     with open(jobs_tsv, "w") as fh:
-        for idx, (job_name, json_path) in enumerate(jobs):
+        for idx, (job_name, json_path) in enumerate(job_name_paths):
             out_dir = output_root / job_name
             fh.write(f"{idx}\t{job_name}\t{json_path}\t{out_dir}\n")
 
-    n_jobs = len(jobs)
+    n_jobs = len(job_name_paths)
     array_range = f"0-{n_jobs - 1}"
     if array_max_parallel:
         array_range += f"%{array_max_parallel}"
     exclude_line = f"#SBATCH --exclude={exclude}\n" if exclude else ""
 
     script = f"""#!/bin/bash
-#SBATCH --job-name=af3_gen{generation:04d}
+#SBATCH --job-name=af3_gen{generation:04d}_b{batch_idx:03d}
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task={cpus_per_task}
@@ -386,36 +382,143 @@ echo "AlphaFold3 job '$JOB_NAME' finished at $(date)."
     script_path = jobs_dir / "run_af3_array.sh"
     script_path.write_text(script)
     script_path.chmod(0o755)
+    return jobs_tsv, script_path
 
+
+def _sbatch_submit(script_path: Path) -> str:
     result = subprocess.run(["sbatch", "--parsable", str(script_path)],
                              capture_output=True, text=True)
     if result.returncode != 0:
-        raise RuntimeError(f"sbatch failed for generation {generation}: {result.stderr}")
-    job_id = result.stdout.strip().split(';')[0]
-    log.info(f"  Submitted AF3 array job {job_id} ({n_jobs} tasks) → {jobs_tsv}")
-    return jobs_tsv, output_root, job_id
+        raise RuntimeError(f"sbatch failed for {script_path}: {result.stderr}")
+    return result.stdout.strip().split(';')[0]
 
 
-def wait_for_slurm_job(job_id: str, poll_interval: float = 60.0,
-                        timeout: Optional[float] = None) -> None:
-    """Poll `squeue` until *job_id* has no tasks left queued/running."""
+def _slurm_job_still_queued_or_running(job_id: str) -> bool:
+    """True if *job_id* (an array job id, or 'id_taskid') still has rows in squeue."""
+    result = subprocess.run(["squeue", "-j", job_id, "-h"],
+                             capture_output=True, text=True)
+    if result.returncode != 0:
+        return False
+    return bool(result.stdout.strip())
+
+
+def submit_af3_population(
+    population: List[str],
+    utr_ids: List[str],
+    af3_work_dir: Path,
+    af3_db: str,
+    af3_models: str,
+    af3_module: str,
+    partition: str,
+    time_limit: str,
+    mem: str,
+    cpus_per_task: int,
+    gres: str,
+    exclude: str,
+    array_max_parallel: Optional[int],
+    model_seeds: List[int],
+    generation: int,
+    batch_size: int = 100,
+    max_concurrent_batches: int = 10,
+    poll_interval: float = 30.0,
+    timeout: Optional[float] = None,
+) -> Path:
+    """
+    Build one AlphaFold3 JSON per individual (RNA monomer, chain A) using
+    prepare_af3_jobs.py's own build_af3_json/sanitize_name/clean_RNA_seq,
+    then submit the population as a sliding-window pool of SLURM array
+    "batches" (default 100 individuals/batch, at most 10 batches
+    queued/running at once) rather than one single array job for the whole
+    population.
+
+    Why: a single 1000-task array job races the *entire* array against
+    whatever per-user job/task QOS limit the cluster enforces, so most of
+    it just sits pending from the moment it's submitted. Submitting in
+    smaller batches and only keeping a bounded number in flight means new
+    batches get submitted (and start actually running) as soon as a slot
+    frees up, which keeps the queue full without ever exceeding the
+    cluster's real concurrency ceiling.
+
+    Blocks until every batch for this generation has left the queue, then
+    returns the (single, shared) output_root directory all batches wrote
+    into — every individual's job_name is unique, so batches never collide.
+    """
+    gen_dir = af3_work_dir / f"gen_{generation:04d}"
+    jobs_root = gen_dir / "af3_jobs"
+    output_root = gen_dir / "af3_output"
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    # Build every individual's AF3 JSON up front (cheap, no need to batch this part).
+    job_name_paths: List[Tuple[str, Path]] = []
+    inputs_dir = jobs_root / "inputs"
+    inputs_dir.mkdir(parents=True, exist_ok=True)
+    for sid, seq in zip(utr_ids, population):
+        job_name = af3prep.sanitize_name(sid)
+        chains = [{"id": "A", "sequence": af3prep.clean_RNA_seq(seq), "type": "rna"}]
+        af3_json = af3prep.build_af3_json(job_name, chains, model_seeds)
+        json_path = inputs_dir / f"{job_name}.json"
+        json_path.write_text(json.dumps(af3_json, indent=2))
+        job_name_paths.append((job_name, json_path))
+
+    # Split into fixed-size batches.
+    batches: List[List[Tuple[str, Path]]] = [
+        job_name_paths[i:i + batch_size] for i in range(0, len(job_name_paths), batch_size)
+    ]
+    n_batches = len(batches)
+    log.info(f"  Generation {generation}: {len(job_name_paths)} individuals split into "
+             f"{n_batches} batch(es) of up to {batch_size}, "
+             f"{max_concurrent_batches} batch(es) in flight at once.")
+
+    def _submit_batch(batch_idx: int, batch: List[Tuple[str, Path]]) -> str:
+        jobs_dir = jobs_root / f"batch_{batch_idx:04d}"
+        logs_dir = jobs_dir / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        jobs_tsv, script_path = _build_af3_batch_script(
+            batch, jobs_dir, logs_dir, output_root, af3_db, af3_models, af3_module,
+            partition, time_limit, mem, cpus_per_task, gres, exclude,
+            array_max_parallel, generation, batch_idx, gen_dir,
+        )
+        job_id = _sbatch_submit(script_path)
+        log.info(f"    Submitted batch {batch_idx + 1}/{n_batches} as SLURM job {job_id} "
+                 f"({len(batch)} tasks) → {jobs_tsv}")
+        return job_id
+
+    pending = list(enumerate(batches))
+    running: Dict[str, int] = {}  # job_id -> batch_idx
+
+    # Initial wave, up to max_concurrent_batches.
+    while pending and len(running) < max_concurrent_batches:
+        idx, batch = pending.pop(0)
+        job_id = _submit_batch(idx, batch)
+        running[job_id] = idx
+
     start = time.time()
-    while True:
-        result = subprocess.run(["squeue", "-j", job_id, "-h"],
-                                 capture_output=True, text=True)
-        # squeue returns nonzero once the job has fully left the queue on
-        # some SLURM versions too, so treat "no rows" OR nonzero as done.
-        if result.returncode != 0 or not result.stdout.strip():
-            log.info(f"  SLURM array job {job_id} has left the queue.")
-            return
-        n_left = len(result.stdout.strip().splitlines())
-        log.info(f"  Waiting on SLURM job {job_id}: {n_left} task(s) still queued/running "
-                 f"(poll every {poll_interval:.0f}s)...")
-        if timeout and (time.time() - start) > timeout:
-            log.warning(f"  Timed out waiting for SLURM job {job_id} after {timeout}s "
-                        f"— continuing with whatever output exists.")
-            return
+    n_done = 0
+    while running:
         time.sleep(poll_interval)
+        for job_id in list(running.keys()):
+            if not _slurm_job_still_queued_or_running(job_id):
+                idx = running.pop(job_id)
+                n_done += 1
+                log.info(f"    Batch {idx + 1}/{n_batches} (job {job_id}) finished "
+                         f"({n_done}/{n_batches} batches done).")
+                if pending:
+                    nidx, nbatch = pending.pop(0)
+                    njob_id = _submit_batch(nidx, nbatch)
+                    running[njob_id] = nidx
+        n_in_flight = len(running)
+        n_waiting = len(pending)
+        if running or pending:
+            log.info(f"  ...gen {generation}: {n_done}/{n_batches} done, "
+                     f"{n_in_flight} in flight, {n_waiting} waiting "
+                     f"(poll every {poll_interval:.0f}s)...")
+        if timeout and (time.time() - start) > timeout:
+            log.warning(f"  Timed out waiting for generation {generation}'s AF3 batches "
+                        f"after {timeout}s — continuing with whatever output exists "
+                        f"({n_done}/{n_batches} batches confirmed finished).")
+            break
+
+    return output_root
 
 
 def collect_af3_cifs(output_root: Path, utr_ids: List[str],
@@ -948,6 +1051,7 @@ def run_ga(
     af3_partition: str, af3_time: str, af3_mem: str, af3_cpus: int, af3_gres: str,
     af3_exclude: str, af3_array_max_parallel: Optional[int], af3_model_seeds: List[int],
     af3_model_glob: str, af3_poll_interval: float, af3_timeout: Optional[float],
+    af3_batch_size: int, af3_max_concurrent_batches: int,
     atom_name: str, run_dssr: bool, dssr_path: str,
     output_dir: Path,
     population_size: int, n_select: int, generations: int,
@@ -975,6 +1079,8 @@ def run_ga(
     log.info(f"  No-hit penalty    : {no_hit_penalty}")
     log.info(f"  Patent sequences  : {len(patent_seqs)} motifs")
     log.info(f"  Patent PID thresh : > {patent_pid_threshold}% → penalty {patent_pid_penalty}")
+    log.info(f"  AF3 batch size    : {af3_batch_size}")
+    log.info(f"  AF3 concurrent    : {af3_max_concurrent_batches} batch(es) in flight")
     log.info(f"  Seed 3UTR         : {len(seed_3utr_seq)} nt")
     log.info(f"  Output            : {output_dir}")
 
@@ -1012,12 +1118,13 @@ def run_ga(
         # ── Baseline (generation-0 "parent") metrics for the seed sequence ──
         log.info("Computing baseline (seed) metrics for generation-1 comparisons...")
         seed_id = "seed_3utr"
-        jobs_tsv, out_root, job_id = submit_af3_population(
+        out_root = submit_af3_population(
             [seed_3utr_seq], [seed_id], af3_work_dir, af3_db, af3_models, af3_module,
             af3_partition, af3_time, af3_mem, af3_cpus, af3_gres, af3_exclude,
             af3_array_max_parallel, af3_model_seeds, generation=0,
+            batch_size=af3_batch_size, max_concurrent_batches=af3_max_concurrent_batches,
+            poll_interval=af3_poll_interval, timeout=af3_timeout,
         )
-        wait_for_slurm_job(job_id, af3_poll_interval, af3_timeout)
         seed_cif = collect_af3_cifs(out_root, [seed_id], af3_model_glob)
         seed_rmsd_map, _seed_dbn = evaluate_af3_rmsd(
             seed_cif, [seed_id], ref_cifs, atom_name, run_dssr, dssr_path, dssr_outdir)
@@ -1057,13 +1164,15 @@ def run_ga(
         parent_rmsd_by_id = dict(zip(utr_ids, parent_rmsd))
         parent_cm_by_id = dict(zip(utr_ids, parent_cmscore))
 
-        # (1) AlphaFold3 structures, parallelized on SLURM as one array job
-        jobs_tsv, out_root, job_id = submit_af3_population(
+        # (1) AlphaFold3 structures, parallelized on SLURM as a sliding-window
+        #     pool of batch array jobs (blocks until the whole generation is done)
+        out_root = submit_af3_population(
             population, utr_ids, af3_work_dir, af3_db, af3_models, af3_module,
             af3_partition, af3_time, af3_mem, af3_cpus, af3_gres, af3_exclude,
             af3_array_max_parallel, af3_model_seeds, generation=gen,
+            batch_size=af3_batch_size, max_concurrent_batches=af3_max_concurrent_batches,
+            poll_interval=af3_poll_interval, timeout=af3_timeout,
         )
-        wait_for_slurm_job(job_id, af3_poll_interval, af3_timeout)
         cif_paths = collect_af3_cifs(out_root, utr_ids, af3_model_glob)
 
         # (2) RMSD vs. the 3 reference structures (min), + DSSR dot-bracket
@@ -1360,11 +1469,26 @@ def main():
                         help="Nodes to exclude, comma-separated (default: none).")
     parser.add_argument('--af3-array-max-parallel', type=int, default=None,
                         dest='af3_array_max_parallel', metavar='N',
-                        help="Cap on simultaneously running array tasks (default: no cap).")
+                        help="Cap on simultaneously running tasks WITHIN each batch "
+                             "(default: no cap, i.e. every task in a batch is eligible "
+                             "to run at once — the batch/concurrent-batch settings below "
+                             "are what actually bound total concurrency).")
+    parser.add_argument('--af3-batch-size', type=int, default=100, dest='af3_batch_size',
+                        metavar='N',
+                        help="Number of individuals per SLURM array batch job "
+                             "(default: 100). Each generation's population is split "
+                             "into batches of this size instead of one giant array job.")
+    parser.add_argument('--af3-max-concurrent-batches', type=int, default=10,
+                        dest='af3_max_concurrent_batches', metavar='N',
+                        help="Max number of batch array-jobs kept queued/running at "
+                             "once (default: 10). As soon as one batch finishes, the "
+                             "next queued batch is submitted. Tune batch-size x this "
+                             "value to match your cluster's actual per-user job/task "
+                             "QOS limits.")
     parser.add_argument('--af3-poll-interval', type=float, default=30.0, dest='af3_poll_interval',
                         help="Seconds between squeue polls while waiting for AF3 (default: 30).")
     parser.add_argument('--af3-timeout', type=float, default=None, dest='af3_timeout',
-                        help="Max seconds to wait for a generation's AF3 array job "
+                        help="Max seconds to wait for a generation's AF3 batches "
                              "(default: no timeout).")
 
     # ── GA parameters ────────────────────────────────────────────────────
@@ -1423,6 +1547,13 @@ def main():
                     f"will be skipped (scoring is unaffected).")
         args.skip_dssr = True
 
+    if args.af3_batch_size < 1:
+        log.error("--af3-batch-size must be >= 1.")
+        sys.exit(1)
+    if args.af3_max_concurrent_batches < 1:
+        log.error("--af3-max-concurrent-batches must be >= 1.")
+        sys.exit(1)
+
     try:
         u5_id, u5_seq = read_single_fasta(Path(args.fasta_5utr))
         cds_id, cds_seq = read_single_fasta(Path(args.fasta_cds))
@@ -1454,6 +1585,8 @@ def main():
         af3_exclude=args.af3_exclude, af3_array_max_parallel=args.af3_array_max_parallel,
         af3_model_seeds=args.af3_model_seeds or [1], af3_model_glob=args.af3_model_glob,
         af3_poll_interval=args.af3_poll_interval, af3_timeout=args.af3_timeout,
+        af3_batch_size=args.af3_batch_size,
+        af3_max_concurrent_batches=args.af3_max_concurrent_batches,
         atom_name=args.atom, run_dssr=not args.skip_dssr, dssr_path=args.dssr_path,
         output_dir=Path(args.output_dir),
         population_size=args.population, n_select=args.n_select, generations=args.generations,
