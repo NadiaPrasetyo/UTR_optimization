@@ -499,8 +499,6 @@ def submit_af3_population(
         if cached_cif is not None and not sidecar_matches:
             log.warning(f"    Cached AF3 output found for {sid} but its recorded input "
                         f"sequence doesn't match the current population; skipping re-prediction.")
-            log.warning(f"      Expected: {cleaned_seq}")
-            log.warning(f"      Actual:   {sidecar_path.read_text().strip()}")
             n_cached += 1
             continue
 
