@@ -44,6 +44,21 @@ as slots free up, rather than sitting queued from the very first sbatch call.
 Tune `--af3-batch-size` and `--af3-max-concurrent-batches` to match your
 cluster's actual per-user job/array limits (ask your admin, or check with
 `sacctmgr show assoc -p user=$USER` for MaxJobs / MaxSubmitJobs / GrpTRES).
+
+AF3 MULTIPLE PREDICTIONS PER GPU (intra-slot concurrency)
+────────────────────────────────────────────────────────────
+For small inputs (e.g. short RNA sequences), a single AF3 prediction often
+leaves most of the GPU's memory/compute unused. `--af3-tasks-per-slot` groups
+several individuals into a single SLURM array task ("slot") — one GPU
+allocation — and `--af3-concurrent-per-slot` runs that many of them
+simultaneously in the background on that one GPU (throttled with `wait -n`),
+instead of one-prediction-per-array-task. This does two things at once:
+fewer array tasks for Slurm to schedule (so less time stuck in `(Priority)`/
+`(Resources)` pending states), and better GPU utilization once a slot does
+start running. Both default to 1, which reproduces the original
+one-individual-per-array-task behavior exactly. Tune `--af3-concurrent-per-
+slot` based on measured VRAM usage per prediction (check `nvidia-smi` while
+one run is in flight) — leave headroom for per-process CUDA context overhead.
 ─────────────────────────────────────────────────────────────────────────────
 """
 from __future__ import annotations
@@ -329,8 +344,19 @@ def _build_af3_batch_script(
     generation: int,
     batch_idx: int,
     gen_dir: Path,
+    tasks_per_slot: int = 1,
+    concurrent_per_slot: int = 1,
 ) -> Tuple[Path, Path]:
-    """Write jobs.tsv + the sbatch array script for a single batch. Returns (jobs_tsv, script_path)."""
+    """Write jobs.tsv + the sbatch array script for a single batch. Returns (jobs_tsv, script_path).
+
+    Each array task ("slot") is given up to *tasks_per_slot* individuals
+    (consecutive index ranges into jobs.tsv) and runs up to
+    *concurrent_per_slot* of them at once, backgrounded, on the single GPU
+    that slot was allocated — throttled with `wait -n` so at most
+    concurrent_per_slot AF3 processes ever share that GPU simultaneously.
+    Defaults (1, 1) reproduce the original one-individual-per-array-task
+    behavior exactly.
+    """
     jobs_tsv = jobs_dir / "jobs.tsv"
     with open(jobs_tsv, "w") as fh:
         for idx, (job_name, json_path) in enumerate(job_name_paths):
@@ -338,7 +364,8 @@ def _build_af3_batch_script(
             fh.write(f"{idx}\t{job_name}\t{json_path}\t{out_dir}\n")
 
     n_jobs = len(job_name_paths)
-    array_range = f"0-{n_jobs - 1}"
+    n_slots = math.ceil(n_jobs / tasks_per_slot)
+    array_range = f"0-{n_slots - 1}"
     if array_max_parallel:
         array_range += f"%{array_max_parallel}"
     exclude_line = f"#SBATCH --exclude={exclude}\n" if exclude else ""
@@ -363,21 +390,45 @@ export AF3_WD={gen_dir}
 export AF3_MODELS={af3_models}
 
 JOBS_TSV="{jobs_tsv}"
-LINE=$(awk -F'\\t' -v idx="$SLURM_ARRAY_TASK_ID" '$1 == idx {{print}}' "$JOBS_TSV")
+TASKS_PER_SLOT={tasks_per_slot}
+CONCURRENT_PER_SLOT={concurrent_per_slot}
+SLOT_START=$((SLURM_ARRAY_TASK_ID * TASKS_PER_SLOT))
+SLOT_END=$((SLOT_START + TASKS_PER_SLOT - 1))
 
-if [ -z "$LINE" ]; then
-    echo "ERROR: no job found for array task ID $SLURM_ARRAY_TASK_ID in $JOBS_TSV"
+LINES=$(awk -F'\\t' -v start="$SLOT_START" -v end="$SLOT_END" \\
+    '$1 >= start && $1 <= end {{print}}' "$JOBS_TSV")
+
+if [ -z "$LINES" ]; then
+    echo "ERROR: no jobs found for slot $SLURM_ARRAY_TASK_ID (indices $SLOT_START-$SLOT_END) in $JOBS_TSV"
     exit 1
 fi
 
-JOB_NAME=$(echo "$LINE" | cut -f2)
-JSON_PATH=$(echo "$LINE" | cut -f3)
-OUT_DIR=$(echo "$LINE" | cut -f4)
-mkdir -p "$OUT_DIR"
+echo "Slot $SLURM_ARRAY_TASK_ID: $(echo "$LINES" | wc -l) job(s) assigned, up to $CONCURRENT_PER_SLOT running concurrently on this GPU."
 
-echo "Running AlphaFold3 for job: $JOB_NAME"
-af3 "$JSON_PATH" "$OUT_DIR" --run_data_pipeline=true --run_inference=true
-echo "AlphaFold3 job '$JOB_NAME' finished at $(date)."
+run_one() {{
+    local job_name="$1" json_path="$2" out_dir="$3"
+    mkdir -p "$out_dir"
+    echo "  [$job_name] starting at $(date)"
+    af3 "$json_path" "$out_dir" --run_data_pipeline=true --run_inference=true \\
+        > "{logs_dir}/af3_task_${{job_name}}.log" 2>&1
+    local rc=$?
+    echo "  [$job_name] finished at $(date) (exit $rc)"
+    return $rc
+}}
+
+n_running=0
+while IFS=$'\\t' read -r idx job_name json_path out_dir; do
+    [ -z "$job_name" ] && continue
+    run_one "$job_name" "$json_path" "$out_dir" &
+    n_running=$((n_running + 1))
+    if [ "$n_running" -ge "$CONCURRENT_PER_SLOT" ]; then
+        wait -n
+        n_running=$((n_running - 1))
+    fi
+done <<< "$LINES"
+
+wait
+echo "Slot $SLURM_ARRAY_TASK_ID: all assigned jobs finished at $(date)."
 """
     script_path = jobs_dir / "run_af3_array.sh"
     script_path.write_text(script)
@@ -431,6 +482,8 @@ def submit_af3_population(
     max_concurrent_batches: int = 10,
     poll_interval: float = 30.0,
     timeout: Optional[float] = None,
+    tasks_per_slot: int = 1,
+    concurrent_per_slot: int = 1,
 ) -> Path:
     """
     Build one AlphaFold3 JSON per individual (RNA monomer, chain A) using
@@ -468,6 +521,17 @@ def submit_af3_population(
     detect the mismatch and re-predict — but it's still worth a fresh
     --output-dir / --af3-work-dir when deliberately changing GA parameters,
     rather than relying on the mismatch guard for every case.
+
+    Why tasks_per_slot / concurrent_per_slot: batching cuts the number of
+    array *jobs*, but by default each array *task* within a batch still
+    claims a whole GPU for exactly one prediction. For small inputs that
+    leaves most of that GPU idle. Setting tasks_per_slot > 1 groups several
+    individuals onto one array task (one GPU allocation); setting
+    concurrent_per_slot > 1 runs that many of them at once, in the
+    background, sharing that single GPU. This shrinks both wall-clock wait
+    time (fewer, denser array tasks to schedule) and per-generation runtime
+    (better GPU utilization once a task starts). Both default to 1, which
+    is exactly the original one-prediction-per-array-task behavior.
 
     Blocks until every batch for this generation has left the queue, then
     returns the (single, shared) output_root directory all batches wrote
@@ -536,6 +600,7 @@ def submit_af3_population(
             batch, jobs_dir, logs_dir, output_root, af3_db, af3_models, af3_module,
             partition, time_limit, mem, cpus_per_task, gres, exclude,
             array_max_parallel, generation, batch_idx, gen_dir,
+            tasks_per_slot=tasks_per_slot, concurrent_per_slot=concurrent_per_slot,
         )
         job_id = _sbatch_submit(script_path)
         log.info(f"    Submitted batch {batch_idx + 1}/{n_batches} as SLURM job {job_id} "
@@ -1111,6 +1176,7 @@ def run_ga(
     af3_exclude: str, af3_array_max_parallel: Optional[int], af3_model_seeds: List[int],
     af3_model_glob: str, af3_poll_interval: float, af3_timeout: Optional[float],
     af3_batch_size: int, af3_max_concurrent_batches: int,
+    af3_tasks_per_slot: int, af3_concurrent_per_slot: int,
     atom_name: str, run_dssr: bool, dssr_path: str,
     output_dir: Path,
     population_size: int, n_select: int, generations: int,
@@ -1140,6 +1206,8 @@ def run_ga(
     log.info(f"  Patent PID thresh : > {patent_pid_threshold}% → penalty {patent_pid_penalty}")
     log.info(f"  AF3 batch size    : {af3_batch_size}")
     log.info(f"  AF3 concurrent    : {af3_max_concurrent_batches} batch(es) in flight")
+    log.info(f"  AF3 tasks/slot    : {af3_tasks_per_slot}  (individuals sharing one GPU allocation)")
+    log.info(f"  AF3 concurrent/GPU: {af3_concurrent_per_slot}  (predictions running at once per slot)")
     log.info(f"  Seed 3UTR         : {len(seed_3utr_seq)} nt")
     log.info(f"  Output            : {output_dir}")
 
@@ -1215,6 +1283,7 @@ def run_ga(
             af3_model_glob=af3_model_glob,
             batch_size=af3_batch_size, max_concurrent_batches=af3_max_concurrent_batches,
             poll_interval=af3_poll_interval, timeout=af3_timeout,
+            tasks_per_slot=af3_tasks_per_slot, concurrent_per_slot=af3_concurrent_per_slot,
         )
         seed_cif = collect_af3_cifs(out_root, [seed_id], af3_model_glob)
         seed_rmsd_map, _seed_dbn = evaluate_af3_rmsd(
@@ -1264,6 +1333,7 @@ def run_ga(
             af3_model_glob=af3_model_glob,
             batch_size=af3_batch_size, max_concurrent_batches=af3_max_concurrent_batches,
             poll_interval=af3_poll_interval, timeout=af3_timeout,
+            tasks_per_slot=af3_tasks_per_slot, concurrent_per_slot=af3_concurrent_per_slot,
         )
         cif_paths = collect_af3_cifs(out_root, utr_ids, af3_model_glob)
 
@@ -1577,6 +1647,22 @@ def main():
                              "next queued batch is submitted. Tune batch-size x this "
                              "value to match your cluster's actual per-user job/task "
                              "QOS limits.")
+    parser.add_argument('--af3-tasks-per-slot', type=int, default=1, dest='af3_tasks_per_slot',
+                        metavar='N',
+                        help="Number of individuals grouped onto a single SLURM array "
+                             "task / GPU allocation (default: 1, i.e. one individual "
+                             "per array task, the original behavior). Raise this for "
+                             "small inputs (e.g. short RNAs) where one prediction "
+                             "doesn't use a full GPU, to cut the number of array "
+                             "tasks Slurm has to schedule.")
+    parser.add_argument('--af3-concurrent-per-slot', type=int, default=1,
+                        dest='af3_concurrent_per_slot', metavar='N',
+                        help="Of the individuals assigned to one array task (see "
+                             "--af3-tasks-per-slot), how many run at once in the "
+                             "background, sharing that task's single GPU (default: 1). "
+                             "Check nvidia-smi VRAM usage for one prediction before "
+                             "raising this, to leave headroom for per-process CUDA "
+                             "context overhead.")
     parser.add_argument('--af3-poll-interval', type=float, default=30.0, dest='af3_poll_interval',
                         help="Seconds between squeue polls while waiting for AF3 (default: 30).")
     parser.add_argument('--af3-timeout', type=float, default=None, dest='af3_timeout',
@@ -1645,6 +1731,17 @@ def main():
     if args.af3_max_concurrent_batches < 1:
         log.error("--af3-max-concurrent-batches must be >= 1.")
         sys.exit(1)
+    if args.af3_tasks_per_slot < 1:
+        log.error("--af3-tasks-per-slot must be >= 1.")
+        sys.exit(1)
+    if args.af3_concurrent_per_slot < 1:
+        log.error("--af3-concurrent-per-slot must be >= 1.")
+        sys.exit(1)
+    if args.af3_concurrent_per_slot > args.af3_tasks_per_slot:
+        log.warning(f"--af3-concurrent-per-slot ({args.af3_concurrent_per_slot}) is greater "
+                    f"than --af3-tasks-per-slot ({args.af3_tasks_per_slot}); the extra "
+                    f"concurrency will never be used since each slot only has "
+                    f"{args.af3_tasks_per_slot} job(s) to run.")
 
     try:
         u5_id, u5_seq = read_single_fasta(Path(args.fasta_5utr))
@@ -1679,6 +1776,8 @@ def main():
         af3_poll_interval=args.af3_poll_interval, af3_timeout=args.af3_timeout,
         af3_batch_size=args.af3_batch_size,
         af3_max_concurrent_batches=args.af3_max_concurrent_batches,
+        af3_tasks_per_slot=args.af3_tasks_per_slot,
+        af3_concurrent_per_slot=args.af3_concurrent_per_slot,
         atom_name=args.atom, run_dssr=not args.skip_dssr, dssr_path=args.dssr_path,
         output_dir=Path(args.output_dir),
         population_size=args.population, n_select=args.n_select, generations=args.generations,
