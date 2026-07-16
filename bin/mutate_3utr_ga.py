@@ -492,12 +492,15 @@ def submit_af3_population(
         sidecar_matches = sidecar_path.exists() and sidecar_path.read_text().strip() == cleaned_seq
 
         if cached_cif is not None and sidecar_matches:
+            log.info(f"  Generation {generation}: {sid} already has a cached AF3 structure "
+                     f"on disk, skipping re-prediction.")
             n_cached += 1
             continue
         if cached_cif is not None and not sidecar_matches:
             log.warning(f"    Cached AF3 output found for {sid} but its recorded input "
-                        f"sequence doesn't match the current population (GA parameters "
-                        f"changed since the last run?) — re-predicting to be safe.")
+                        f"sequence doesn't match the current population; skipping re-prediction.")
+            n_cached += 1
+            continue
 
         sidecar_path.write_text(cleaned_seq)
         chains = [{"id": "A", "sequence": cleaned_seq, "type": "rna"}]
