@@ -44,24 +44,6 @@ as slots free up, rather than sitting queued from the very first sbatch call.
 Tune `--af3-batch-size` and `--af3-max-concurrent-batches` to match your
 cluster's actual per-user job/array limits (ask your admin, or check with
 `sacctmgr show assoc -p user=$USER` for MaxJobs / MaxSubmitJobs / GrpTRES).
-
-CACHE/SIDECAR MISMATCH INSPECTION
-───────────────────────────────────
-When a cached AF3 structure exists on disk for an individual but its
-recorded (sidecar) input sequence doesn't match the current population's
-sequence for that sample_id, the script now:
-  1. Prints a position-by-position diff between the cached sequence and the
-     current one (length mismatch, mismatched positions, and a check for
-     whether the difference disappears under simple case/U-T normalization
-     — i.e. whether it's plausibly just a cleaning-step artifact rather
-     than a real sequence change).
-  2. Pauses interactively (if attached to a TTY) so you can look at the
-     diff before the script proceeds to re-predict that individual. You can
-     continue one at a time, tell it to stop asking for the rest of this
-     run, or abort entirely.
-Disable the pause with --no-pause-on-cache-mismatch (it still logs the diff,
-it just won't block). In non-interactive/batch contexts (no TTY) the pause
-is skipped automatically and a warning is logged instead.
 ─────────────────────────────────────────────────────────────────────────────
 """
 from __future__ import annotations
@@ -428,101 +410,6 @@ def _find_cached_cif(job_out_dir: Path, model_glob: str) -> Optional[Path]:
     return matches[0] if matches else None
 
 
-# ── Cache/sidecar mismatch diffing + interactive pause ─────────────────────
-
-def _normalize_for_cleaning_check(seq: str) -> str:
-    """
-    Collapse whitespace, upper-case, and fold U→T so that two sequences
-    which only differ by a cleaning-step convention (case, U vs T, stray
-    whitespace) compare equal. This is ONLY used to flag "this might just
-    be a cleaning artifact" in the diff report — it never affects which
-    sequence is actually used or cached.
-    """
-    return ''.join(seq.split()).upper().replace('U', 'T')
-
-
-def describe_sequence_diff(cached_seq: str, current_seq: str, max_positions: int = 20) -> str:
-    """
-    Build a human-readable report of exactly where *cached_seq* (what the
-    sidecar file recorded) and *current_seq* (what this run just generated
-    for the same sample_id) differ, so a mismatch can be inspected before
-    deciding whether to re-predict.
-    """
-    if cached_seq == current_seq:
-        return "  (no difference — sequences are identical; this should not happen if you're here)"
-
-    lines: List[str] = []
-    len_c, len_n = len(cached_seq), len(current_seq)
-    lines.append(f"  cached length : {len_c} nt")
-    lines.append(f"  current length: {len_n} nt")
-
-    if len_c != len_n:
-        lines.append("  → LENGTH MISMATCH: this is not a simple point-mutation diff. "
-                     "Likely an insertion/deletion, a different seed/parent, or a "
-                     "different sample_id being reused across runs — not a cosmetic "
-                     "cleaning difference.")
-
-    n = min(len_c, len_n)
-    mismatches = [(i, cached_seq[i], current_seq[i]) for i in range(n) if cached_seq[i] != current_seq[i]]
-    lines.append(f"  positional mismatches in overlapping region: {len(mismatches)} / {n} nt compared")
-
-    for i, a, b in mismatches[:max_positions]:
-        lines.append(f"      pos {i:>6d} (1-based {i + 1:>6d}): cached='{a}'  current='{b}'")
-    if len(mismatches) > max_positions:
-        lines.append(f"      ... and {len(mismatches) - max_positions} more not shown")
-
-    if len_c == len_n and _normalize_for_cleaning_check(cached_seq) == _normalize_for_cleaning_check(current_seq):
-        lines.append("  → All differences disappear under case/whitespace/U-T "
-                     "normalization. This LOOKS LIKE a cleaning-step artifact "
-                     "(e.g. clean_RNA_seq behaving differently between runs), "
-                     "not a genuine sequence change.")
-    elif mismatches:
-        frac = len(mismatches) / n if n else 0.0
-        lines.append(f"  → {frac * 100:.1f}% of overlapping positions differ and it is NOT "
-                     f"just a case/U-T artifact — this looks like a genuine sequence "
-                     f"difference (different --seed/--population/--mutation-rate/"
-                     f"--crossover-rate/--af3-model-seed between runs, or a stale "
-                     f"cache from an unrelated run reusing the same --output-dir / "
-                     f"--af3-work-dir).")
-    return "\n".join(lines)
-
-
-def prompt_cache_mismatch(sid: str, diff_report: str) -> str:
-    """
-    Pause and show the diff for a single cache/sidecar mismatch so a human
-    can look at it before the script proceeds. Returns:
-      'skip'      - proceed with re-predicting just this individual
-      'continue'  - proceed, and don't pause again for the rest of this run
-    Aborts the process entirely (sys.exit) if the user chooses to quit.
-    If stdin isn't a TTY (e.g. running under sbatch/nohup), the pause is
-    skipped automatically and 'skip' is returned after logging a warning.
-    """
-    if not sys.stdin.isatty():
-        log.warning("    (no interactive TTY attached — not pausing; proceeding with "
-                    "re-prediction for this individual)")
-        return 'skip'
-
-    print("\n" + "─" * 72)
-    print(f"  Cache/sidecar sequence mismatch for: {sid}")
-    print("─" * 72)
-    print(diff_report)
-    print("─" * 72)
-    while True:
-        resp = input(
-            "  [Enter] continue (re-predict just this one)   "
-            "[a] stop pausing for the rest of this run   "
-            "[q] abort run: "
-        ).strip().lower()
-        if resp in ('', 'c'):
-            return 'skip'
-        if resp == 'a':
-            return 'continue'
-        if resp == 'q':
-            log.error("  Aborted by user at cache mismatch prompt.")
-            sys.exit(1)
-        print("  Please answer with Enter, 'a', or 'q'.")
-
-
 def submit_af3_population(
     population: List[str],
     utr_ids: List[str],
@@ -544,7 +431,6 @@ def submit_af3_population(
     max_concurrent_batches: int = 10,
     poll_interval: float = 30.0,
     timeout: Optional[float] = None,
-    pause_on_cache_mismatch: bool = True,
 ) -> Path:
     """
     Build one AlphaFold3 JSON per individual (RNA monomer, chain A) using
@@ -583,13 +469,6 @@ def submit_af3_population(
     --output-dir / --af3-work-dir when deliberately changing GA parameters,
     rather than relying on the mismatch guard for every case.
 
-    When a mismatch is detected, a position-by-position diff between the
-    cached and current sequence is logged (see describe_sequence_diff), and
-    — unless *pause_on_cache_mismatch* is False or stdin isn't a TTY — the
-    script pauses so you can inspect whether the mismatch is a real problem
-    (stale cache, wrong parameters, reused output dir) or just a
-    cleaning-step artifact before it proceeds to re-predict.
-
     Blocks until every batch for this generation has left the queue, then
     returns the (single, shared) output_root directory all batches wrote
     into — every individual's job_name is unique, so batches never collide.
@@ -604,16 +483,13 @@ def submit_af3_population(
     # ── Skip individuals whose AF3 structure is already cached on disk ──
     job_name_paths: List[Tuple[str, Path]] = []
     n_cached = 0
-    stop_pausing = not pause_on_cache_mismatch  # once True, no more prompts this call
-    n_mismatches = 0
     for sid, seq in zip(utr_ids, population):
         job_name = af3prep.sanitize_name(sid)
         cleaned_seq = af3prep.clean_RNA_seq(seq)
         job_out_dir = output_root / job_name
         sidecar_path = inputs_dir / f"{job_name}.seq"
         cached_cif = _find_cached_cif(job_out_dir, af3_model_glob)
-        cached_seq = sidecar_path.read_text().strip() if sidecar_path.exists() else None
-        sidecar_matches = cached_seq is not None and cached_seq == cleaned_seq
+        sidecar_matches = sidecar_path.exists() and sidecar_path.read_text().strip() == cleaned_seq
 
         if cached_cif is not None and sidecar_matches:
             log.info(f"  Generation {generation}: {sid} already has a cached AF3 structure "
@@ -621,19 +497,10 @@ def submit_af3_population(
             n_cached += 1
             continue
         if cached_cif is not None and not sidecar_matches:
-            n_mismatches += 1
             log.warning(f"    Cached AF3 output found for {sid} but its recorded input "
                         f"sequence doesn't match the current population; skipping re-prediction.")
-            if cached_seq is None:
-                log.warning(f"    (No sidecar file found for {sid} at all — treating as a "
-                            f"mismatch since we can't confirm what produced the cached .cif.)")
-            else:
-                diff_report = describe_sequence_diff(cached_seq, cleaned_seq)
-                log.warning(f"    Sequence diff for {sid}:\n{diff_report}")
-                if not stop_pausing:
-                    decision = prompt_cache_mismatch(sid, diff_report)
-                    if decision == 'continue':
-                        stop_pausing = True
+            log.warning(f"      Expected: {cleaned_seq}")
+            log.warning(f"      Actual:   {sidecar_path.read_text().strip()}")
             n_cached += 1
             continue
 
@@ -648,10 +515,6 @@ def submit_af3_population(
         log.info(f"  Generation {generation}: {n_cached}/{len(utr_ids)} individuals "
                  f"already have a cached AF3 structure on disk — skipping re-prediction "
                  f"for those.")
-    if n_mismatches:
-        log.info(f"  Generation {generation}: {n_mismatches} of those were sidecar "
-                 f"mismatches (re-predicted rather than trusted as-is) — see the diff "
-                 f"report(s) above.")
 
     if not job_name_paths:
         log.info(f"  Generation {generation}: all individuals already have cached AF3 "
@@ -1255,7 +1118,6 @@ def run_ga(
     population_size: int, n_select: int, generations: int,
     mutation_rate: float, crossover_rate: float, temperature: float,
     rng_seed: int, make_plot: bool,
-    pause_on_cache_mismatch: bool = True,
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     results_dir = output_dir / 'results'
@@ -1280,7 +1142,6 @@ def run_ga(
     log.info(f"  Patent PID thresh : > {patent_pid_threshold}% → penalty {patent_pid_penalty}")
     log.info(f"  AF3 batch size    : {af3_batch_size}")
     log.info(f"  AF3 concurrent    : {af3_max_concurrent_batches} batch(es) in flight")
-    log.info(f"  Cache mismatch    : {'pause + diff' if pause_on_cache_mismatch else 'log diff only (no pause)'}")
     log.info(f"  Seed 3UTR         : {len(seed_3utr_seq)} nt")
     log.info(f"  Output            : {output_dir}")
 
@@ -1356,7 +1217,6 @@ def run_ga(
             af3_model_glob=af3_model_glob,
             batch_size=af3_batch_size, max_concurrent_batches=af3_max_concurrent_batches,
             poll_interval=af3_poll_interval, timeout=af3_timeout,
-            pause_on_cache_mismatch=pause_on_cache_mismatch,
         )
         seed_cif = collect_af3_cifs(out_root, [seed_id], af3_model_glob)
         seed_rmsd_map, _seed_dbn = evaluate_af3_rmsd(
@@ -1406,7 +1266,6 @@ def run_ga(
             af3_model_glob=af3_model_glob,
             batch_size=af3_batch_size, max_concurrent_batches=af3_max_concurrent_batches,
             poll_interval=af3_poll_interval, timeout=af3_timeout,
-            pause_on_cache_mismatch=pause_on_cache_mismatch,
         )
         cif_paths = collect_af3_cifs(out_root, utr_ids, af3_model_glob)
 
@@ -1726,16 +1585,6 @@ def main():
                         help="Max seconds to wait for a generation's AF3 batches "
                              "(default: no timeout).")
 
-    # ── Cache/sidecar mismatch inspection ───────────────────────────────
-    parser.add_argument('--no-pause-on-cache-mismatch', action='store_false',
-                        dest='pause_on_cache_mismatch', default=True,
-                        help="When a cached AF3 structure's sidecar sequence doesn't "
-                             "match the current run, a diff is always logged; by "
-                             "default the script also pauses (interactively, if a TTY "
-                             "is attached) so you can inspect it. Pass this flag to "
-                             "only log the diff and never pause (e.g. for unattended "
-                             "batch runs).")
-
     # ── GA parameters ────────────────────────────────────────────────────
     parser.add_argument('--population', type=int, default=1000, metavar='N',
                         help="Population size per generation (default: 1000).")
@@ -1837,7 +1686,6 @@ def main():
         population_size=args.population, n_select=args.n_select, generations=args.generations,
         mutation_rate=args.mutation_rate, crossover_rate=args.crossover_rate,
         temperature=args.temperature, rng_seed=args.seed, make_plot=not args.no_plot,
-        pause_on_cache_mismatch=args.pause_on_cache_mismatch,
     )
 
 
