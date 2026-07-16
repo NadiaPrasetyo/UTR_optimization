@@ -402,6 +402,14 @@ def _slurm_job_still_queued_or_running(job_id: str) -> bool:
     return bool(result.stdout.strip())
 
 
+def _find_cached_cif(job_out_dir: Path, model_glob: str) -> Optional[Path]:
+    """Return the first matching cached model .cif for a job, if any exists on disk."""
+    if not job_out_dir.exists():
+        return None
+    matches = sorted(job_out_dir.glob(model_glob))
+    return matches[0] if matches else None
+
+
 def submit_af3_population(
     population: List[str],
     utr_ids: List[str],
@@ -418,6 +426,7 @@ def submit_af3_population(
     array_max_parallel: Optional[int],
     model_seeds: List[int],
     generation: int,
+    af3_model_glob: str,
     batch_size: int = 100,
     max_concurrent_batches: int = 10,
     poll_interval: float = 30.0,
@@ -431,13 +440,34 @@ def submit_af3_population(
     queued/running at once) rather than one single array job for the whole
     population.
 
-    Why: a single 1000-task array job races the *entire* array against
-    whatever per-user job/task QOS limit the cluster enforces, so most of
-    it just sits pending from the moment it's submitted. Submitting in
-    smaller batches and only keeping a bounded number in flight means new
+    Why batches: a single 1000-task array job races the *entire* array
+    against whatever per-user job/task QOS limit the cluster enforces, so
+    most of it just sits pending from the moment it's submitted. Submitting
+    in smaller batches and only keeping a bounded number in flight means new
     batches get submitted (and start actually running) as soon as a slot
     frees up, which keeps the queue full without ever exceeding the
     cluster's real concurrency ceiling.
+
+    Why the on-disk cache: checkpointing only happens once a whole
+    generation finishes, so killing the script mid-generation loses that
+    generation's AF3 progress from the checkpoint's point of view — but the
+    predicted .cif files are still sitting on disk under
+    gen_NNNN/af3_output/<job_name>/. Before submitting anything, every
+    individual is checked against that directory (plus a small sidecar file
+    recording exactly what sequence produced it); if a matching structure
+    is already there, AF3 is skipped entirely for that individual. This
+    means even a full restart-from-scratch (no checkpoint at all) only
+    re-predicts whatever wasn't finished yet, instead of redoing the whole
+    population.
+
+    CAUTION: the cache is keyed by sample_id (generation + index), not by
+    sequence alone, guarded by the sidecar match. If you change any
+    parameter that alters the deterministic sequence at a given generation
+    and index (--seed, --population, --mutation-rate, --crossover-rate,
+    --af3-model-seed, etc.) between runs, the sidecar check will correctly
+    detect the mismatch and re-predict — but it's still worth a fresh
+    --output-dir / --af3-work-dir when deliberately changing GA parameters,
+    rather than relying on the mismatch guard for every case.
 
     Blocks until every batch for this generation has left the queue, then
     returns the (single, shared) output_root directory all batches wrote
@@ -447,26 +477,52 @@ def submit_af3_population(
     jobs_root = gen_dir / "af3_jobs"
     output_root = gen_dir / "af3_output"
     output_root.mkdir(parents=True, exist_ok=True)
-
-    # Build every individual's AF3 JSON up front (cheap, no need to batch this part).
-    job_name_paths: List[Tuple[str, Path]] = []
     inputs_dir = jobs_root / "inputs"
     inputs_dir.mkdir(parents=True, exist_ok=True)
+
+    # ── Skip individuals whose AF3 structure is already cached on disk ──
+    job_name_paths: List[Tuple[str, Path]] = []
+    n_cached = 0
     for sid, seq in zip(utr_ids, population):
         job_name = af3prep.sanitize_name(sid)
-        chains = [{"id": "A", "sequence": af3prep.clean_RNA_seq(seq), "type": "rna"}]
+        cleaned_seq = af3prep.clean_RNA_seq(seq)
+        job_out_dir = output_root / job_name
+        sidecar_path = inputs_dir / f"{job_name}.seq"
+        cached_cif = _find_cached_cif(job_out_dir, af3_model_glob)
+        sidecar_matches = sidecar_path.exists() and sidecar_path.read_text().strip() == cleaned_seq
+
+        if cached_cif is not None and sidecar_matches:
+            n_cached += 1
+            continue
+        if cached_cif is not None and not sidecar_matches:
+            log.warning(f"    Cached AF3 output found for {sid} but its recorded input "
+                        f"sequence doesn't match the current population (GA parameters "
+                        f"changed since the last run?) — re-predicting to be safe.")
+
+        sidecar_path.write_text(cleaned_seq)
+        chains = [{"id": "A", "sequence": cleaned_seq, "type": "rna"}]
         af3_json = af3prep.build_af3_json(job_name, chains, model_seeds)
         json_path = inputs_dir / f"{job_name}.json"
         json_path.write_text(json.dumps(af3_json, indent=2))
         job_name_paths.append((job_name, json_path))
+
+    if n_cached:
+        log.info(f"  Generation {generation}: {n_cached}/{len(utr_ids)} individuals "
+                 f"already have a cached AF3 structure on disk — skipping re-prediction "
+                 f"for those.")
+
+    if not job_name_paths:
+        log.info(f"  Generation {generation}: all individuals already have cached AF3 "
+                 f"structures — nothing to submit.")
+        return output_root
 
     # Split into fixed-size batches.
     batches: List[List[Tuple[str, Path]]] = [
         job_name_paths[i:i + batch_size] for i in range(0, len(job_name_paths), batch_size)
     ]
     n_batches = len(batches)
-    log.info(f"  Generation {generation}: {len(job_name_paths)} individuals split into "
-             f"{n_batches} batch(es) of up to {batch_size}, "
+    log.info(f"  Generation {generation}: {len(job_name_paths)} individual(s) to predict, "
+             f"split into {n_batches} batch(es) of up to {batch_size}, "
              f"{max_concurrent_batches} batch(es) in flight at once.")
 
     def _submit_batch(batch_idx: int, batch: List[Tuple[str, Path]]) -> str:
@@ -1109,6 +1165,37 @@ def run_ga(
         log.info(f"  Resuming from generation {ckpt.generation}")
         log.info(f"  All-time best score so far: {all_time_best_score}")
         log.info(f"  Next generation to run: {start_generation}")
+
+        if start_generation <= generations:
+            # ckpt.population is the population that was *scored* to produce
+            # ckpt.generation's results — it has not been bred into the next
+            # generation yet (that breeding normally happens, in-memory, right
+            # after the checkpoint save, so an interrupted run never got to it).
+            # Re-run that same breeding step here using the restored RNG state,
+            # so the result is bit-for-bit identical to an uninterrupted run,
+            # instead of re-scoring ckpt.generation's population a second time
+            # mislabeled as the next generation.
+            gen_selected_rows = sorted(
+                (r for r in selected_rows if r['generation'] == ckpt.generation),
+                key=lambda r: r['rank'],
+            )
+            selected_ids = [r['sample_id'] for r in gen_selected_rows]
+            gen_all_rows = [r for r in all_rows if r['generation'] == ckpt.generation]
+            seq_by_id = {r['sample_id']: r['sequence'] for r in gen_all_rows}
+            rmsd_by_id = {r['sample_id']: r['rmsd_min'] for r in gen_all_rows}
+            cmscore_by_id = {r['sample_id']: r['cmscore'] for r in gen_all_rows}
+            if not selected_ids:
+                raise RuntimeError(
+                    f"Checkpoint for generation {ckpt.generation} has no selected_rows "
+                    f"to breed from — checkpoint may be corrupt or from an incompatible "
+                    f"version of this script."
+                )
+            population, parent_of, parent_rmsd, parent_cmscore = breed_next_generation(
+                selected_ids, seq_by_id, rmsd_by_id, cmscore_by_id,
+                population_size, mutation_rate, crossover_rate, rng,
+            )
+            log.info(f"  Bred population for generation {start_generation} from "
+                     f"{len(selected_ids)} selected parent(s) of generation {ckpt.generation}.")
     else:
         log.info("═" * 60)
         log.info("NO CHECKPOINT FOUND — Starting fresh")
@@ -1122,6 +1209,7 @@ def run_ga(
             [seed_3utr_seq], [seed_id], af3_work_dir, af3_db, af3_models, af3_module,
             af3_partition, af3_time, af3_mem, af3_cpus, af3_gres, af3_exclude,
             af3_array_max_parallel, af3_model_seeds, generation=0,
+            af3_model_glob=af3_model_glob,
             batch_size=af3_batch_size, max_concurrent_batches=af3_max_concurrent_batches,
             poll_interval=af3_poll_interval, timeout=af3_timeout,
         )
@@ -1170,6 +1258,7 @@ def run_ga(
             population, utr_ids, af3_work_dir, af3_db, af3_models, af3_module,
             af3_partition, af3_time, af3_mem, af3_cpus, af3_gres, af3_exclude,
             af3_array_max_parallel, af3_model_seeds, generation=gen,
+            af3_model_glob=af3_model_glob,
             batch_size=af3_batch_size, max_concurrent_batches=af3_max_concurrent_batches,
             poll_interval=af3_poll_interval, timeout=af3_timeout,
         )
