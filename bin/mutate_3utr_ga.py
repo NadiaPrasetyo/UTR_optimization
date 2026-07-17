@@ -247,11 +247,12 @@ def _build_af3_batch_script(job_name_paths: List[Tuple[str, Path]], jobs_dir: Pa
                              af3_per_gpu: int) -> Tuple[Path, Path]:
     """
     Write jobs.tsv + an sbatch array script for a batch. Every `af3_per_gpu`
-    individuals share one array task (one GPU allocation) and run
-    concurrently in the background on it — set this based on how many
-    predictions your input size actually fits in one GPU's VRAM (check
-    `nvidia-smi` while a single af3 run is in flight). Default 1 reproduces
-    one-individual-per-GPU behavior exactly.
+    individuals share one array task (one GPU allocation) and run one after
+    another on it — sequentially, not concurrently, so they never contend
+    for GPU memory. This trades "several predictions running at once" for
+    "far fewer separate GPU-node waits in the SLURM queue" (one allocation
+    covers af3_per_gpu predictions back-to-back instead of one). Default 1
+    reproduces one-individual-per-GPU behavior exactly.
     """
     jobs_tsv = jobs_dir / "jobs.tsv"
     with open(jobs_tsv, "w") as fh:
@@ -284,17 +285,7 @@ SLOT_START=$((SLURM_ARRAY_TASK_ID * PER_GPU))
 SLOT_END=$((SLOT_START + PER_GPU - 1))
 LINES=$(awk -F'\\t' -v s="$SLOT_START" -v e="$SLOT_END" '$1 >= s && $1 <= e' "{jobs_tsv}")
 
-# JAX/TF each preallocate a large default share of the GPU per process, so
-# running PER_GPU>1 processes on one GPU needs each capped to ~1/PER_GPU of
-# it (with a small safety margin) or they OOM before ever touching the
-# actual input — independent of how small the sequence is.
-MEM_FRACTION=$(awk -v n="$PER_GPU" 'BEGIN{{printf "%.4f", 0.9 / n}}')
-unset XLA_PYTHON_CLIENT_MEM_FRACTION
-export XLA_PYTHON_CLIENT_PREALLOCATE=false
-export XLA_CLIENT_MEM_FRACTION="$MEM_FRACTION"
-export TF_FORCE_GPU_ALLOW_GROWTH=true
-
-echo "Slot $SLURM_ARRAY_TASK_ID: $(echo "$LINES" | wc -l) job(s) running concurrently on this GPU (XLA_CLIENT_MEM_FRACTION=$MEM_FRACTION)."
+echo "Slot $SLURM_ARRAY_TASK_ID: $(echo "$LINES" | wc -l) job(s) running sequentially on this GPU."
 
 run_one() {{
     local job_name="$1" json_path="$2" out_dir="$3"
@@ -322,12 +313,8 @@ run_one() {{
 slot_failed=0
 while IFS=$'\\t' read -r idx job_name json_path out_dir; do
     [ -z "$job_name" ] && continue
-    run_one "$job_name" "$json_path" "$out_dir" &
+    run_one "$job_name" "$json_path" "$out_dir" || slot_failed=1
 done <<< "$LINES"
-
-for pid in $(jobs -p); do
-    wait "$pid" || slot_failed=1
-done
 
 echo "Slot $SLURM_ARRAY_TASK_ID: all assigned jobs finished at $(date)."
 [ "$slot_failed" -ne 0 ] && exit 1
@@ -1008,11 +995,11 @@ def main():
                     help="Batches submitted/blocking at once (default: 10). Tune both of "
                          "these to your cluster's per-user job/task QOS limits.")
     p.add_argument('--af3-per-gpu', type=int, default=1, dest='af3_per_gpu',
-                    help="Individuals grouped onto one GPU allocation, run concurrently "
-                         "in the background on it (default: 1). Raise this for small "
-                         "inputs that don't use a full GPU on their own — check "
-                         "nvidia-smi VRAM usage for one prediction first, and cuts the "
-                         "number of SLURM array tasks/GPU-node waits needed too.")
+                    help="Individuals grouped onto one GPU allocation, run one after "
+                         "another (sequentially, not concurrently — no GPU-memory "
+                         "contention) on it (default: 1). Raise this to cut the number "
+                         "of separate SLURM GPU-node waits: one allocation covers "
+                         "af3_per_gpu predictions back-to-back instead of just one.")
 
     p.add_argument('--population', type=int, default=1000)
     p.add_argument('--n-select', type=int, default=10, dest='n_select')
