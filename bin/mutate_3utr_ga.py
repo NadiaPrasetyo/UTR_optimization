@@ -243,13 +243,22 @@ def _build_af3_batch_script(job_name_paths: List[Tuple[str, Path]], jobs_dir: Pa
                              logs_dir: Path, output_root: Path, af3_db: str, af3_models: str,
                              af3_module: str, partition: str, time_limit: str, mem: str,
                              cpus: int, gres: str, exclude: str, generation: int,
-                             batch_idx: int, gen_dir: Path, model_glob: str) -> Tuple[Path, Path]:
-    """Write jobs.tsv + a one-individual-per-array-task sbatch script for a batch."""
+                             batch_idx: int, gen_dir: Path, model_glob: str,
+                             af3_per_gpu: int) -> Tuple[Path, Path]:
+    """
+    Write jobs.tsv + an sbatch array script for a batch. Every `af3_per_gpu`
+    individuals share one array task (one GPU allocation) and run
+    concurrently in the background on it — set this based on how many
+    predictions your input size actually fits in one GPU's VRAM (check
+    `nvidia-smi` while a single af3 run is in flight). Default 1 reproduces
+    one-individual-per-GPU behavior exactly.
+    """
     jobs_tsv = jobs_dir / "jobs.tsv"
     with open(jobs_tsv, "w") as fh:
         for idx, (job_name, json_path) in enumerate(job_name_paths):
             fh.write(f"{idx}\t{job_name}\t{json_path}\t{output_root / job_name}\n")
 
+    n_slots = math.ceil(len(job_name_paths) / af3_per_gpu)
     exclude_line = f"#SBATCH --exclude={exclude}\n" if exclude else ""
     script = f"""#!/bin/bash
 #SBATCH --job-name=af3_gen{generation:04d}_b{batch_idx:03d}
@@ -260,7 +269,7 @@ def _build_af3_batch_script(job_name_paths: List[Tuple[str, Path]], jobs_dir: Pa
 #SBATCH --time={time_limit}
 #SBATCH --partition={partition}
 #SBATCH --gres={gres}
-#SBATCH --array=0-{len(job_name_paths) - 1}
+#SBATCH --array=0-{n_slots - 1}
 #SBATCH --output={logs_dir}/af3_%A_%a.log
 {exclude_line}
 module purge
@@ -270,26 +279,49 @@ export AF3_DB={af3_db}
 export AF3_WD={gen_dir}
 export AF3_MODELS={af3_models}
 
-LINE=$(awk -F'\\t' -v i="$SLURM_ARRAY_TASK_ID" '$1 == i' "{jobs_tsv}")
-IFS=$'\\t' read -r idx job_name json_path out_dir <<< "$LINE"
-mkdir -p "$out_dir"
-rm -f "$out_dir/.failed"
+PER_GPU={af3_per_gpu}
+SLOT_START=$((SLURM_ARRAY_TASK_ID * PER_GPU))
+SLOT_END=$((SLOT_START + PER_GPU - 1))
+LINES=$(awk -F'\\t' -v s="$SLOT_START" -v e="$SLOT_END" '$1 >= s && $1 <= e' "{jobs_tsv}")
 
-echo "[$job_name] starting at $(date)"
-af3 "$json_path" "$out_dir" --run_data_pipeline=true --run_inference=true
-rc=$?
-if [ $rc -ne 0 ]; then
-    echo "[$job_name] FAILED at $(date) (exit $rc)"
-    echo "$rc" > "$out_dir/.failed"
-    exit $rc
-fi
-n_cifs=$(find "$out_dir" -path "$out_dir/{model_glob}" 2>/dev/null | wc -l)
-if [ "$n_cifs" -eq 0 ]; then
-    echo "[$job_name] exited 0 but no output matching '{model_glob}' found — treating as FAILED (likely OOM)."
-    echo "no_output_despite_exit_0" > "$out_dir/.failed"
-    exit 1
-fi
-echo "[$job_name] finished at $(date), $n_cifs structure file(s) confirmed."
+echo "Slot $SLURM_ARRAY_TASK_ID: $(echo "$LINES" | wc -l) job(s) running concurrently on this GPU."
+
+run_one() {{
+    local job_name="$1" json_path="$2" out_dir="$3"
+    mkdir -p "$out_dir"
+    rm -f "$out_dir/.failed"
+    echo "[$job_name] starting at $(date)"
+    af3 "$json_path" "$out_dir" --run_data_pipeline=true --run_inference=true \\
+        > "{logs_dir}/af3_task_${{job_name}}.log" 2>&1
+    local rc=$?
+    if [ $rc -ne 0 ]; then
+        echo "[$job_name] FAILED at $(date) (exit $rc) — see {logs_dir}/af3_task_${{job_name}}.log"
+        echo "$rc" > "$out_dir/.failed"
+        return $rc
+    fi
+    local n_cifs
+    n_cifs=$(find "$out_dir" -path "$out_dir/{model_glob}" 2>/dev/null | wc -l)
+    if [ "$n_cifs" -eq 0 ]; then
+        echo "[$job_name] exited 0 but no output matching '{model_glob}' found — treating as FAILED (likely OOM)."
+        echo "no_output_despite_exit_0" > "$out_dir/.failed"
+        return 1
+    fi
+    echo "[$job_name] finished at $(date), $n_cifs structure file(s) confirmed."
+}}
+
+slot_failed=0
+while IFS=$'\\t' read -r idx job_name json_path out_dir; do
+    [ -z "$job_name" ] && continue
+    run_one "$job_name" "$json_path" "$out_dir" &
+done <<< "$LINES"
+
+for pid in $(jobs -p); do
+    wait "$pid" || slot_failed=1
+done
+
+echo "Slot $SLURM_ARRAY_TASK_ID: all assigned jobs finished at $(date)."
+[ "$slot_failed" -ne 0 ] && exit 1
+exit 0
 """
     script_path = jobs_dir / "run_af3_array.sh"
     script_path.write_text(script)
@@ -308,7 +340,7 @@ def _run_batch_blocking(batch_idx: int, batch: List[Tuple[str, Path]], jobs_root
                          output_root: Path, gen_dir: Path, af3_db: str, af3_models: str,
                          af3_module: str, partition: str, time_limit: str, mem: str,
                          cpus: int, gres: str, exclude: str, generation: int,
-                         model_glob: str) -> List[Tuple[str, bool, str]]:
+                         model_glob: str, af3_per_gpu: int) -> List[Tuple[str, bool, str]]:
     """Submit one batch with `sbatch --wait` (blocks this thread until it's done),
     then check + log every individual's outcome. Returns [(job_name, ok, reason)]."""
     jobs_dir = jobs_root / f"batch_{batch_idx:04d}"
@@ -317,7 +349,7 @@ def _run_batch_blocking(batch_idx: int, batch: List[Tuple[str, Path]], jobs_root
     _, script_path = _build_af3_batch_script(
         batch, jobs_dir, logs_dir, output_root, af3_db, af3_models, af3_module,
         partition, time_limit, mem, cpus, gres, exclude, generation, batch_idx,
-        gen_dir, model_glob)
+        gen_dir, model_glob, af3_per_gpu)
 
     log.info(f"  [gen {generation}] submitting batch {batch_idx} ({len(batch)} jobs)...")
     result = subprocess.run(["sbatch", "--wait", "--parsable", str(script_path)],
@@ -343,7 +375,7 @@ def submit_af3_population(population: List[str], utr_ids: List[str], af3_work_di
                            af3_db: str, af3_models: str, af3_module: str, partition: str,
                            time_limit: str, mem: str, cpus: int, gres: str, exclude: str,
                            model_seeds: List[int], generation: int, model_glob: str,
-                           batch_size: int, max_concurrent_batches: int) -> Path:
+                           batch_size: int, max_concurrent_batches: int, af3_per_gpu: int) -> Path:
     """
     Build one AF3 JSON per individual, skip anything already cached on disk
     (matching sidecar sequence), and submit the rest as SLURM array batches,
@@ -385,14 +417,15 @@ def submit_af3_population(population: List[str], utr_ids: List[str], af3_work_di
 
     batches = [job_name_paths[i:i + batch_size] for i in range(0, len(job_name_paths), batch_size)]
     log.info(f"  Generation {generation}: {len(job_name_paths)} to predict in "
-             f"{len(batches)} batch(es), {max_concurrent_batches} concurrent.")
+             f"{len(batches)} batch(es), {max_concurrent_batches} concurrent, "
+             f"{af3_per_gpu} individual(s)/GPU.")
 
     all_outcomes: List[Tuple[str, bool, str]] = []
     with ThreadPoolExecutor(max_workers=max_concurrent_batches) as ex:
         futures = [
             ex.submit(_run_batch_blocking, idx, batch, jobs_root, output_root, gen_dir,
                       af3_db, af3_models, af3_module, partition, time_limit, mem, cpus,
-                      gres, exclude, generation, model_glob)
+                      gres, exclude, generation, model_glob, af3_per_gpu)
             for idx, batch in enumerate(batches)
         ]
         for f in as_completed(futures):
@@ -700,7 +733,7 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
            af3_models: str, af3_module: str, af3_partition: str, af3_time: str, af3_mem: str,
            af3_cpus: int, af3_gres: str, af3_exclude: str, af3_model_seeds: List[int],
            af3_model_glob: str, af3_batch_size: int, af3_max_concurrent_batches: int,
-           run_dssr: bool, dssr_path: str, output_dir: Path, population_size: int, n_select: int,
+           af3_per_gpu: int, run_dssr: bool, dssr_path: str, output_dir: Path, population_size: int, n_select: int,
            generations: int, mutation_rate: float, crossover_rate: float, temperature: float,
            rng_seed: int, make_plot: bool) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -716,7 +749,8 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
     log.info(f"  Mutation rate {mutation_rate} (flat) | crossover rate {crossover_rate} | temp {temperature}")
     log.info(f"  cmsearch E<= {cm_evalue_threshold} | no-hit penalty {no_hit_penalty}")
     log.info(f"  Patent motifs {len(patent_seqs)} | PID> {patent_pid_threshold}% -> {patent_pid_penalty}")
-    log.info(f"  AF3 batch size {af3_batch_size} | max concurrent batches {af3_max_concurrent_batches}")
+    log.info(f"  AF3 batch size {af3_batch_size} | max concurrent batches {af3_max_concurrent_batches} | "
+             f"{af3_per_gpu} individual(s)/GPU")
     log.info(f"  Output: {output_dir}")
 
     ckpt_path = find_latest_checkpoint(output_dir)
@@ -761,7 +795,7 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         out_root = submit_af3_population(
             [seed_3utr_seq], [seed_id], af3_work_dir, af3_db, af3_models, af3_module,
             af3_partition, af3_time, af3_mem, af3_cpus, af3_gres, af3_exclude,
-            af3_model_seeds, 0, af3_model_glob, af3_batch_size, af3_max_concurrent_batches)
+            af3_model_seeds, 0, af3_model_glob, af3_batch_size, af3_max_concurrent_batches, af3_per_gpu)
         seed_cif = collect_af3_cifs(out_root, [seed_id], af3_model_glob)
         seed_rmsd_map, _ = evaluate_af3_rmsd(seed_cif, [seed_id], ref_cifs, run_dssr, dssr_path, dssr_outdir)
         seed_cm_map, seed_hit_map = evaluate_cmscores(cm_model, [seed_id], [seed_3utr_seq], work_dir,
@@ -792,7 +826,7 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         out_root = submit_af3_population(
             population, utr_ids, af3_work_dir, af3_db, af3_models, af3_module,
             af3_partition, af3_time, af3_mem, af3_cpus, af3_gres, af3_exclude,
-            af3_model_seeds, gen, af3_model_glob, af3_batch_size, af3_max_concurrent_batches)
+            af3_model_seeds, gen, af3_model_glob, af3_batch_size, af3_max_concurrent_batches, af3_per_gpu)
         cif_paths = collect_af3_cifs(out_root, utr_ids, af3_model_glob)
         rmsd_now, dbn_now = evaluate_af3_rmsd(cif_paths, utr_ids, ref_cifs, run_dssr, dssr_path, dssr_outdir)
         cmscore_now, hit_flags = evaluate_cmscores(cm_model, utr_ids, population, work_dir,
@@ -961,6 +995,12 @@ def main():
     p.add_argument('--af3-max-concurrent-batches', type=int, default=10, dest='af3_max_concurrent_batches',
                     help="Batches submitted/blocking at once (default: 10). Tune both of "
                          "these to your cluster's per-user job/task QOS limits.")
+    p.add_argument('--af3-per-gpu', type=int, default=1, dest='af3_per_gpu',
+                    help="Individuals grouped onto one GPU allocation, run concurrently "
+                         "in the background on it (default: 1). Raise this for small "
+                         "inputs that don't use a full GPU on their own — check "
+                         "nvidia-smi VRAM usage for one prediction first, and cuts the "
+                         "number of SLURM array tasks/GPU-node waits needed too.")
 
     p.add_argument('--population', type=int, default=1000)
     p.add_argument('--n-select', type=int, default=10, dest='n_select')
@@ -1000,8 +1040,8 @@ def main():
     if not args.skip_dssr and shutil.which(args.dssr_path) is None:
         log.warning(f"'{args.dssr_path}' not found — DSSR reporting skipped (scoring unaffected).")
         args.skip_dssr = True
-    if args.af3_batch_size < 1 or args.af3_max_concurrent_batches < 1:
-        log.error("--af3-batch-size and --af3-max-concurrent-batches must both be >= 1.")
+    if args.af3_batch_size < 1 or args.af3_max_concurrent_batches < 1 or args.af3_per_gpu < 1:
+        log.error("--af3-batch-size, --af3-max-concurrent-batches, and --af3-per-gpu must all be >= 1.")
         sys.exit(1)
 
     try:
@@ -1027,6 +1067,7 @@ def main():
         af3_mem=args.af3_mem, af3_cpus=args.af3_cpus, af3_gres=args.af3_gres, af3_exclude=args.af3_exclude,
         af3_model_seeds=args.af3_model_seeds or [1], af3_model_glob=args.af3_model_glob,
         af3_batch_size=args.af3_batch_size, af3_max_concurrent_batches=args.af3_max_concurrent_batches,
+        af3_per_gpu=args.af3_per_gpu,
         run_dssr=not args.skip_dssr, dssr_path=args.dssr_path, output_dir=Path(args.output_dir),
         population_size=args.population, n_select=args.n_select, generations=args.generations,
         mutation_rate=args.mutation_rate, crossover_rate=args.crossover_rate, temperature=args.temperature,
