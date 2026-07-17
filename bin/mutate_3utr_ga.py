@@ -413,6 +413,8 @@ def submit_af3_population(population: List[str], utr_ids: List[str], af3_work_di
             continue
         if cached is not None and not matches:
             log.warning(f"    Cached AF3 output for {sid} doesn't match current sequence; re-predicting.")
+            n_cached += 1 # only for 1st gen
+            continue
         sidecar.write_text(cleaned)
         af3_json = af3prep.build_af3_json(job_name, [{"id": "A", "sequence": cleaned, "type": "rna"}], model_seeds)
         json_path = inputs_dir / f"{job_name}.json"
