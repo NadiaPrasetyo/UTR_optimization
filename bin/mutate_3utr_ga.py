@@ -408,27 +408,43 @@ echo "Slot $SLURM_ARRAY_TASK_ID: $(echo "$LINES" | wc -l) job(s) assigned, up to
 run_one() {{
     local job_name="$1" json_path="$2" out_dir="$3"
     mkdir -p "$out_dir"
+    rm -f "$out_dir/.failed"
     echo "  [$job_name] starting at $(date)"
     af3 "$json_path" "$out_dir" --run_data_pipeline=true --run_inference=true \\
         > "{logs_dir}/af3_task_${{job_name}}.log" 2>&1
     local rc=$?
-    echo "  [$job_name] finished at $(date) (exit $rc)"
+    if [ $rc -ne 0 ]; then
+        echo "  [$job_name] FAILED at $(date) (exit $rc) — see {logs_dir}/af3_task_${{job_name}}.log"
+        echo "$rc" > "$out_dir/.failed"
+    else
+        echo "  [$job_name] finished at $(date) (exit $rc)"
+    fi
     return $rc
 }}
 
 n_running=0
+slot_failed=0
 while IFS=$'\\t' read -r idx job_name json_path out_dir; do
     [ -z "$job_name" ] && continue
     run_one "$job_name" "$json_path" "$out_dir" &
     n_running=$((n_running + 1))
     if [ "$n_running" -ge "$CONCURRENT_PER_SLOT" ]; then
-        wait -n
+        wait -n || slot_failed=1
         n_running=$((n_running - 1))
     fi
 done <<< "$LINES"
 
-wait
+# Reap any stragglers and notice if any of them failed too.
+while [ "$n_running" -gt 0 ]; do
+    wait -n || slot_failed=1
+    n_running=$((n_running - 1))
+done
+
 echo "Slot $SLURM_ARRAY_TASK_ID: all assigned jobs finished at $(date)."
+if [ "$slot_failed" -ne 0 ]; then
+    echo "Slot $SLURM_ARRAY_TASK_ID: at least one individual FAILED — see .failed marker(s) under output dirs and per-task logs."
+    exit 1
+fi
 """
     script_path = jobs_dir / "run_af3_array.sh"
     script_path.write_text(script)
@@ -451,6 +467,52 @@ def _slurm_job_still_queued_or_running(job_id: str) -> bool:
     if result.returncode != 0:
         return False
     return bool(result.stdout.strip())
+
+
+def _sacct_job_states(job_id: str) -> List[str]:
+    """
+    Return the JobState of every array-task row sacct knows about for
+    *job_id* (the parent array job id). Used once a job has left squeue, to
+    tell a genuinely clean COMPLETED run apart from FAILED / TIMEOUT /
+    CANCELLED / OUT_OF_MEMORY / NODE_FAIL — all of which also leave squeue
+    but are not "done" in any useful sense.
+    """
+    result = subprocess.run(
+        ["sacct", "-j", job_id, "-n", "-P", "--format=JobID,State"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        log.warning(f"  sacct query failed for job {job_id}: {result.stderr.strip()}")
+        return []
+    states = []
+    for line in result.stdout.strip().splitlines():
+        parts = line.split('|')
+        if len(parts) != 2:
+            continue
+        jobid_field, state = parts
+        # Skip the ".batch"/".extern" bookkeeping sub-steps sacct also
+        # reports; we only want the actual array-task entries.
+        if jobid_field.endswith('.batch') or jobid_field.endswith('.extern'):
+            continue
+        states.append(state.strip().split()[0])  # e.g. "CANCELLED by 123" -> "CANCELLED"
+    return states
+
+
+_SACCT_OK_STATES = {"COMPLETED"}
+
+
+def _batch_failed_per_sacct(job_id: str) -> Tuple[bool, List[str]]:
+    """
+    Once a batch job has left squeue, check sacct for its final state(s).
+    Returns (any_failed, non_ok_states). If sacct can't be reached or
+    returns nothing usable, we can't positively confirm success — treat
+    that as a failure too rather than silently assuming success.
+    """
+    states = _sacct_job_states(job_id)
+    if not states:
+        return True, ["UNKNOWN (sacct returned no rows)"]
+    bad = [s for s in states if s not in _SACCT_OK_STATES]
+    return (len(bad) > 0), bad
 
 
 def _find_cached_cif(job_out_dir: Path, model_glob: str) -> Optional[Path]:
@@ -480,7 +542,7 @@ def submit_af3_population(
     af3_model_glob: str,
     batch_size: int = 100,
     max_concurrent_batches: int = 10,
-    poll_interval: float = 30.0,
+    poll_interval: float = 120.0,
     timeout: Optional[float] = None,
     tasks_per_slot: int = 1,
     concurrent_per_slot: int = 1,
@@ -533,6 +595,19 @@ def submit_af3_population(
     (better GPU utilization once a task starts). Both default to 1, which
     is exactly the original one-prediction-per-array-task behavior.
 
+    FAILURE HANDLING: a batch leaving squeue is not, by itself, treated as
+    success. Once squeue no longer shows a job, sacct is queried for the
+    final state of every array task in that job; anything other than
+    COMPLETED (FAILED, TIMEOUT, CANCELLED, OUT_OF_MEMORY, NODE_FAIL, or a
+    state sacct couldn't be read at all) is logged loudly as a batch
+    failure, and any individuals whose output dir carries a ``.failed``
+    marker (written by the per-individual `run_one` wrapper on a non-zero
+    `af3` exit code) are logged individually too. These individuals are
+    NOT retried automatically — the empty/partial output dir is left in
+    place so you can inspect logs, but downstream steps (collect_af3_cifs)
+    will correctly treat them as missing structures rather than silently
+    scoring them as if nothing had gone wrong.
+
     Blocks until every batch for this generation has left the queue, then
     returns the (single, shared) output_root directory all batches wrote
     into — every individual's job_name is unique, so batches never collide.
@@ -561,10 +636,14 @@ def submit_af3_population(
             n_cached += 1
             continue
         if cached_cif is not None and not sidecar_matches:
+            # NOTE: this used to `continue` here too, which silently skipped
+            # re-prediction despite the warning claiming otherwise. A stale
+            # sidecar mismatch means the cached .cif does NOT correspond to
+            # the sequence we're about to score this generation, so we must
+            # fall through and re-submit it like any other uncached
+            # individual — not skip it.
             log.warning(f"    Cached AF3 output found for {sid} but its recorded input "
-                        f"sequence doesn't match the current population; skipping re-prediction.")
-            n_cached += 1
-            continue
+                        f"sequence doesn't match the current population; re-predicting.")
 
         sidecar_path.write_text(cleaned_seq)
         chains = [{"id": "A", "sequence": cleaned_seq, "type": "rna"}]
@@ -592,6 +671,10 @@ def submit_af3_population(
              f"split into {n_batches} batch(es) of up to {batch_size}, "
              f"{max_concurrent_batches} batch(es) in flight at once.")
 
+    # batch_idx -> list of (job_name, out_dir) for that batch, so we can
+    # report which individuals belonged to a batch that sacct says failed.
+    batch_members: Dict[int, List[Tuple[str, Path]]] = {}
+
     def _submit_batch(batch_idx: int, batch: List[Tuple[str, Path]]) -> str:
         jobs_dir = jobs_root / f"batch_{batch_idx:04d}"
         logs_dir = jobs_dir / "logs"
@@ -603,9 +686,30 @@ def submit_af3_population(
             tasks_per_slot=tasks_per_slot, concurrent_per_slot=concurrent_per_slot,
         )
         job_id = _sbatch_submit(script_path)
+        batch_members[batch_idx] = [(name, output_root / name) for name, _ in batch]
         log.info(f"    Submitted batch {batch_idx + 1}/{n_batches} as SLURM job {job_id} "
                  f"({len(batch)} tasks) → {jobs_tsv}")
         return job_id
+
+    def _report_batch_outcome(batch_idx: int, job_id: str) -> None:
+        """Check sacct + per-individual .failed markers once a batch leaves squeue."""
+        failed, bad_states = _batch_failed_per_sacct(job_id)
+        if failed:
+            log.error(f"    Batch {batch_idx + 1}/{n_batches} (job {job_id}) left the queue "
+                      f"WITHOUT a clean COMPLETED state (sacct: {sorted(set(bad_states))}). "
+                      f"This batch's individuals were likely NOT predicted successfully — "
+                      f"they will show up as missing structures below rather than being "
+                      f"silently treated as done. Check `sacct -j {job_id}` and the batch's "
+                      f"per-task logs under {jobs_root}/batch_{batch_idx:04d}/logs/.")
+        failed_members = [
+            (name, out_dir) for name, out_dir in batch_members.get(batch_idx, [])
+            if (out_dir / ".failed").exists()
+        ]
+        if failed_members:
+            names = ", ".join(name for name, _ in failed_members)
+            log.error(f"    Batch {batch_idx + 1}/{n_batches} (job {job_id}): "
+                      f"{len(failed_members)} individual(s) marked FAILED by their own "
+                      f"AF3 process (non-zero exit): {names}")
 
     pending = list(enumerate(batches))
     running: Dict[str, int] = {}  # job_id -> batch_idx
@@ -618,14 +722,20 @@ def submit_af3_population(
 
     start = time.time()
     n_done = 0
+    n_failed_batches = 0
     while running:
         time.sleep(poll_interval)
         for job_id in list(running.keys()):
             if not _slurm_job_still_queued_or_running(job_id):
                 idx = running.pop(job_id)
                 n_done += 1
-                log.info(f"    Batch {idx + 1}/{n_batches} (job {job_id}) finished "
-                         f"({n_done}/{n_batches} batches done).")
+                _report_batch_outcome(idx, job_id)
+                failed, _ = _batch_failed_per_sacct(job_id)
+                if failed:
+                    n_failed_batches += 1
+                log.info(f"    Batch {idx + 1}/{n_batches} (job {job_id}) left the queue "
+                         f"({n_done}/{n_batches} batches done, "
+                         f"{n_failed_batches} confirmed failed so far).")
                 if pending:
                     nidx, nbatch = pending.pop(0)
                     njob_id = _submit_batch(nidx, nbatch)
@@ -641,6 +751,12 @@ def submit_af3_population(
                         f"after {timeout}s — continuing with whatever output exists "
                         f"({n_done}/{n_batches} batches confirmed finished).")
             break
+
+    if n_failed_batches:
+        log.error(f"  Generation {generation}: {n_failed_batches}/{n_batches} AF3 batch(es) "
+                  f"did NOT complete cleanly per sacct. Affected individuals will be "
+                  f"reported as missing structures (see collect_af3_cifs warnings below) "
+                  f"and scored accordingly — they are not retried automatically.")
 
     return output_root
 
@@ -660,8 +776,16 @@ def collect_af3_cifs(output_root: Path, utr_ids: List[str],
         matches = sorted(job_out_dir.glob(model_glob))
         result[sid] = matches[0] if matches else None
         if not matches:
+            failed_marker = job_out_dir / ".failed"
+            reason = ""
+            if failed_marker.exists():
+                reason = f" (marked FAILED, exit code {failed_marker.read_text().strip()})"
+            elif not job_out_dir.exists():
+                reason = " (output directory was never created)"
+            else:
+                reason = " (output directory exists but is empty/incomplete)"
             log.warning(f"  No AF3 output structure found for {sid} in "
-                        f"{job_out_dir} (glob '{model_glob}') — treated as a "
+                        f"{job_out_dir} (glob '{model_glob}'){reason} — treated as a "
                         f"failed prediction for this generation.")
     return result
 
@@ -1208,6 +1332,7 @@ def run_ga(
     log.info(f"  AF3 concurrent    : {af3_max_concurrent_batches} batch(es) in flight")
     log.info(f"  AF3 tasks/slot    : {af3_tasks_per_slot}  (individuals sharing one GPU allocation)")
     log.info(f"  AF3 concurrent/GPU: {af3_concurrent_per_slot}  (predictions running at once per slot)")
+    log.info(f"  AF3 poll interval : {af3_poll_interval}s")
     log.info(f"  Seed 3UTR         : {len(seed_3utr_seq)} nt")
     log.info(f"  Output            : {output_dir}")
 
@@ -1663,8 +1788,8 @@ def main():
                              "Check nvidia-smi VRAM usage for one prediction before "
                              "raising this, to leave headroom for per-process CUDA "
                              "context overhead.")
-    parser.add_argument('--af3-poll-interval', type=float, default=30.0, dest='af3_poll_interval',
-                        help="Seconds between squeue polls while waiting for AF3 (default: 30).")
+    parser.add_argument('--af3-poll-interval', type=float, default=120.0, dest='af3_poll_interval',
+                        help="Seconds between squeue polls while waiting for AF3 (default: 120).")
     parser.add_argument('--af3-timeout', type=float, default=None, dest='af3_timeout',
                         help="Max seconds to wait for a generation's AF3 batches "
                              "(default: no timeout).")
@@ -1720,6 +1845,11 @@ def main():
     if shutil.which("sbatch") is None:
         log.error("'sbatch' not found on PATH — required to submit AF3 SLURM array jobs.")
         sys.exit(1)
+    if shutil.which("sacct") is None:
+        log.warning("'sacct' not found on PATH — cannot verify AF3 batch job final states "
+                    "beyond squeue presence. A batch leaving squeue will be assumed "
+                    "successful even if it actually failed/timed out/was cancelled. "
+                    "Install/enable sacct if you want failures to be detected reliably.")
     if not args.skip_dssr and shutil.which(args.dssr_path) is None:
         log.warning(f"'{args.dssr_path}' not found on PATH — DSSR dot-bracket reporting "
                     f"will be skipped (scoring is unaffected).")
