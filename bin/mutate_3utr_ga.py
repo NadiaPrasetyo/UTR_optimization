@@ -289,11 +289,12 @@ LINES=$(awk -F'\\t' -v s="$SLOT_START" -v e="$SLOT_END" '$1 >= s && $1 <= e' "{j
 # it (with a small safety margin) or they OOM before ever touching the
 # actual input — independent of how small the sequence is.
 MEM_FRACTION=$(awk -v n="$PER_GPU" 'BEGIN{{printf "%.4f", 0.9 / n}}')
+unset XLA_PYTHON_CLIENT_MEM_FRACTION
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
-export XLA_PYTHON_CLIENT_MEM_FRACTION="$MEM_FRACTION"
+export XLA_CLIENT_MEM_FRACTION="$MEM_FRACTION"
 export TF_FORCE_GPU_ALLOW_GROWTH=true
 
-echo "Slot $SLURM_ARRAY_TASK_ID: $(echo "$LINES" | wc -l) job(s) running concurrently on this GPU (XLA_PYTHON_CLIENT_MEM_FRACTION=$MEM_FRACTION)."
+echo "Slot $SLURM_ARRAY_TASK_ID: $(echo "$LINES" | wc -l) job(s) running concurrently on this GPU (XLA_CLIENT_MEM_FRACTION=$MEM_FRACTION)."
 
 run_one() {{
     local job_name="$1" json_path="$2" out_dir="$3"
