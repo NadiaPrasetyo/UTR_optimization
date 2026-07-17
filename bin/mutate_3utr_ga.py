@@ -57,6 +57,24 @@ log = logging.getLogger('ga_3utr')
 NUCLEOTIDES = ['A', 'T', 'G', 'C']
 RMSD_ATOM = "C1'"
 
+
+def make_progress_logger(label: str, total: int, min_interval: float = 15.0):
+    """
+    Returns a callback progress(i) to call after finishing item i (1-based).
+    Logs at most once every `min_interval` seconds (plus always on the last
+    item), so long per-individual loops (RMSD/DSSR) aren't silent for
+    minutes at a time without spamming the log on fast ones.
+    """
+    state = {'last_time': time.time()}
+
+    def progress(i: int) -> None:
+        now = time.time()
+        if i >= total or (now - state['last_time']) >= min_interval:
+            log.info(f"  {label}: {i}/{total}")
+            state['last_time'] = now
+
+    return progress
+
 PATENT_SEQUENCES = [
     {"id": "A7_30nt", "seq": "CAGACCCTGGTCCGGGGCAATGGGACCACT"},
     {"id": "A7_32nt", "seq": "TCAGACCCTGGTCCGGGGCAAATGGGACCACTG"},
@@ -449,10 +467,13 @@ def evaluate_af3_rmsd(cif_paths: Dict[str, Optional[Path]], utr_ids: List[str], 
                        run_dssr: bool, dssr_path: str, dssr_outdir: Path
                        ) -> Tuple[Dict[str, Optional[float]], Dict[str, Optional[str]]]:
     rmsd_min, dbn_map = {}, {}
-    for sid in utr_ids:
+    progress = make_progress_logger(
+        "RMSD" + ("+DSSR" if run_dssr else ""), len(utr_ids))
+    for i, sid in enumerate(utr_ids, 1):
         cif = cif_paths.get(sid)
         if cif is None or not Path(cif).exists():
             rmsd_min[sid], dbn_map[sid] = None, None
+            progress(i)
             continue
         best = None
         for ref in ref_cifs:
@@ -469,6 +490,7 @@ def evaluate_af3_rmsd(cif_paths: Dict[str, Optional[Path]], utr_ids: List[str], 
                 dbn_map[sid] = af3cmp.get_dssr_summary(str(cif), str(dssr_outdir), dssr_path).dbn
             except Exception as exc:
                 log.debug(f"  DSSR failed for {sid}: {exc}")
+        progress(i)
     n_ok = sum(1 for v in rmsd_min.values() if v is not None)
     log.info(f"  AF3/RMSD: {n_ok}/{len(utr_ids)} individuals have a usable structure.")
     return rmsd_min, dbn_map
@@ -483,7 +505,10 @@ def run_metrics(metrics_script: Path, fasta_5utr: Path, fasta_cds: Path, fasta_3
     cmd = [sys.executable, str(metrics_script), '--fasta-5utr', str(fasta_5utr),
            '--fasta-cds', str(fasta_cds), '--fasta-3utr', str(fasta_3utr),
            '--species', species, '--output-dir', str(output_dir), '--force']
+    log.info("  half-life: running metrics script...")
+    start = time.time()
     result = subprocess.run(cmd, capture_output=True, text=True)
+    log.info(f"  half-life: metrics script finished in {time.time() - start:.1f}s")
     if result.returncode != 0:
         tsv_dir = output_dir / 'metrics'
         if tsv_dir.exists() and list(tsv_dir.glob('*.tsv')):
@@ -496,7 +521,10 @@ def run_metrics(metrics_script: Path, fasta_5utr: Path, fasta_cds: Path, fasta_3
 
 def run_prediction(predict_script: Path, metrics_dir: Path) -> Optional[pd.DataFrame]:
     cmd = [sys.executable, str(predict_script), '--input', str(metrics_dir)]
+    log.info("  half-life: running prediction script...")
+    start = time.time()
     result = subprocess.run(cmd, capture_output=True, text=True)
+    log.info(f"  half-life: prediction script finished in {time.time() - start:.1f}s")
     if result.returncode != 0:
         log.error(f"prediction script failed (exit {result.returncode}): {result.stderr[-2000:]}")
         return None
@@ -600,6 +628,8 @@ def run_cmsearch(queries: List[Tuple[str, str]], cm_file: Path, out_dir: Path) -
         return []
     out_dir.mkdir(parents=True, exist_ok=True)
     tblout = out_dir / "cmsearch.tblout"
+    log.info(f"  cmsearch: running on {len(queries)} sequence(s)...")
+    start = time.time()
     with tempfile.TemporaryDirectory() as tmp:
         query_fa = Path(tmp) / "queries.fa"
         write_fasta(query_fa, queries)
@@ -608,6 +638,7 @@ def run_cmsearch(queries: List[Tuple[str, str]], cm_file: Path, out_dir: Path) -
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
         if r.returncode != 0:
             log.warning(f"cmsearch error:\n{r.stderr}")
+    log.info(f"  cmsearch: finished in {time.time() - start:.1f}s")
     return _parse_tblout(str(tblout))
 
 
