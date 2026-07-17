@@ -284,7 +284,16 @@ SLOT_START=$((SLURM_ARRAY_TASK_ID * PER_GPU))
 SLOT_END=$((SLOT_START + PER_GPU - 1))
 LINES=$(awk -F'\\t' -v s="$SLOT_START" -v e="$SLOT_END" '$1 >= s && $1 <= e' "{jobs_tsv}")
 
-echo "Slot $SLURM_ARRAY_TASK_ID: $(echo "$LINES" | wc -l) job(s) running concurrently on this GPU."
+# JAX/TF each preallocate a large default share of the GPU per process, so
+# running PER_GPU>1 processes on one GPU needs each capped to ~1/PER_GPU of
+# it (with a small safety margin) or they OOM before ever touching the
+# actual input — independent of how small the sequence is.
+MEM_FRACTION=$(awk -v n="$PER_GPU" 'BEGIN{{printf "%.4f", 0.9 / n}}')
+export XLA_PYTHON_CLIENT_PREALLOCATE=false
+export XLA_PYTHON_CLIENT_MEM_FRACTION="$MEM_FRACTION"
+export TF_FORCE_GPU_ALLOW_GROWTH=true
+
+echo "Slot $SLURM_ARRAY_TASK_ID: $(echo "$LINES" | wc -l) job(s) running concurrently on this GPU (XLA_PYTHON_CLIENT_MEM_FRACTION=$MEM_FRACTION)."
 
 run_one() {{
     local job_name="$1" json_path="$2" out_dir="$3"
