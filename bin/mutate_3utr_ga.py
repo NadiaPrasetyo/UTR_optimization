@@ -42,7 +42,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -464,33 +464,26 @@ def collect_af3_cifs(output_root: Path, utr_ids: List[str], model_glob: str) -> 
 
 
 def evaluate_af3_rmsd(cif_paths: Dict[str, Optional[Path]], utr_ids: List[str], ref_cifs: List[Path],
-                       run_dssr: bool, dssr_path: str, dssr_outdir: Path
+                       run_dssr: bool, dssr_path: str, dssr_outdir: Path, max_workers: int = 1
                        ) -> Tuple[Dict[str, Optional[float]], Dict[str, Optional[str]]]:
     rmsd_min, dbn_map = {}, {}
-    progress = make_progress_logger(
-        "RMSD" + ("+DSSR" if run_dssr else ""), len(utr_ids))
-    for i, sid in enumerate(utr_ids, 1):
-        cif = cif_paths.get(sid)
-        if cif is None or not Path(cif).exists():
-            rmsd_min[sid], dbn_map[sid] = None, None
+    dssr_outdir.mkdir(parents=True, exist_ok=True)
+    progress = make_progress_logger("RMSD" + ("+DSSR" if run_dssr else ""), len(utr_ids))
+
+    if max_workers <= 1:
+        for i, sid in enumerate(utr_ids, 1):
+            _, rmsd, dbn = _eval_one_structure(sid, cif_paths.get(sid), ref_cifs, run_dssr, dssr_path, dssr_outdir)
+            rmsd_min[sid], dbn_map[sid] = rmsd, dbn
             progress(i)
-            continue
-        best = None
-        for ref in ref_cifs:
-            try:
-                summary, _, _ = af3cmp.biopython_rmsd(str(ref), str(cif), None, None, RMSD_ATOM)
-                if best is None or summary.rmsd < best:
-                    best = summary.rmsd
-            except Exception as exc:
-                log.debug(f"  RMSD failed for {sid} vs {ref}: {exc}")
-        rmsd_min[sid] = best
-        dbn_map[sid] = None
-        if run_dssr:
-            try:
-                dbn_map[sid] = af3cmp.get_dssr_summary(str(cif), str(dssr_outdir), dssr_path).dbn
-            except Exception as exc:
-                log.debug(f"  DSSR failed for {sid}: {exc}")
-        progress(i)
+    else:
+        with ProcessPoolExecutor(max_workers=max_workers) as ex:
+            futures = [ex.submit(_eval_one_structure, sid, cif_paths.get(sid), ref_cifs,
+                                  run_dssr, dssr_path, dssr_outdir) for sid in utr_ids]
+            for i, fut in enumerate(as_completed(futures), 1):
+                sid, rmsd, dbn = fut.result()
+                rmsd_min[sid], dbn_map[sid] = rmsd, dbn
+                progress(i)
+
     n_ok = sum(1 for v in rmsd_min.values() if v is not None)
     log.info(f"  AF3/RMSD: {n_ok}/{len(utr_ids)} individuals have a usable structure.")
     return rmsd_min, dbn_map
@@ -765,7 +758,7 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
            af3_model_glob: str, af3_batch_size: int, af3_max_concurrent_batches: int,
            af3_per_gpu: int, run_dssr: bool, dssr_path: str, output_dir: Path, population_size: int, n_select: int,
            generations: int, mutation_rate: float, crossover_rate: float, temperature: float,
-           rng_seed: int, make_plot: bool) -> None:
+           rng_seed: int, make_plot: bool, rmsd_workers:int) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     results_dir = output_dir / 'results'
     results_dir.mkdir(exist_ok=True)
@@ -858,7 +851,7 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
             af3_partition, af3_time, af3_mem, af3_cpus, af3_gres, af3_exclude,
             af3_model_seeds, gen, af3_model_glob, af3_batch_size, af3_max_concurrent_batches, af3_per_gpu)
         cif_paths = collect_af3_cifs(out_root, utr_ids, af3_model_glob)
-        rmsd_now, dbn_now = evaluate_af3_rmsd(cif_paths, utr_ids, ref_cifs, run_dssr, dssr_path, dssr_outdir)
+        rmsd_now, dbn_now = evaluate_af3_rmsd(cif_paths, utr_ids, ref_cifs, run_dssr, dssr_path, dssr_outdir, rmsd_workers)
         cmscore_now, hit_flags = evaluate_cmscores(cm_model, utr_ids, population, work_dir,
                                                      cm_evalue_threshold, gen)
 
@@ -976,6 +969,27 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
              f"(id={all_time_best_id}, gen={all_time_best_gen})")
     log.info(f"Results in: {results_dir}\n" + "═" * 60)
 
+def _eval_one_structure(sid: str, cif, ref_cifs: List[Path], run_dssr: bool,
+                         dssr_path: str, dssr_outdir: Path
+                         ) -> Tuple[str, Optional[float], Optional[str]]:
+    """Runs in a worker process: RMSD vs all ref_cifs + optional DSSR, for one individual."""
+    if cif is None or not Path(cif).exists():
+        return sid, None, None
+    best = None
+    for ref in ref_cifs:
+        try:
+            summary, _, _ = af3cmp.biopython_rmsd(str(ref), str(cif), None, None, RMSD_ATOM)
+            if best is None or summary.rmsd < best:
+                best = summary.rmsd
+        except Exception as exc:
+            log.debug(f"  RMSD failed for {sid} vs {ref}: {exc}")
+    dbn = None
+    if run_dssr:
+        try:
+            dbn = af3cmp.get_dssr_summary(str(cif), str(dssr_outdir), dssr_path).dbn
+        except Exception as exc:
+            log.debug(f"  DSSR failed for {sid}: {exc}")
+    return sid, best, dbn
 
 # ══════════════════════════════════════════════════════════════════════════
 # CLI
@@ -1002,6 +1016,8 @@ def main():
     p.add_argument('--cm-model', required=True, dest='cm_model')
     p.add_argument('--cm-evalue-threshold', type=float, default=0.01, dest='cm_evalue_threshold')
     p.add_argument('--no-hit-penalty', type=int, default=-10, dest='no_hit_penalty')
+    p.add_argument('--rmsd-workers', type=int, default=1, dest='rmsd_workers',
+                help="Parallel worker processes for RMSD/DSSR evaluation (default: 1, serial).")
 
     p.add_argument('--patent-pid-threshold', type=float, default=80.0, dest='patent_pid_threshold')
     p.add_argument('--patent-pid-penalty', type=int, default=-10, dest='patent_pid_penalty')
@@ -1101,7 +1117,7 @@ def main():
         run_dssr=not args.skip_dssr, dssr_path=args.dssr_path, output_dir=Path(args.output_dir),
         population_size=args.population, n_select=args.n_select, generations=args.generations,
         mutation_rate=args.mutation_rate, crossover_rate=args.crossover_rate, temperature=args.temperature,
-        rng_seed=args.seed, make_plot=not args.no_plot,
+        rng_seed=args.seed, make_plot=not args.no_plot, rmsd_workers=args.rmsd_workers
     )
 
 
