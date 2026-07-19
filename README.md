@@ -11,6 +11,150 @@ Use the [A7S paper](https://www.nature.com/articles/s41587-025-02891-7) as a bas
 - A ranked list of the candidate UTRs to be tested (different levels)
 - An approximate ranking of the human and bovine UTRs list
 
+# 3' UTR Genetic Algorithm - Enhanced Version
+
+This package contains the updated GA script with **scaled fitness scoring** and **two-stage AF3 selection**.
+
+
+### 1. Scaled Fitness Scoring
+Instead of binary +1/-1 points, scores now reflect **magnitude of improvement**:
+
+```
+Original (Binary):
+  Parent RMSD=5.0, CM=80
+  Child RMSD=4.5, CM=79  → Score: 1  (barely improved)
+  Child RMSD=4.5, CM=50  → Score: 1  (same score, but much worse!)
+
+Updated (Scaled):
+  Parent RMSD=5.0, CM=80
+  Child RMSD=4.5, CM=79  → Score: 0.5  (small improvement)
+  Child RMSD=4.5, CM=50  → Score: -29.5  (significant degradation)
+```
+
+**Benefits:**
+- Better differentiation between good and mediocre solutions
+- Smoother selection gradients
+- Faster convergence
+- More meaningful statistics in output
+
+### 2. Two-Stage AF3 Selection
+Avoids expensive AF3 predictions on obviously poor candidates:
+
+```
+Generation Flow:
+├─ STAGE 1: Fast pre-screening (ALL individuals)
+│  ├─ cmsearch on all 1000 (fast: seconds)
+│  ├─ Patent PID check on all (fast: seconds)
+│  ├─ Rank by CM score + patent penalty only
+│  └─ Select TOP N for AF3 (e.g., top 100)
+│
+└─ STAGE 2: AF3 predictions (TOP N only)
+   ├─ Structure prediction only on 100 (slow: ~50 hours total)
+   ├─ RMSD evaluation
+   ├─ Full fitness scoring with all metrics
+   └─ Select top 10 for breeding
+```
+
+**Speedup:** ~**10× faster** for typical runs (90% reduction in AF3 compute)
+
+## Running the Script
+
+### Minimal Example
+```bash
+./mutate_3utr_ga_v2.py \
+  --fasta-5utr 5utr.fa \
+  --fasta-cds cds.fa \
+  --fasta-3utr 3utr.fa \
+  --species human \
+  --metrics-script metrics.py \
+  --predict-script predict.py \
+  --ref-cif ref1.cif --ref-cif ref2.cif --ref-cif ref3.cif \
+  --cm-model model.cm \
+  --af3-work-dir /scratch/af3 \
+  --af3-models /opt/alphafold3/models \
+  --population 1000 \
+  --n-select 10 \
+  --generations 30 \
+  --af3-filter-top-n 100 \
+  -o results
+```
+
+### Key New Parameter
+```
+--af3-filter-top-n N
+  Number of top-ranked candidates (by pre-score) to send to AF3
+  Default: 100
+  With --population 1000: sends top 100 (10%) to structure prediction
+  Provides ~10× speedup compared to running AF3 on all 1000
+```
+
+## Understanding the Updates
+
+### Quick Explanation
+1. **Scoring**: Changed from binary (+1, 0, -1000) to continuous scaled points
+   - CM score: difference from parent (e.g., 80→79 = -1, 80→50 = -30)
+   - RMSD: inverted difference (4.5→5.0 = -0.5, 4.5→4.0 = +0.5)
+   - This allows better ranking of individuals
+
+2. **AF3 Filtering**: Screen all individuals quickly, only predict structures for top candidates
+   - Pre-score: cmsearch + patent PID (seconds)
+   - Rank all individuals
+   - Run expensive AF3 only on top ~10%
+   - Compute full scores with RMSD for AF3-evaluated individuals
+
+## Output Changes
+
+### CSV Columns
+All output TSVs now include `af3_predicted` (boolean):
+```
+generation | sample_id | af3_predicted | score  | rmsd_min | ...
+    1      | ind_0001  | True          | 45.2   | 3.9 Å    | ...
+    1      | ind_0002  | False         | -12.1  | NULL     | ... ← pre-filtered
+```
+
+## Migration Guide
+
+### If Starting Fresh
+Just use the new script:
+```bash
+./mutate_3utr_ga_v2.py [args...]
+```
+
+### If Resuming Old Runs
+Old checkpoints won't work (schema mismatch). Start fresh:
+```bash
+rm -rf old_output/_workspace/checkpoints/
+./mutate_3utr_ga_v2.py [same args...]  # Starts from generation 1
+```
+
+### Tuning AF3 Filtering
+- **Conservative (thorough)**: `--af3-filter-top-n 500` (50% to AF3)
+- **Balanced (recommended)**: `--af3-filter-top-n 100` (10% to AF3) ← default
+- **Aggressive (very fast)**: `--af3-filter-top-n 50` (5% to AF3)
+
+Smaller values = faster but stronger selection pressure (only obvious winners get AF3).
+
+## Performance Expectations
+
+### Typical Run: 1000 population, 30 generations
+
+*Actual times depend on AF3 model size, cluster queue, etc.*
+
+## Troubleshooting
+
+### "AF3 filter top-n must be >= n-select"
+Your `--af3-filter-top-n` is smaller than `--n-select`. Increase it.
+
+### Scores look negative or very large
+Expected with scaled scoring! Differences from parent can accumulate.
+Check `evolution_summary.txt` for per-generation statistics.
+
+### AF3 predictions not running
+Check:
+1. cmsearch installed: `which cmsearch`
+2. SLURM available: `which sbatch`
+3. Pre-scores reasonable (not all -1000)
+
 
 ## References:
 

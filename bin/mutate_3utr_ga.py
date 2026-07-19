@@ -1,30 +1,28 @@
 #!/usr/bin/env python3
 """
-mutate_3utr_ga.py — minimal edition
-─────────────────────────────────────────────────────────────────────────────
+mutate_3utr_ga.py — minimal edition with scaled scoring and two-stage AF3 selection
+─────────────────────────────────────────────────────────────────────────────────────
 Evolves a 3' UTR sequence over generations by point mutation (+ optional
 crossover), scoring each individual on:
-  +1  AlphaFold3 structure RMSD improved vs. its parent
-  +1  cmsearch bit score improved vs. its parent (only if it hits the CM)
-  no_hit_penalty  if it does NOT hit the structural CM at all
-  patent_pid_penalty  if it's too similar (Smith-Waterman PID) to a patent motif
-Predicted half-life is computed and reported every generation but never
-included in the score.
+  • CM score: scaled by difference from parent (e.g., 80→79 = -1, 80→50 = -30)
+  • RMSD: scaled by difference from parent, inverted (lower is better)
+  • No-hit penalty if it does NOT hit the structural CM
+  • Patent PID penalty if too similar to a patent motif
+
+TWO-STAGE AF3 SELECTION:
+  Stage 1: Fast pre-screening on all individuals based on cmscore and patent PID
+  Stage 2: AF3 structure prediction only on top-ranked individuals (e.g., top 100)
+           Full scoring with RMSD computed, then top n_select chosen for breeding
+This avoids wasting expensive AF3 predictions on obviously poor candidates.
 
 RESUMABILITY: a checkpoint is written after every generation to
 <output-dir>/_workspace/checkpoints/. Re-running the same command resumes
-from the last checkpoint automatically. `rm -rf <output-dir>/_workspace/checkpoints`
-to start over.
+from the last checkpoint automatically.
 
-AF3 SCHEDULING: each generation's population is split into SLURM array
-batches (`--af3-batch-size`, default 100) and up to `--af3-max-concurrent-
-batches` (default 10) batches are submitted at once, each via a blocking
-`sbatch --wait` call run in its own thread. There is no manual squeue/sacct
-polling loop — a batch's thread simply blocks until SLURM says it's done,
-then every individual in that batch is checked (exit code + presence of the
-expected `.cif`) and logged immediately as OK or FAILED. Structures already
-present on disk from a previous run are skipped and reused.
-─────────────────────────────────────────────────────────────────────────────
+AF3 SCHEDULING: filtered population is split into SLURM array batches
+(`--af3-batch-size`, default 100) with up to `--af3-max-concurrent-batches`
+(default 10) batches submitted at once, each via a blocking `sbatch --wait`.
+─────────────────────────────────────────────────────────────────────────────────────
 """
 from __future__ import annotations
 
@@ -102,7 +100,7 @@ class GACheckpoint:
     all_rows: List[dict]
     selected_rows: List[dict]
     best_per_gen: List[dict]
-    all_time_best_score: Optional[int]
+    all_time_best_score: Optional[float]
     all_time_best_seq: str
     all_time_best_id: str
     all_time_best_gen: int
@@ -267,10 +265,7 @@ def _build_af3_batch_script(job_name_paths: List[Tuple[str, Path]], jobs_dir: Pa
     Write jobs.tsv + an sbatch array script for a batch. Every `af3_per_gpu`
     individuals share one array task (one GPU allocation) and run one after
     another on it — sequentially, not concurrently, so they never contend
-    for GPU memory. This trades "several predictions running at once" for
-    "far fewer separate GPU-node waits in the SLURM queue" (one allocation
-    covers af3_per_gpu predictions back-to-back instead of one). Default 1
-    reproduces one-individual-per-GPU behavior exactly.
+    for GPU memory.
     """
     jobs_tsv = jobs_dir / "jobs.tsv"
     with open(jobs_tsv, "w") as fh:
@@ -392,11 +387,9 @@ def submit_af3_population(population: List[str], utr_ids: List[str], af3_work_di
                            model_seeds: List[int], generation: int, model_glob: str,
                            batch_size: int, max_concurrent_batches: int, af3_per_gpu: int) -> Path:
     """
-    Build one AF3 JSON per individual, skip anything already cached on disk
-    (matching sidecar sequence), and submit the rest as SLURM array batches,
-    up to `max_concurrent_batches` running concurrently (each batch blocks
-    its own thread via `sbatch --wait`; results are logged as each batch
-    finishes — no separate polling loop).
+    Build one AF3 JSON per individual, skip anything already cached on disk,
+    and submit the rest as SLURM array batches, up to `max_concurrent_batches`
+    running concurrently.
     """
     gen_dir = af3_work_dir / f"gen_{generation:04d}"
     jobs_root = gen_dir / "af3_jobs"
@@ -419,7 +412,7 @@ def submit_af3_population(population: List[str], utr_ids: List[str], af3_work_di
             continue
         if cached is not None and not matches:
             log.warning(f"    Cached AF3 output for {sid} doesn't match current sequence; re-predicting.")
-            n_cached += 1 # only for 1st gen
+            n_cached += 1
             continue
         sidecar.write_text(cleaned)
         af3_json = af3prep.build_af3_json(job_name, [{"id": "A", "sequence": cleaned, "type": "rna"}], model_seeds)
@@ -667,32 +660,91 @@ def evaluate_cmscores(cm_model: Path, utr_ids: List[str], population: List[str],
 # Scoring, selection, breeding
 # ══════════════════════════════════════════════════════════════════════════
 
-def compute_scores(utr_ids: List[str], rmsd_now, rmsd_parent, cmscore_now, cmscore_parent,
-                    hit_flags, max_pids, patent_pid_threshold, no_hit_penalty, patent_pid_penalty
-                    ) -> Dict[str, int]:
+def compute_prescores(utr_ids: List[str], cmscore_now: Dict[str, Optional[float]],
+                      cmscore_parent: Dict[str, Optional[float]], hit_flags: Dict[str, bool],
+                      max_pids: Dict[str, Optional[float]], patent_pid_threshold: float,
+                      no_hit_penalty: float, patent_pid_penalty: float) -> Dict[str, float]:
+    """
+    Compute fast pre-scores based on CM score and patent PID only (no RMSD).
+    Used to rank all individuals before AF3 filtering.
+    """
     scores = {}
     for sid in utr_ids:
-        s = 0
-        r_now, r_par = rmsd_now.get(sid), rmsd_parent.get(sid)
-        if r_now is not None and r_par is not None and r_now < r_par:
-            s += 1
+        s = 0.0
+        
+        # CM score: scaled by difference from parent
         if not hit_flags.get(sid, False):
             s += no_hit_penalty
         else:
             c_now, c_par = cmscore_now.get(sid), cmscore_parent.get(sid)
-            if c_now is not None and c_par is not None and c_now > c_par:
-                s += 1
+            if c_now is not None and c_par is not None:
+                cm_diff = c_now - c_par
+                s += cm_diff
+        
+        # Patent PID penalty
         pid = max_pids.get(sid)
         if pid is not None and pid > patent_pid_threshold:
             s += patent_pid_penalty
+        
         scores[sid] = s
     return scores
 
 
-def scores_to_probabilities(scores: List[int], temperature: float) -> List[float]:
+def compute_full_scores(utr_ids: List[str], rmsd_now: Dict[str, Optional[float]],
+                        rmsd_parent: Dict[str, Optional[float]],
+                        cmscore_now: Dict[str, Optional[float]],
+                        cmscore_parent: Dict[str, Optional[float]],
+                        hit_flags: Dict[str, bool], max_pids: Dict[str, Optional[float]],
+                        patent_pid_threshold: float, no_hit_penalty: float,
+                        patent_pid_penalty: float) -> Dict[str, float]:
+    """
+    Compute full scores including RMSD (scaled by difference from parent).
+    Used after AF3 predictions on filtered population.
+    
+    Scaling:
+      - CM score: difference from parent (e.g., 80→79 = -1, 80→50 = -30)
+      - RMSD: inverted difference (lower is better, so r_now < r_par gives +points)
+      - No hit: large penalty
+      - Patent PID > threshold: large penalty
+    """
+    scores = {}
+    for sid in utr_ids:
+        s = 0.0
+        
+        # RMSD scoring: lower is better, scale by the difference
+        # If RMSD improved (decreased), we gain points equal to the improvement
+        r_now, r_par = rmsd_now.get(sid), rmsd_parent.get(sid)
+        if r_now is not None and r_par is not None:
+            rmsd_diff = r_now - r_par
+            # Subtract the difference: if r_now < r_par (improvement), this is positive
+            s -= rmsd_diff
+        
+        # CM score: scaled by difference from parent
+        if not hit_flags.get(sid, False):
+            s += no_hit_penalty
+        else:
+            c_now, c_par = cmscore_now.get(sid), cmscore_parent.get(sid)
+            if c_now is not None and c_par is not None:
+                cm_diff = c_now - c_par
+                s += cm_diff
+        
+        # Patent PID penalty
+        pid = max_pids.get(sid)
+        if pid is not None and pid > patent_pid_threshold:
+            s += patent_pid_penalty
+        
+        scores[sid] = s
+    return scores
+
+
+def scores_to_probabilities(scores: List[float], temperature: float) -> List[float]:
+    if not scores:
+        return []
     m = max(scores)
     exps = [math.exp((s - m) / temperature) for s in scores]
     total = sum(exps)
+    if total == 0:
+        return [1.0 / len(scores)] * len(scores)
     return [e / total for e in exps]
 
 
@@ -730,8 +782,8 @@ def plot_scores_over_generations(best_per_gen: List[dict], out_path: Path) -> No
     ax1.plot(gens, [r['best_score'] for r in best_per_gen], label='Best', marker='o', markersize=3)
     ax1.plot(gens, [r['mean_score'] for r in best_per_gen], label='Mean', marker='o', markersize=3)
     ax1.plot(gens, [r['worst_score'] for r in best_per_gen], label='Worst', linestyle='--', alpha=0.7)
-    ax1.set_ylabel('Point score'); ax1.legend(); ax1.grid(alpha=0.3)
-    ax1.set_title("3' UTR GA — score over generations")
+    ax1.set_ylabel('Scaled fitness score'); ax1.legend(); ax1.grid(alpha=0.3)
+    ax1.set_title("3' UTR GA — scaled fitness over generations")
 
     ax2.plot(gens, [r['mean_rmsd'] or float('nan') for r in best_per_gen], color='#762a83', marker='o', markersize=3)
     ax2.set_ylabel('Mean min-RMSD (Å)', color='#762a83')
@@ -746,19 +798,19 @@ def plot_scores_over_generations(best_per_gen: List[dict], out_path: Path) -> No
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Main GA loop
+# Main GA loop — TWO-STAGE: pre-rank, then AF3 on top N
 # ══════════════════════════════════════════════════════════════════════════
 
 def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: str, species: str,
            metrics_script: Path, predict_script: Path, ref_cifs: List[Path], cm_model: Path,
-           cm_evalue_threshold: float, no_hit_penalty: int, patent_seqs: List[dict],
-           patent_pid_threshold: float, patent_pid_penalty: int, af3_work_dir: Path, af3_db: str,
+           cm_evalue_threshold: float, no_hit_penalty: float, patent_seqs: List[dict],
+           patent_pid_threshold: float, patent_pid_penalty: float, af3_work_dir: Path, af3_db: str,
            af3_models: str, af3_module: str, af3_partition: str, af3_time: str, af3_mem: str,
            af3_cpus: int, af3_gres: str, af3_exclude: str, af3_model_seeds: List[int],
            af3_model_glob: str, af3_batch_size: int, af3_max_concurrent_batches: int,
            af3_per_gpu: int, run_dssr: bool, dssr_path: str, output_dir: Path, population_size: int, n_select: int,
            generations: int, mutation_rate: float, crossover_rate: float, temperature: float,
-           rng_seed: int, make_plot: bool, rmsd_workers:int) -> None:
+           rng_seed: int, make_plot: bool, rmsd_workers: int, af3_filter_top_n: int) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     results_dir = output_dir / 'results'
     results_dir.mkdir(exist_ok=True)
@@ -766,19 +818,20 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
     work_dir.mkdir(exist_ok=True)
     dssr_outdir = work_dir / 'dssr_logs'
 
-    log.info("═" * 60)
-    log.info("3' UTR Genetic Algorithm — point-scored, AF3-in-the-loop")
+    log.info("═" * 80)
+    log.info("3' UTR Genetic Algorithm — SCALED SCORING + TWO-STAGE AF3 FILTERING")
     log.info(f"  Population {population_size} | n-select {n_select} | generations {generations}")
     log.info(f"  Mutation rate {mutation_rate} (flat) | crossover rate {crossover_rate} | temp {temperature}")
     log.info(f"  cmsearch E<= {cm_evalue_threshold} | no-hit penalty {no_hit_penalty}")
     log.info(f"  Patent motifs {len(patent_seqs)} | PID> {patent_pid_threshold}% -> {patent_pid_penalty}")
-    log.info(f"  AF3 batch size {af3_batch_size} | max concurrent batches {af3_max_concurrent_batches} | "
+    log.info(f"  AF3 filter: top {af3_filter_top_n} candidates (of {population_size}) sent to structure prediction")
+    log.info(f"  AF3 batch size {af3_batch_size} | max concurrent {af3_max_concurrent_batches} | "
              f"{af3_per_gpu} individual(s)/GPU")
     log.info(f"  Output: {output_dir}")
 
     ckpt_path = find_latest_checkpoint(output_dir)
     if ckpt_path:
-        log.info("═" * 60 + "\nRESUMING FROM CHECKPOINT")
+        log.info("═" * 80 + "\nRESUMING FROM CHECKPOINT")
         ckpt = load_checkpoint(ckpt_path)
         rng = random.Random(rng_seed)
         rng.setstate(ckpt.rng_state)
@@ -793,9 +846,6 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         log.info(f"  Resuming at generation {start_generation}; best score so far {all_time_best_score}")
 
         if start_generation <= generations:
-            # ckpt.population was scored to produce ckpt.generation's results but never
-            # bred forward — redo that breeding step now with the restored RNG so the
-            # result is identical to an uninterrupted run.
             gen_selected = sorted((r for r in selected_rows if r['generation'] == ckpt.generation),
                                    key=lambda r: r['rank'])
             selected_ids = [r['sample_id'] for r in gen_selected]
@@ -809,7 +859,7 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
                 selected_ids, seq_by_id, rmsd_by_id, cm_by_id, population_size,
                 mutation_rate, crossover_rate, rng)
     else:
-        log.info("═" * 60 + "\nNO CHECKPOINT — starting fresh")
+        log.info("═" * 80 + "\nNO CHECKPOINT — starting fresh")
         rng = random.Random(rng_seed)
         start_generation = 1
         seed_id = "seed_3utr"
@@ -834,7 +884,7 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         all_time_best_score = None
         all_time_best_seq, all_time_best_id, all_time_best_gen = seed_3utr_seq, seed_id, 0
 
-    log.info("═" * 60)
+    log.info("═" * 80)
 
     for gen in range(start_generation, generations + 1):
         gen_start = time.time()
@@ -846,49 +896,91 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         parent_rmsd_by_id = dict(zip(utr_ids, parent_rmsd))
         parent_cm_by_id = dict(zip(utr_ids, parent_cmscore))
 
-        out_root = submit_af3_population(
-            population, utr_ids, af3_work_dir, af3_db, af3_models, af3_module,
-            af3_partition, af3_time, af3_mem, af3_cpus, af3_gres, af3_exclude,
-            af3_model_seeds, gen, af3_model_glob, af3_batch_size, af3_max_concurrent_batches, af3_per_gpu)
-        cif_paths = collect_af3_cifs(out_root, utr_ids, af3_model_glob)
-        rmsd_now, dbn_now = evaluate_af3_rmsd(cif_paths, utr_ids, ref_cifs, run_dssr, dssr_path, dssr_outdir, rmsd_workers)
-        cmscore_now, hit_flags = evaluate_cmscores(cm_model, utr_ids, population, work_dir,
-                                                     cm_evalue_threshold, gen)
-
+        # ──────────────────────────────────────────────────────────────────
+        # STAGE 1: Fast pre-screening (all individuals)
+        # ──────────────────────────────────────────────────────────────────
+        log.info(f"  [Stage 1] Fast pre-screening on all {population_size} individuals...")
+        cmscore_stage1, hit_flags = evaluate_cmscores(cm_model, utr_ids, population, work_dir,
+                                                       cm_evalue_threshold, gen)
         max_pids = {}
         for sid, seq in zip(utr_ids, population):
             pids = check_patent_pid(seq, patent_seqs) if patent_seqs else []
             max_pids[sid] = max(pids) if pids else None
 
-        halflife_map = evaluate_halflife(population, utr_ids, u5_id, u5_seq, cds_id, cds_seq,
+        prescores = compute_prescores(utr_ids, cmscore_stage1, parent_cm_by_id, hit_flags,
+                                      max_pids, patent_pid_threshold, no_hit_penalty, patent_pid_penalty)
+        
+        # Rank and select top N for AF3
+        ranked = sorted(utr_ids, key=lambda sid: prescores[sid], reverse=True)
+        af3_candidates = ranked[:af3_filter_top_n]
+        log.info(f"  [Stage 1] Selected top {len(af3_candidates)} for AF3 (pre-score range: "
+                 f"{prescores[ranked[0]]:.1f} to {prescores[ranked[-1]]:.1f})")
+
+        # ──────────────────────────────────────────────────────────────────
+        # STAGE 2: AF3 predictions on filtered population
+        # ──────────────────────────────────────────────────────────────────
+        log.info(f"  [Stage 2] Running AF3 on {len(af3_candidates)} filtered candidates...")
+        af3_population = [seq_by_id[sid] for sid in af3_candidates]
+        out_root = submit_af3_population(
+            af3_population, af3_candidates, af3_work_dir, af3_db, af3_models, af3_module,
+            af3_partition, af3_time, af3_mem, af3_cpus, af3_gres, af3_exclude,
+            af3_model_seeds, gen, af3_model_glob, af3_batch_size, af3_max_concurrent_batches, af3_per_gpu)
+        
+        cif_paths = collect_af3_cifs(out_root, af3_candidates, af3_model_glob)
+        rmsd_stage2, dbn_stage2 = evaluate_af3_rmsd(cif_paths, af3_candidates, ref_cifs,
+                                                     run_dssr, dssr_path, dssr_outdir, rmsd_workers)
+
+        # Half-life on top candidates
+        halflife_map = evaluate_halflife(af3_population, af3_candidates, u5_id, u5_seq, cds_id, cds_seq,
                                           species, metrics_script, predict_script, work_dir)
 
-        scores = compute_scores(utr_ids, rmsd_now, parent_rmsd_by_id, cmscore_now, parent_cm_by_id,
-                                 hit_flags, max_pids, patent_pid_threshold, no_hit_penalty, patent_pid_penalty)
-        score_list = [scores[sid] for sid in utr_ids]
+        # ──────────────────────────────────────────────────────────────────
+        # Compute full scores (with RMSD) on AF3 candidates
+        # ──────────────────────────────────────────────────────────────────
+        scores = compute_full_scores(af3_candidates, rmsd_stage2, parent_rmsd_by_id,
+                                     cmscore_stage1, parent_cm_by_id, hit_flags, max_pids,
+                                     patent_pid_threshold, no_hit_penalty, patent_pid_penalty)
+        score_list = [scores[sid] for sid in af3_candidates]
         probabilities = scores_to_probabilities(score_list, temperature)
-        prob_by_id = dict(zip(utr_ids, probabilities))
+        prob_by_id = dict(zip(af3_candidates, probabilities))
 
-        for sid in utr_ids:
+        # Store results for AF3-evaluated individuals
+        for sid in af3_candidates:
             all_rows.append({
                 'generation': gen, 'sample_id': sid, 'parent_id': parent_of_by_id[sid],
                 'score': scores[sid], 'probability': prob_by_id[sid],
-                'rmsd_min': rmsd_now.get(sid), 'parent_rmsd': parent_rmsd_by_id[sid],
-                'cmscore': cmscore_now.get(sid), 'parent_cmscore': parent_cm_by_id[sid],
+                'rmsd_min': rmsd_stage2.get(sid), 'parent_rmsd': parent_rmsd_by_id[sid],
+                'cmscore': cmscore_stage1.get(sid), 'parent_cmscore': parent_cm_by_id[sid],
                 'cm_hit': hit_flags.get(sid, False), 'max_patent_pid': max_pids.get(sid),
-                'predicted_halflife': halflife_map.get(sid), 'dssr_dbn': dbn_now.get(sid),
+                'predicted_halflife': halflife_map.get(sid), 'dssr_dbn': dbn_stage2.get(sid),
                 'sequence': seq_by_id[sid], 'length': len(seq_by_id[sid]),
                 'mutations_from_seed': sum(a != b for a, b in zip(seq_by_id[sid], seed_3utr_seq)
                                             if len(seq_by_id[sid]) == len(seed_3utr_seq)),
+                'af3_predicted': True,
             })
 
-        valid_rmsd = [v for v in rmsd_now.values() if v is not None]
-        valid_cm = [v for v in cmscore_now.values() if v is not None]
-        valid_hl = [v for v in halflife_map.values() if v is not None]
-        best_sid = max(utr_ids, key=lambda s: scores[s])
+        # Store minimal data for non-AF3 individuals (prescores only)
+        for sid in ranked[af3_filter_top_n:]:
+            all_rows.append({
+                'generation': gen, 'sample_id': sid, 'parent_id': parent_of_by_id[sid],
+                'score': prescores[sid], 'probability': 0.0,
+                'rmsd_min': None, 'parent_rmsd': parent_rmsd_by_id[sid],
+                'cmscore': cmscore_stage1.get(sid), 'parent_cmscore': parent_cm_by_id[sid],
+                'cm_hit': hit_flags.get(sid, False), 'max_patent_pid': max_pids.get(sid),
+                'predicted_halflife': None, 'dssr_dbn': None,
+                'sequence': seq_by_id[sid], 'length': len(seq_by_id[sid]),
+                'mutations_from_seed': sum(a != b for a, b in zip(seq_by_id[sid], seed_3utr_seq)
+                                            if len(seq_by_id[sid]) == len(seed_3utr_seq)),
+                'af3_predicted': False,
+            })
 
-        log.info(f"  Best score this gen: {scores[best_sid]} ({best_sid}) | "
-                 f"mean {sum(score_list)/len(score_list):.2f} | worst {min(score_list)}")
+        valid_rmsd = [v for v in rmsd_stage2.values() if v is not None]
+        valid_cm = [v for v in cmscore_stage1.values() if v is not None]
+        valid_hl = [v for v in halflife_map.values() if v is not None]
+        best_sid = max(af3_candidates, key=lambda s: scores[s])
+
+        log.info(f"  Best score (of AF3-predicted): {scores[best_sid]:.1f} ({best_sid}) | "
+                 f"mean {sum(score_list)/len(score_list):.2f} | worst {min(score_list):.1f}")
         log.info(f"  CM hits: {sum(hit_flags.values())}/{population_size} | "
                  f"elapsed {time.time() - gen_start:.1f}s")
 
@@ -904,9 +996,10 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         if all_time_best_score is None or scores[best_sid] > all_time_best_score:
             all_time_best_score = scores[best_sid]
             all_time_best_seq, all_time_best_id, all_time_best_gen = seq_by_id[best_sid], best_sid, gen
-            log.info(f"  \u2605 New all-time best score: {all_time_best_score}")
+            log.info(f"  ★ New all-time best score: {all_time_best_score:.1f}")
 
-        selected_ids = rng.choices(utr_ids, weights=probabilities, k=n_select)
+        # Select top n_select for breeding
+        selected_ids = rng.choices(af3_candidates, weights=probabilities, k=n_select)
         for rank, sid in enumerate(selected_ids):
             selected_rows.append({'generation': gen, 'rank': rank + 1, 'sample_id': sid,
                                    'score': scores[sid], 'probability': prob_by_id[sid],
@@ -923,7 +1016,7 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         if gen == generations:
             break
         population, parent_of, parent_rmsd, parent_cmscore = breed_next_generation(
-            selected_ids, seq_by_id, rmsd_now, cmscore_now, population_size,
+            selected_ids, seq_by_id, rmsd_stage2, cmscore_stage1, population_size,
             mutation_rate, crossover_rate, rng)
 
     # ── Outputs ──────────────────────────────────────────────────────────
@@ -945,18 +1038,19 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         plot_scores_over_generations(best_per_gen, results_dir / 'score_over_generations.png')
 
     with open(results_dir / 'evolution_summary.txt', 'w') as fh:
-        fh.write("3' UTR Genetic Algorithm — Evolution Summary\n" + "=" * 60 + "\n\n")
+        fh.write("3' UTR Genetic Algorithm — Evolution Summary (Scaled Scoring + Two-Stage AF3)\n" + "=" * 80 + "\n\n")
         fh.write(f"Generations: {generations} | Population: {population_size} | n-select: {n_select}\n")
         fh.write(f"Mutation rate: {mutation_rate} | Crossover rate: {crossover_rate} | Temp: {temperature}\n")
         fh.write(f"RNG seed: {rng_seed}\nRef CIFs: {[str(c) for c in ref_cifs]}\nCM model: {cm_model}\n")
         fh.write(f"cmsearch E<= {cm_evalue_threshold} | No-hit penalty: {no_hit_penalty}\n")
-        fh.write(f"Patent motifs: {len(patent_seqs)} | PID> {patent_pid_threshold}% -> {patent_pid_penalty}\n\n")
+        fh.write(f"Patent motifs: {len(patent_seqs)} | PID> {patent_pid_threshold}% -> {patent_pid_penalty}\n")
+        fh.write(f"AF3 filter: top {af3_filter_top_n}/{population_size} candidates to structure prediction\n\n")
         fh.write(f"Seed length: {len(seed_3utr_seq)} nt | Seed RMSD/cmscore: {seed_rmsd} / {seed_cmscore}\n")
         fh.write(f"Best length: {len(all_time_best_seq)} nt\n")
-        fh.write(f"All-time best score: {all_time_best_score} (id={all_time_best_id}, gen={all_time_best_gen})\n\n")
+        fh.write(f"All-time best score: {all_time_best_score:.1f} (id={all_time_best_id}, gen={all_time_best_gen})\n\n")
         for row in best_per_gen:
-            fh.write(f"  Gen {row['generation']:>3d}: best {row['best_score']} "
-                     f"(mean {row['mean_score']:.2f}, worst {row['worst_score']}) | "
+            fh.write(f"  Gen {row['generation']:>3d}: best {row['best_score']:>7.1f} "
+                     f"(mean {row['mean_score']:.2f}, worst {row['worst_score']:>7.1f}) | "
                      f"rmsd {row['mean_rmsd']} | cmscore {row['mean_cmscore']} | "
                      f"halflife {row['mean_halflife']}\n")
         fh.write("\nBest evolved 3' UTR sequence:\n")
@@ -964,10 +1058,11 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
             fh.write(all_time_best_seq[i:i + 60] + '\n')
     log.info(f"Wrote {results_dir / 'evolution_summary.txt'}")
 
-    log.info("\n" + "═" * 60)
-    log.info(f"GA complete. All-time best score: {all_time_best_score} "
+    log.info("\n" + "═" * 80)
+    log.info(f"GA complete. All-time best score: {all_time_best_score:.1f} "
              f"(id={all_time_best_id}, gen={all_time_best_gen})")
-    log.info(f"Results in: {results_dir}\n" + "═" * 60)
+    log.info(f"Results in: {results_dir}\n" + "═" * 80)
+
 
 def _eval_one_structure(sid: str, cif, ref_cifs: List[Path], run_dssr: bool,
                          dssr_path: str, dssr_outdir: Path
@@ -990,6 +1085,7 @@ def _eval_one_structure(sid: str, cif, ref_cifs: List[Path], run_dssr: bool,
         except Exception as exc:
             log.debug(f"  DSSR failed for {sid}: {exc}")
     return sid, best, dbn
+
 
 # ══════════════════════════════════════════════════════════════════════════
 # CLI
@@ -1015,13 +1111,18 @@ def main():
     p.add_argument('--dssr-path', default='x3dna-dssr')
     p.add_argument('--cm-model', required=True, dest='cm_model')
     p.add_argument('--cm-evalue-threshold', type=float, default=0.01, dest='cm_evalue_threshold')
-    p.add_argument('--no-hit-penalty', type=int, default=-10, dest='no_hit_penalty')
+    p.add_argument('--no-hit-penalty', type=float, default=-1000.0, dest='no_hit_penalty')
     p.add_argument('--rmsd-workers', type=int, default=1, dest='rmsd_workers',
                 help="Parallel worker processes for RMSD/DSSR evaluation (default: 1, serial).")
 
     p.add_argument('--patent-pid-threshold', type=float, default=80.0, dest='patent_pid_threshold')
-    p.add_argument('--patent-pid-penalty', type=int, default=-10, dest='patent_pid_penalty')
+    p.add_argument('--patent-pid-penalty', type=float, default=-1000.0, dest='patent_pid_penalty')
     p.add_argument('--no-default-patents', action='store_true', dest='no_default_patents')
+
+    p.add_argument('--af3-filter-top-n', type=int, default=100, dest='af3_filter_top_n',
+                    help="Send only the top N candidates (by pre-score) to AF3 structure prediction; "
+                         "rest are ranked on CM score + patent PID only. Dramatically speeds up large "
+                         "populations (default: 100).")
 
     p.add_argument('--af3-work-dir', required=True, dest='af3_work_dir')
     p.add_argument('--af3-db', default='/opt/alphafold3/databases', dest='af3_db')
@@ -1039,14 +1140,10 @@ def main():
     p.add_argument('--af3-batch-size', type=int, default=100, dest='af3_batch_size',
                     help="Individuals per SLURM array batch (default: 100).")
     p.add_argument('--af3-max-concurrent-batches', type=int, default=10, dest='af3_max_concurrent_batches',
-                    help="Batches submitted/blocking at once (default: 10). Tune both of "
-                         "these to your cluster's per-user job/task QOS limits.")
+                    help="Batches submitted/blocking at once (default: 10).")
     p.add_argument('--af3-per-gpu', type=int, default=1, dest='af3_per_gpu',
-                    help="Individuals grouped onto one GPU allocation, run one after "
-                         "another (sequentially, not concurrently — no GPU-memory "
-                         "contention) on it (default: 1). Raise this to cut the number "
-                         "of separate SLURM GPU-node waits: one allocation covers "
-                         "af3_per_gpu predictions back-to-back instead of just one.")
+                    help="Individuals grouped onto one GPU allocation, run sequentially "
+                         "(default: 1).")
 
     p.add_argument('--population', type=int, default=1000)
     p.add_argument('--n-select', type=int, default=10, dest='n_select')
@@ -1089,6 +1186,9 @@ def main():
     if args.af3_batch_size < 1 or args.af3_max_concurrent_batches < 1 or args.af3_per_gpu < 1:
         log.error("--af3-batch-size, --af3-max-concurrent-batches, and --af3-per-gpu must all be >= 1.")
         sys.exit(1)
+    if args.af3_filter_top_n < args.n_select:
+        log.error(f"--af3-filter-top-n ({args.af3_filter_top_n}) must be >= --n-select ({args.n_select}).")
+        sys.exit(1)
 
     try:
         u5_id, u5_seq = read_single_fasta(Path(args.fasta_5utr))
@@ -1117,7 +1217,8 @@ def main():
         run_dssr=not args.skip_dssr, dssr_path=args.dssr_path, output_dir=Path(args.output_dir),
         population_size=args.population, n_select=args.n_select, generations=args.generations,
         mutation_rate=args.mutation_rate, crossover_rate=args.crossover_rate, temperature=args.temperature,
-        rng_seed=args.seed, make_plot=not args.no_plot, rmsd_workers=args.rmsd_workers
+        rng_seed=args.seed, make_plot=not args.no_plot, rmsd_workers=args.rmsd_workers,
+        af3_filter_top_n=args.af3_filter_top_n
     )
 
 
