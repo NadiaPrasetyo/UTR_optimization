@@ -35,6 +35,7 @@ import math
 import os
 import pickle
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -183,7 +184,7 @@ def write_fasta(path: Path, records: List[Tuple[str, str]], width: int = 60) -> 
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Genetic operators (flat mutation rate — no annealing)
+# Genetic operators
 # ══════════════════════════════════════════════════════════════════════════
 
 def point_mutate(seq: str, rate: float, rng: random.Random) -> str:
@@ -198,6 +199,25 @@ def uniform_crossover(a: str, b: str, rng: random.Random) -> str:
     if len(a) != len(b):
         return a
     return ''.join(x if rng.random() < 0.5 else y for x, y in zip(a, b))
+
+
+def get_mutation_rate(generation: int, rate_initial: float, rate_final: float,
+                       decay_generations: int) -> float:
+    """
+    Anneal the mutation rate over the run: a higher rate at the start lets
+    the GA explore more varied sequences before the population has any
+    signal to select on; the rate then decays (linearly) down to the
+    steady-state rate by `decay_generations`, so later generations refine
+    around promising candidates instead of constantly re-randomizing them.
+
+    generation is 1-based (the generation the *children* belong to).
+    If rate_initial == rate_final, this is just a flat rate as before.
+    """
+    if decay_generations <= 1 or rate_initial == rate_final:
+        return rate_final
+    frac = (generation - 1) / (decay_generations - 1)
+    frac = min(1.0, max(0.0, frac))
+    return rate_initial + (rate_final - rate_initial) * frac
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -249,6 +269,31 @@ def calculate_pid(query: str, subject: str) -> float:
 
 def check_patent_pid(seq: str, patents: List[dict]) -> List[float]:
     return [calculate_pid(seq, p['seq']) for p in patents]
+
+
+def scale_patent_penalty(pid: float, threshold: float, base_penalty: float) -> float:
+    """
+    Scale the patent-PID penalty so it grows the closer `pid` is to 100%
+    identity, instead of slapping the full penalty on the instant a
+    sequence crosses `threshold`. A candidate barely over the threshold is
+    still flagged (so it doesn't slip through unnoticed) but only pays a
+    fraction of the penalty; a near-exact match to a patented motif pays
+    close to the full `base_penalty`.
+
+    `base_penalty` is expected to be negative (a penalty), so the returned
+    value is negative too, scaled between 25% and 100% of `base_penalty`
+    as pid ranges from `threshold` to 100%. The ramp is quadratic so the
+    penalty accelerates as pid approaches 100% rather than growing linearly.
+    """
+    if pid is None or pid <= threshold:
+        return 0.0
+    if threshold >= 100.0:
+        frac = 1.0
+    else:
+        frac = (pid - threshold) / (100.0 - threshold)
+        frac = min(1.0, max(0.0, frac))
+    scale = 0.25 + 0.75 * (frac ** 2)
+    return base_penalty * scale
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -346,6 +391,107 @@ def _find_cached_cif(job_out_dir: Path, model_glob: str) -> Optional[Path]:
     return matches[0] if matches else None
 
 
+def _slurm_mem_str_to_mb(s: Optional[str]) -> Optional[float]:
+    """
+    Parse a Slurm memory string (as reported by sacct, e.g. '981184K',
+    '3.50G', '512M') or a requested-memory string (e.g. '32G') into MB.
+    Returns None if it can't be parsed (blank, '0', non-numeric sentinel
+    values that sacct sometimes emits for steps with no RSS data, etc.).
+    """
+    if not s:
+        return None
+    s = s.strip()
+    if not s or s in ('0', '0.00'):
+        return None
+    m = re.match(r'^([\d.]+)\s*([KMGT]?)B?$', s, re.IGNORECASE)
+    if not m:
+        return None
+    try:
+        val = float(m.group(1))
+    except ValueError:
+        return None
+    unit = m.group(2).upper()
+    # sacct reports MaxRSS/MaxVMSize in KB when no suffix is present.
+    mult_to_mb = {'': 1.0 / 1024, 'K': 1.0 / 1024, 'M': 1.0, 'G': 1024.0, 'T': 1024.0 * 1024.0}
+    return val * mult_to_mb.get(unit, 1.0 / 1024)
+
+
+def _query_af3_job_memory(job_id: str) -> List[dict]:
+    """
+    Query `sacct` for the peak memory (MaxRSS) of every step of a finished
+    (or still-running) SLURM job/array, so AF3 memory usage can be tracked
+    without having to log into compute nodes. Returns [] if sacct isn't
+    available or the query fails — memory monitoring degrades gracefully
+    rather than blocking the GA run.
+    """
+    if not job_id or job_id == "?":
+        return []
+    if shutil.which("sacct") is None:
+        return []
+    try:
+        result = subprocess.run(
+            ["sacct", "-j", job_id, "-P", "--noheader",
+             "--format=JobID,JobName%40,MaxRSS,MaxVMSize,Elapsed,State"],
+            capture_output=True, text=True, timeout=30)
+    except Exception as exc:
+        log.debug(f"sacct query error for job {job_id}: {exc}")
+        return []
+    if result.returncode != 0:
+        log.debug(f"sacct query failed for job {job_id}: {result.stderr.strip()}")
+        return []
+    rows = []
+    for line in result.stdout.strip().splitlines():
+        parts = line.split('|')
+        if len(parts) < 6:
+            continue
+        jobid, jobname, maxrss, maxvmsize, elapsed, state = parts[:6]
+        # Skip the parent '<jobid>' / '<jobid>.batch' summary rows with no
+        # RSS recorded — the '.extern'/array-task step rows carry the data.
+        if not maxrss:
+            continue
+        rows.append({'jobid': jobid, 'jobname': jobname, 'maxrss': maxrss,
+                     'maxvmsize': maxvmsize, 'elapsed': elapsed, 'state': state})
+    return rows
+
+
+def _log_af3_batch_memory(job_id: str, requested_mem: str, generation: int, batch_idx: int,
+                           logs_dir: Path) -> None:
+    """Fetch, persist, and summarize AF3 SLURM job memory usage for one batch."""
+    mem_rows = _query_af3_job_memory(job_id)
+    if not mem_rows:
+        log.debug(f"  [gen {generation} batch {batch_idx} job {job_id}] no sacct memory data "
+                  f"available (sacct missing, accounting disabled, or job not yet flushed).")
+        return
+
+    mem_tsv = logs_dir / "memory_usage.tsv"
+    with open(mem_tsv, "w", newline='') as fh:
+        writer = csv.writer(fh, delimiter='\t', lineterminator='\n')
+        writer.writerow(['jobid', 'jobname', 'maxrss', 'maxvmsize', 'elapsed', 'state'])
+        for r in mem_rows:
+            writer.writerow([r['jobid'], r['jobname'], r['maxrss'], r['maxvmsize'],
+                              r['elapsed'], r['state']])
+
+    peak_mb, peak_row = 0.0, None
+    for r in mem_rows:
+        rss_mb = _slurm_mem_str_to_mb(r['maxrss'])
+        if rss_mb is not None and rss_mb > peak_mb:
+            peak_mb, peak_row = rss_mb, r
+
+    if peak_mb <= 0 or peak_row is None:
+        log.debug(f"  [gen {generation} batch {batch_idx} job {job_id}] sacct returned rows but "
+                  f"no parseable MaxRSS values.")
+        return
+
+    requested_mb = _slurm_mem_str_to_mb(requested_mem)
+    log.info(f"  [gen {generation} batch {batch_idx} job {job_id}] peak AF3 memory: "
+             f"{peak_mb / 1024:.2f} GB (task {peak_row['jobid']}, requested {requested_mem}) "
+             f"— details: {mem_tsv}")
+    if requested_mb and peak_mb > 0.85 * requested_mb:
+        log.warning(f"  [gen {generation} batch {batch_idx} job {job_id}] peak memory "
+                    f"{peak_mb / 1024:.2f} GB is within 15% of the requested {requested_mem} — "
+                    f"raise --af3-mem or lower --af3-per-gpu to avoid OOM kills.")
+
+
 def _run_batch_blocking(batch_idx: int, batch: List[Tuple[str, Path]], jobs_root: Path,
                          output_root: Path, gen_dir: Path, af3_db: str, af3_models: str,
                          af3_module: str, partition: str, time_limit: str, mem: str,
@@ -367,6 +513,13 @@ def _run_batch_blocking(batch_idx: int, batch: List[Tuple[str, Path]], jobs_root
     job_id = result.stdout.strip().split(';')[0] or "?"
     if result.returncode != 0:
         log.error(f"  [gen {generation} batch {batch_idx}] sbatch failed: {result.stderr.strip()}")
+
+    # Memory monitoring: now that sbatch --wait has returned, the job's
+    # accounting record should be in the SLURM DB — pull peak RSS per task
+    # so OOM-prone AF3 configurations show up in the logs instead of just
+    # silently failing (they're also caught as .failed via the no-output
+    # check below, but this gives the *why*).
+    _log_af3_batch_memory(job_id, mem, generation, batch_idx, logs_dir)
 
     outcomes = []
     for job_name, _ in batch:
@@ -681,10 +834,10 @@ def compute_prescores(utr_ids: List[str], cmscore_now: Dict[str, Optional[float]
                 cm_diff = c_now - c_par
                 s += cm_diff
         
-        # Patent PID penalty
+        # Patent PID penalty: scaled so it ramps up the closer pid is to 100%
         pid = max_pids.get(sid)
         if pid is not None and pid > patent_pid_threshold:
-            s += patent_pid_penalty
+            s += scale_patent_penalty(pid, patent_pid_threshold, patent_pid_penalty)
         
         scores[sid] = s
     return scores
@@ -705,7 +858,7 @@ def compute_full_scores(utr_ids: List[str], rmsd_now: Dict[str, Optional[float]]
       - CM score: difference from parent (e.g., 80→79 = -1, 80→50 = -30)
       - RMSD: inverted difference (lower is better, so r_now < r_par gives +points)
       - No hit: large penalty
-      - Patent PID > threshold: large penalty
+      - Patent PID: penalty ramps up quadratically the closer PID is to 100%
     """
     scores = {}
     for sid in utr_ids:
@@ -728,10 +881,10 @@ def compute_full_scores(utr_ids: List[str], rmsd_now: Dict[str, Optional[float]]
                 cm_diff = c_now - c_par
                 s += cm_diff
         
-        # Patent PID penalty
+        # Patent PID penalty: scaled so it ramps up the closer pid is to 100%
         pid = max_pids.get(sid)
         if pid is not None and pid > patent_pid_threshold:
-            s += patent_pid_penalty
+            s += scale_patent_penalty(pid, patent_pid_threshold, patent_pid_penalty)
         
         scores[sid] = s
     return scores
@@ -809,7 +962,8 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
            af3_cpus: int, af3_gres: str, af3_exclude: str, af3_model_seeds: List[int],
            af3_model_glob: str, af3_batch_size: int, af3_max_concurrent_batches: int,
            af3_per_gpu: int, run_dssr: bool, dssr_path: str, output_dir: Path, population_size: int, n_select: int,
-           generations: int, mutation_rate: float, crossover_rate: float, temperature: float,
+           generations: int, mutation_rate: float, mutation_rate_initial: float,
+           mutation_rate_decay_generations: int, crossover_rate: float, temperature: float,
            rng_seed: int, make_plot: bool, rmsd_workers: int, af3_filter_top_n: int) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     results_dir = output_dir / 'results'
@@ -821,9 +975,15 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
     log.info("═" * 80)
     log.info("3' UTR Genetic Algorithm — SCALED SCORING + TWO-STAGE AF3 FILTERING")
     log.info(f"  Population {population_size} | n-select {n_select} | generations {generations}")
-    log.info(f"  Mutation rate {mutation_rate} (flat) | crossover rate {crossover_rate} | temp {temperature}")
+    if mutation_rate_initial != mutation_rate:
+        log.info(f"  Mutation rate: {mutation_rate_initial} (gen 1) annealing to {mutation_rate} "
+                 f"over {mutation_rate_decay_generations} generation(s) | crossover rate {crossover_rate} | "
+                 f"temp {temperature}")
+    else:
+        log.info(f"  Mutation rate {mutation_rate} (flat) | crossover rate {crossover_rate} | temp {temperature}")
     log.info(f"  cmsearch E<= {cm_evalue_threshold} | no-hit penalty {no_hit_penalty}")
-    log.info(f"  Patent motifs {len(patent_seqs)} | PID> {patent_pid_threshold}% -> {patent_pid_penalty}")
+    log.info(f"  Patent motifs {len(patent_seqs)} | PID> {patent_pid_threshold}% -> scaled penalty "
+             f"(25%-100% of {patent_pid_penalty} as PID climbs to 100%)")
     log.info(f"  AF3 filter: top {af3_filter_top_n} candidates (of {population_size}) sent to structure prediction")
     log.info(f"  AF3 batch size {af3_batch_size} | max concurrent {af3_max_concurrent_batches} | "
              f"{af3_per_gpu} individual(s)/GPU")
@@ -855,9 +1015,11 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
             cm_by_id = {r['sample_id']: r['cmscore'] for r in gen_rows}
             if not selected_ids:
                 raise RuntimeError(f"Checkpoint gen {ckpt.generation} has no selected_rows to breed from.")
+            resume_rate = get_mutation_rate(start_generation, mutation_rate_initial, mutation_rate,
+                                             mutation_rate_decay_generations)
             population, parent_of, parent_rmsd, parent_cmscore = breed_next_generation(
                 selected_ids, seq_by_id, rmsd_by_id, cm_by_id, population_size,
-                mutation_rate, crossover_rate, rng)
+                resume_rate, crossover_rate, rng)
     else:
         log.info("═" * 80 + "\nNO CHECKPOINT — starting fresh")
         rng = random.Random(rng_seed)
@@ -876,7 +1038,8 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         seed_rmsd, seed_cmscore = seed_rmsd_map.get(seed_id), seed_cm_map.get(seed_id)
         log.info(f"  Seed baseline: RMSD={seed_rmsd}, cmscore={seed_cmscore}, cm_hit={seed_hit_map.get(seed_id)}")
 
-        population = [point_mutate(seed_3utr_seq, mutation_rate, rng) for _ in range(population_size)]
+        gen1_rate = get_mutation_rate(1, mutation_rate_initial, mutation_rate, mutation_rate_decay_generations)
+        population = [point_mutate(seed_3utr_seq, gen1_rate, rng) for _ in range(population_size)]
         parent_of = [seed_id] * population_size
         parent_rmsd = [seed_rmsd] * population_size
         parent_cmscore = [seed_cmscore] * population_size
@@ -888,7 +1051,9 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
 
     for gen in range(start_generation, generations + 1):
         gen_start = time.time()
-        log.info(f"\n── Generation {gen}/{generations} (mutation rate = {mutation_rate}) ──")
+        current_mutation_rate = get_mutation_rate(gen, mutation_rate_initial, mutation_rate,
+                                                    mutation_rate_decay_generations)
+        log.info(f"\n── Generation {gen}/{generations} (mutation rate = {current_mutation_rate:.4f}) ──")
 
         utr_ids = [f"ind_{gen:04d}_{i:05d}" for i in range(population_size)]
         seq_by_id = dict(zip(utr_ids, population))
@@ -994,6 +1159,7 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
             'mean_patent_pid': (sum(valid_pid) / len(valid_pid)) if valid_pid else None,
             'best_patent_pid': max_pids.get(best_sid),
             'best_id': best_sid, 'best_sequence': seq_by_id[best_sid],
+            'mutation_rate': current_mutation_rate,
         })
 
         if all_time_best_score is None or scores[best_sid] > all_time_best_score:
@@ -1018,9 +1184,11 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
 
         if gen == generations:
             break
+        next_rate = get_mutation_rate(gen + 1, mutation_rate_initial, mutation_rate,
+                                       mutation_rate_decay_generations)
         population, parent_of, parent_rmsd, parent_cmscore = breed_next_generation(
             selected_ids, seq_by_id, rmsd_stage2, cmscore_stage1, population_size,
-            mutation_rate, crossover_rate, rng)
+            next_rate, crossover_rate, rng)
 
     # ── Outputs ──────────────────────────────────────────────────────────
     def _write_tsv(path, rows):
@@ -1057,10 +1225,13 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
     with open(results_dir / 'evolution_summary.txt', 'w') as fh:
         fh.write("3' UTR Genetic Algorithm — Evolution Summary (Scaled Scoring + Two-Stage AF3)\n" + "=" * 80 + "\n\n")
         fh.write(f"Generations: {generations} | Population: {population_size} | n-select: {n_select}\n")
-        fh.write(f"Mutation rate: {mutation_rate} | Crossover rate: {crossover_rate} | Temp: {temperature}\n")
+        fh.write(f"Mutation rate: {mutation_rate_initial} (gen 1) -> {mutation_rate} "
+                 f"(by gen {mutation_rate_decay_generations}) | Crossover rate: {crossover_rate} | "
+                 f"Temp: {temperature}\n")
         fh.write(f"RNG seed: {rng_seed}\nRef CIFs: {[str(c) for c in ref_cifs]}\nCM model: {cm_model}\n")
         fh.write(f"cmsearch E<= {cm_evalue_threshold} | No-hit penalty: {no_hit_penalty}\n")
-        fh.write(f"Patent motifs: {len(patent_seqs)} | PID> {patent_pid_threshold}% -> {patent_pid_penalty}\n")
+        fh.write(f"Patent motifs: {len(patent_seqs)} | PID> {patent_pid_threshold}% -> scaled penalty "
+                 f"(25%-100% of {patent_pid_penalty} as PID -> 100%)\n")
         fh.write(f"AF3 filter: top {af3_filter_top_n}/{population_size} candidates to structure prediction\n\n")
         fh.write(f"Seed length: {len(seed_3utr_seq)} nt | Seed RMSD/cmscore: {seed_rmsd} / {seed_cmscore}\n")
         fh.write(f"Best length: {len(all_time_best_seq)} nt\n")
@@ -1071,7 +1242,8 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         fh.write(f"All-time best score: {all_time_best_score:.1f} "
                  f"(id={all_time_best_id}, gen={all_time_best_gen}, max_patent_pid={all_time_best_pid})\n\n")
         for row in best_per_gen:
-            fh.write(f"  Gen {row['generation']:>3d}: best {row['best_score']:>7.1f} "
+            fh.write(f"  Gen {row['generation']:>3d} (mut_rate={row.get('mutation_rate', mutation_rate):.4f}): "
+                     f"best {row['best_score']:>7.1f} "
                      f"(mean {row['mean_score']:.2f}, worst {row['worst_score']:>7.1f}) | "
                      f"rmsd {row['mean_rmsd']} | cmscore {row['mean_cmscore']} | "
                      f"halflife {row['mean_halflife']} | "
@@ -1139,7 +1311,10 @@ def main():
                 help="Parallel worker processes for RMSD/DSSR evaluation (default: 1, serial).")
 
     p.add_argument('--patent-pid-threshold', type=float, default=80.0, dest='patent_pid_threshold')
-    p.add_argument('--patent-pid-penalty', type=float, default=-1000.0, dest='patent_pid_penalty')
+    p.add_argument('--patent-pid-penalty', type=float, default=-1000.0, dest='patent_pid_penalty',
+                    help="Penalty applied at 100%% patent identity; sequences just above "
+                         "--patent-pid-threshold pay ~25%% of this, scaling up quadratically "
+                         "to the full penalty as PID -> 100%%.")
     p.add_argument('--no-default-patents', action='store_true', dest='no_default_patents')
 
     p.add_argument('--af3-filter-top-n', type=int, default=100, dest='af3_filter_top_n',
@@ -1171,7 +1346,17 @@ def main():
     p.add_argument('--population', type=int, default=1000)
     p.add_argument('--n-select', type=int, default=10, dest='n_select')
     p.add_argument('--generations', type=int, default=30)
-    p.add_argument('--mutation-rate', type=float, default=0.02, dest='mutation_rate')
+    p.add_argument('--mutation-rate', type=float, default=0.001, dest='mutation_rate',
+                    help="Steady-state (final) mutation rate (default: 0.001).")
+    p.add_argument('--mutation-rate-initial', type=float, default=None, dest='mutation_rate_initial',
+                    help="Higher mutation rate used at the start of the run for broader exploration "
+                         "of sequence space; anneals down to --mutation-rate over "
+                         "--mutation-rate-decay-generations. Defaults to 5x --mutation-rate "
+                         "(capped at 0.5) if not given.")
+    p.add_argument('--mutation-rate-decay-generations', type=int, default=None,
+                    dest='mutation_rate_decay_generations',
+                    help="Number of generations over which the mutation rate anneals from "
+                         "--mutation-rate-initial down to --mutation-rate (default: all generations).")
     p.add_argument('--crossover-rate', type=float, default=0.0, dest='crossover_rate')
     p.add_argument('--temperature', type=float, default=1.0)
     p.add_argument('--seed', type=int, default=42)
@@ -1212,6 +1397,20 @@ def main():
     if args.af3_filter_top_n < args.n_select:
         log.error(f"--af3-filter-top-n ({args.af3_filter_top_n}) must be >= --n-select ({args.n_select}).")
         sys.exit(1)
+    if shutil.which("sacct") is None:
+        log.warning("'sacct' not found on PATH — AF3 SLURM memory usage will not be monitored "
+                     "(scoring/selection unaffected).")
+
+    mutation_rate_initial = args.mutation_rate_initial
+    if mutation_rate_initial is None:
+        mutation_rate_initial = min(0.5, args.mutation_rate * 5.0)
+    mutation_rate_decay_generations = args.mutation_rate_decay_generations
+    if mutation_rate_decay_generations is None:
+        mutation_rate_decay_generations = args.generations
+    if mutation_rate_initial < args.mutation_rate:
+        log.warning(f"--mutation-rate-initial ({mutation_rate_initial}) is lower than --mutation-rate "
+                    f"({args.mutation_rate}); the rate will anneal upward instead of down. If you wanted "
+                    f"a flat rate, just leave --mutation-rate-initial unset.")
 
     try:
         u5_id, u5_seq = read_single_fasta(Path(args.fasta_5utr))
@@ -1239,7 +1438,9 @@ def main():
         af3_per_gpu=args.af3_per_gpu,
         run_dssr=not args.skip_dssr, dssr_path=args.dssr_path, output_dir=Path(args.output_dir),
         population_size=args.population, n_select=args.n_select, generations=args.generations,
-        mutation_rate=args.mutation_rate, crossover_rate=args.crossover_rate, temperature=args.temperature,
+        mutation_rate=args.mutation_rate, mutation_rate_initial=mutation_rate_initial,
+        mutation_rate_decay_generations=mutation_rate_decay_generations,
+        crossover_rate=args.crossover_rate, temperature=args.temperature,
         rng_seed=args.seed, make_plot=not args.no_plot, rmsd_workers=args.rmsd_workers,
         af3_filter_top_n=args.af3_filter_top_n
     )
