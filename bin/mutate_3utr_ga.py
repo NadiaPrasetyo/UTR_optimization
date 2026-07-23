@@ -977,6 +977,7 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         valid_rmsd = [v for v in rmsd_stage2.values() if v is not None]
         valid_cm = [v for v in cmscore_stage1.values() if v is not None]
         valid_hl = [v for v in halflife_map.values() if v is not None]
+        valid_pid = [v for v in max_pids.values() if v is not None]
         best_sid = max(af3_candidates, key=lambda s: scores[s])
 
         log.info(f"  Best score (of AF3-predicted): {scores[best_sid]:.1f} ({best_sid}) | "
@@ -990,6 +991,8 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
             'mean_rmsd': (sum(valid_rmsd) / len(valid_rmsd)) if valid_rmsd else None,
             'mean_cmscore': (sum(valid_cm) / len(valid_cm)) if valid_cm else None,
             'mean_halflife': (sum(valid_hl) / len(valid_hl)) if valid_hl else None,
+            'mean_patent_pid': (sum(valid_pid) / len(valid_pid)) if valid_pid else None,
+            'best_patent_pid': max_pids.get(best_sid),
             'best_id': best_sid, 'best_sequence': seq_by_id[best_sid],
         })
 
@@ -1021,9 +1024,23 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
 
     # ── Outputs ──────────────────────────────────────────────────────────
     def _write_tsv(path, rows):
+        # Rows resumed from an older checkpoint may be missing keys that a
+        # newer version of this script adds (e.g. patent-PID fields), and
+        # vice versa. Union the keys (first-seen order) instead of trusting
+        # rows[0], and backfill missing values with None so DictWriter never
+        # chokes on a ragged fieldset.
+        fieldnames = []
+        seen = set()
+        for r in rows:
+            for k in r.keys():
+                if k not in seen:
+                    seen.add(k)
+                    fieldnames.append(k)
         with open(path, 'w', newline='') as fh:
-            w = csv.DictWriter(fh, fieldnames=list(rows[0].keys()), delimiter='\t', lineterminator='\n')
-            w.writeheader(); w.writerows(rows)
+            w = csv.DictWriter(fh, fieldnames=fieldnames, delimiter='\t', lineterminator='\n', restval='')
+            w.writeheader()
+            for r in rows:
+                w.writerow({k: r.get(k, '') for k in fieldnames})
         log.info(f"Wrote {path}")
 
     _write_tsv(results_dir / 'best_per_generation.tsv', best_per_gen)
@@ -1047,12 +1064,18 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         fh.write(f"AF3 filter: top {af3_filter_top_n}/{population_size} candidates to structure prediction\n\n")
         fh.write(f"Seed length: {len(seed_3utr_seq)} nt | Seed RMSD/cmscore: {seed_rmsd} / {seed_cmscore}\n")
         fh.write(f"Best length: {len(all_time_best_seq)} nt\n")
-        fh.write(f"All-time best score: {all_time_best_score:.1f} (id={all_time_best_id}, gen={all_time_best_gen})\n\n")
+        # .get(...) throughout: rows carried over from a checkpoint written by
+        # an older version of this script won't have the patent-PID keys yet.
+        best_row = next((r for r in all_rows if r.get('sample_id') == all_time_best_id), None)
+        all_time_best_pid = best_row.get('max_patent_pid') if best_row else None
+        fh.write(f"All-time best score: {all_time_best_score:.1f} "
+                 f"(id={all_time_best_id}, gen={all_time_best_gen}, max_patent_pid={all_time_best_pid})\n\n")
         for row in best_per_gen:
             fh.write(f"  Gen {row['generation']:>3d}: best {row['best_score']:>7.1f} "
                      f"(mean {row['mean_score']:.2f}, worst {row['worst_score']:>7.1f}) | "
                      f"rmsd {row['mean_rmsd']} | cmscore {row['mean_cmscore']} | "
-                     f"halflife {row['mean_halflife']}\n")
+                     f"halflife {row['mean_halflife']} | "
+                     f"patent_pid best={row.get('best_patent_pid')} mean={row.get('mean_patent_pid')}\n")
         fh.write("\nBest evolved 3' UTR sequence:\n")
         for i in range(0, len(all_time_best_seq), 60):
             fh.write(all_time_best_seq[i:i + 60] + '\n')

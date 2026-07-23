@@ -7,7 +7,7 @@
 #SBATCH --time=02:00:00
 #SBATCH --partition=aoraki_gpu
 #SBATCH --gres=gpu:1
-#SBATCH --array=0-56
+#SBATCH --array=0-0
 #SBATCH --output=optimization_a7/alphafold3/optimization_test/gen_0005/af3_jobs/batch_0000/logs/af3_%A_%a.log
 
 module purge
