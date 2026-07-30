@@ -106,6 +106,8 @@ class GACheckpoint:
     all_time_best_id: str
     all_time_best_gen: int
     rng_state: tuple
+    seed_patent_pid: Optional[float] = None
+    seed_halflife: Optional[float] = None
 
 
 def checkpoint_dir(output_dir: Path) -> Path:
@@ -742,6 +744,22 @@ def evaluate_halflife(population: List[str], utr_ids: List[str], u5_id: str, u5_
     return {sid: pred_map.get(sid) for sid in utr_ids}
 
 
+def compute_seed_extras(seed_id: str, seed_seq: str, patent_seqs: List[dict], u5_id: str, u5_seq: str,
+                         cds_id: str, cds_seq: str, species: str, metrics_script: Path,
+                         predict_script: Path, work_dir: Path) -> Tuple[Optional[float], Optional[float]]:
+    """
+    Compute the seed's own max patent PID and predicted half-life, so the
+    gen-0 baseline row in best_per_generation.tsv reports the same fields
+    as every other generation (not just RMSD/cmscore).
+    """
+    pids = check_patent_pid(seed_seq, patent_seqs) if patent_seqs else []
+    seed_patent_pid = max(pids) if pids else None
+    hl_map = evaluate_halflife([seed_seq], [seed_id], u5_id, u5_seq, cds_id, cds_seq, species,
+                               metrics_script, predict_script, work_dir)
+    seed_halflife = hl_map.get(seed_id)
+    return seed_patent_pid, seed_halflife
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # cmsearch (structural constraint)
 # ══════════════════════════════════════════════════════════════════════════
@@ -814,24 +832,29 @@ def evaluate_cmscores(cm_model: Path, utr_ids: List[str], population: List[str],
 # ══════════════════════════════════════════════════════════════════════════
 
 def compute_prescores(utr_ids: List[str], cmscore_now: Dict[str, Optional[float]],
-                      cmscore_parent: Dict[str, Optional[float]], hit_flags: Dict[str, bool],
+                      seed_cmscore: Optional[float], hit_flags: Dict[str, bool],
                       max_pids: Dict[str, Optional[float]], patent_pid_threshold: float,
                       no_hit_penalty: float, patent_pid_penalty: float) -> Dict[str, float]:
     """
     Compute fast pre-scores based on CM score and patent PID only (no RMSD).
     Used to rank all individuals before AF3 filtering.
+
+    CM score is scaled by the difference from the fixed SEED baseline (not
+    the immediate parent), so this is an absolute-quality/progress score:
+    it reflects how far a candidate has moved from the original seed, and
+    is directly comparable across generations.
     """
     scores = {}
     for sid in utr_ids:
         s = 0.0
         
-        # CM score: scaled by difference from parent
+        # CM score: scaled by difference from the seed baseline
         if not hit_flags.get(sid, False):
             s += no_hit_penalty
         else:
-            c_now, c_par = cmscore_now.get(sid), cmscore_parent.get(sid)
-            if c_now is not None and c_par is not None:
-                cm_diff = c_now - c_par
+            c_now = cmscore_now.get(sid)
+            if c_now is not None and seed_cmscore is not None:
+                cm_diff = c_now - seed_cmscore
                 s += cm_diff
         
         # Patent PID penalty: scaled so it ramps up the closer pid is to 100%
@@ -844,19 +867,27 @@ def compute_prescores(utr_ids: List[str], cmscore_now: Dict[str, Optional[float]
 
 
 def compute_full_scores(utr_ids: List[str], rmsd_now: Dict[str, Optional[float]],
-                        rmsd_parent: Dict[str, Optional[float]],
+                        seed_rmsd: Optional[float],
                         cmscore_now: Dict[str, Optional[float]],
-                        cmscore_parent: Dict[str, Optional[float]],
+                        seed_cmscore: Optional[float],
                         hit_flags: Dict[str, bool], max_pids: Dict[str, Optional[float]],
                         patent_pid_threshold: float, no_hit_penalty: float,
                         patent_pid_penalty: float) -> Dict[str, float]:
     """
-    Compute full scores including RMSD (scaled by difference from parent).
-    Used after AF3 predictions on filtered population.
-    
+    Compute full scores including RMSD (scaled by difference from the fixed
+    SEED baseline). Used after AF3 predictions on filtered population.
+
+    This is an absolute-quality/progress score, not a per-generation
+    momentum score: every individual, in every generation, is measured
+    against the same fixed seed baseline (`seed_rmsd`/`seed_cmscore`), so
+    scores are directly comparable across generations and track real
+    distance travelled from the starting sequence rather than the size of
+    the last mutation step.
+
     Scaling:
-      - CM score: difference from parent (e.g., 80→79 = -1, 80→50 = -30)
-      - RMSD: inverted difference (lower is better, so r_now < r_par gives +points)
+      - CM score: difference from the seed (e.g., 80->79 = -1, 80->50 = -30)
+      - RMSD: inverted difference from the seed (lower is better, so
+        r_now < seed_rmsd gives +points)
       - No hit: large penalty
       - Patent PID: penalty ramps up quadratically the closer PID is to 100%
     """
@@ -864,21 +895,22 @@ def compute_full_scores(utr_ids: List[str], rmsd_now: Dict[str, Optional[float]]
     for sid in utr_ids:
         s = 0.0
         
-        # RMSD scoring: lower is better, scale by the difference
-        # If RMSD improved (decreased), we gain points equal to the improvement
-        r_now, r_par = rmsd_now.get(sid), rmsd_parent.get(sid)
-        if r_now is not None and r_par is not None:
-            rmsd_diff = r_now - r_par
-            # Subtract the difference: if r_now < r_par (improvement), this is positive
+        # RMSD scoring: lower is better, scale by the difference from the seed
+        # If RMSD improved (decreased) relative to the seed, we gain points
+        # equal to the improvement.
+        r_now = rmsd_now.get(sid)
+        if r_now is not None and seed_rmsd is not None:
+            rmsd_diff = r_now - seed_rmsd
+            # Subtract the difference: if r_now < seed_rmsd (improvement), this is positive
             s -= rmsd_diff
         
-        # CM score: scaled by difference from parent
+        # CM score: scaled by difference from the seed
         if not hit_flags.get(sid, False):
             s += no_hit_penalty
         else:
-            c_now, c_par = cmscore_now.get(sid), cmscore_parent.get(sid)
-            if c_now is not None and c_par is not None:
-                cm_diff = c_now - c_par
+            c_now = cmscore_now.get(sid)
+            if c_now is not None and seed_cmscore is not None:
+                cm_diff = c_now - seed_cmscore
                 s += cm_diff
         
         # Patent PID penalty: scaled so it ramps up the closer pid is to 100%
@@ -888,6 +920,30 @@ def compute_full_scores(utr_ids: List[str], rmsd_now: Dict[str, Optional[float]]
         
         scores[sid] = s
     return scores
+
+
+def build_seed_gen0_row(seed_id: str, seed_seq: str, seed_rmsd: Optional[float],
+                         seed_cmscore: Optional[float], seed_hit: bool,
+                         seed_patent_pid: Optional[float], seed_halflife: Optional[float],
+                         patent_pid_threshold: float, no_hit_penalty: float,
+                         patent_pid_penalty: float) -> dict:
+    """
+    Build the generation-0 row (the original seed, before any mutation) for
+    best_per_generation.tsv, using the exact same scoring formula as every
+    other generation so it's directly comparable. Since the seed is compared
+    against itself, the RMSD/cmscore terms are always 0 — only a patent-PID
+    penalty (if any) or no-hit penalty can make this non-zero.
+    """
+    seed_score = compute_full_scores(
+        [seed_id], {seed_id: seed_rmsd}, seed_rmsd, {seed_id: seed_cmscore}, seed_cmscore,
+        {seed_id: seed_hit}, {seed_id: seed_patent_pid}, patent_pid_threshold, no_hit_penalty,
+        patent_pid_penalty)[seed_id]
+    return {
+        'generation': 0, 'best_score': seed_score, 'mean_score': seed_score, 'worst_score': seed_score,
+        'mean_rmsd': seed_rmsd, 'mean_cmscore': seed_cmscore, 'mean_halflife': seed_halflife,
+        'mean_patent_pid': seed_patent_pid, 'best_patent_pid': seed_patent_pid,
+        'best_id': seed_id, 'best_sequence': seed_seq, 'mutation_rate': 0.0,
+    }
 
 
 def scores_to_probabilities(scores: List[float], temperature: float) -> List[float]:
@@ -989,6 +1045,7 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
              f"{af3_per_gpu} individual(s)/GPU")
     log.info(f"  Output: {output_dir}")
 
+    seed_id = "seed_3utr"
     ckpt_path = find_latest_checkpoint(output_dir)
     if ckpt_path:
         log.info("═" * 80 + "\nRESUMING FROM CHECKPOINT")
@@ -998,12 +1055,31 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         population, parent_of = ckpt.population, ckpt.parent_of
         parent_rmsd, parent_cmscore = ckpt.parent_rmsd, ckpt.parent_cmscore
         seed_rmsd, seed_cmscore = ckpt.seed_rmsd, ckpt.seed_cmscore
+        seed_patent_pid = getattr(ckpt, 'seed_patent_pid', None)
+        seed_halflife = getattr(ckpt, 'seed_halflife', None)
         all_rows, selected_rows, best_per_gen = ckpt.all_rows, ckpt.selected_rows, ckpt.best_per_gen
         all_time_best_score = ckpt.all_time_best_score
         all_time_best_seq, all_time_best_id, all_time_best_gen = (
             ckpt.all_time_best_seq, ckpt.all_time_best_id, ckpt.all_time_best_gen)
         start_generation = ckpt.generation + 1
         log.info(f"  Resuming at generation {start_generation}; best score so far {all_time_best_score}")
+
+        # Older checkpoints (from before gen-0 tracking was added) won't have
+        # a generation-0 row, or the seed's patent-PID/half-life. Backfill it
+        # once so best_per_generation.tsv always has the seed baseline.
+        if not any(r.get('generation') == 0 for r in best_per_gen):
+            log.info("  Backfilling gen-0 seed baseline (patent PID / half-life not in this checkpoint)...")
+            if seed_patent_pid is None:
+                pids = check_patent_pid(seed_3utr_seq, patent_seqs) if patent_seqs else []
+                seed_patent_pid = max(pids) if pids else None
+            if seed_halflife is None:
+                _, seed_halflife = compute_seed_extras(
+                    seed_id, seed_3utr_seq, patent_seqs, u5_id, u5_seq, cds_id, cds_seq, species,
+                    metrics_script, predict_script, work_dir)
+            seed_hit = seed_cmscore is not None
+            best_per_gen.insert(0, build_seed_gen0_row(
+                seed_id, seed_3utr_seq, seed_rmsd, seed_cmscore, seed_hit, seed_patent_pid,
+                seed_halflife, patent_pid_threshold, no_hit_penalty, patent_pid_penalty))
 
         if start_generation <= generations:
             gen_selected = sorted((r for r in selected_rows if r['generation'] == ckpt.generation),
@@ -1024,7 +1100,6 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         log.info("═" * 80 + "\nNO CHECKPOINT — starting fresh")
         rng = random.Random(rng_seed)
         start_generation = 1
-        seed_id = "seed_3utr"
 
         log.info("Computing baseline (seed) metrics for generation-1 comparisons...")
         out_root = submit_af3_population(
@@ -1036,14 +1111,22 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         seed_cm_map, seed_hit_map = evaluate_cmscores(cm_model, [seed_id], [seed_3utr_seq], work_dir,
                                                         cm_evalue_threshold, 0)
         seed_rmsd, seed_cmscore = seed_rmsd_map.get(seed_id), seed_cm_map.get(seed_id)
-        log.info(f"  Seed baseline: RMSD={seed_rmsd}, cmscore={seed_cmscore}, cm_hit={seed_hit_map.get(seed_id)}")
+        seed_hit = seed_hit_map.get(seed_id, False)
+        seed_patent_pid, seed_halflife = compute_seed_extras(
+            seed_id, seed_3utr_seq, patent_seqs, u5_id, u5_seq, cds_id, cds_seq, species,
+            metrics_script, predict_script, work_dir)
+        log.info(f"  Seed baseline: RMSD={seed_rmsd}, cmscore={seed_cmscore}, cm_hit={seed_hit} | "
+                 f"patent_pid={seed_patent_pid}, halflife={seed_halflife}")
 
         gen1_rate = get_mutation_rate(1, mutation_rate_initial, mutation_rate, mutation_rate_decay_generations)
         population = [point_mutate(seed_3utr_seq, gen1_rate, rng) for _ in range(population_size)]
         parent_of = [seed_id] * population_size
         parent_rmsd = [seed_rmsd] * population_size
         parent_cmscore = [seed_cmscore] * population_size
-        all_rows, selected_rows, best_per_gen = [], [], []
+        all_rows, selected_rows = [], []
+        best_per_gen = [build_seed_gen0_row(
+            seed_id, seed_3utr_seq, seed_rmsd, seed_cmscore, seed_hit, seed_patent_pid,
+            seed_halflife, patent_pid_threshold, no_hit_penalty, patent_pid_penalty)]
         all_time_best_score = None
         all_time_best_seq, all_time_best_id, all_time_best_gen = seed_3utr_seq, seed_id, 0
 
@@ -1072,7 +1155,7 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
             pids = check_patent_pid(seq, patent_seqs) if patent_seqs else []
             max_pids[sid] = max(pids) if pids else None
 
-        prescores = compute_prescores(utr_ids, cmscore_stage1, parent_cm_by_id, hit_flags,
+        prescores = compute_prescores(utr_ids, cmscore_stage1, seed_cmscore, hit_flags,
                                       max_pids, patent_pid_threshold, no_hit_penalty, patent_pid_penalty)
         
         # Rank and select top N for AF3
@@ -1102,8 +1185,8 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         # ──────────────────────────────────────────────────────────────────
         # Compute full scores (with RMSD) on AF3 candidates
         # ──────────────────────────────────────────────────────────────────
-        scores = compute_full_scores(af3_candidates, rmsd_stage2, parent_rmsd_by_id,
-                                     cmscore_stage1, parent_cm_by_id, hit_flags, max_pids,
+        scores = compute_full_scores(af3_candidates, rmsd_stage2, seed_rmsd,
+                                     cmscore_stage1, seed_cmscore, hit_flags, max_pids,
                                      patent_pid_threshold, no_hit_penalty, patent_pid_penalty)
         score_list = [scores[sid] for sid in af3_candidates]
         probabilities = scores_to_probabilities(score_list, temperature)
@@ -1180,7 +1263,8 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
             all_rows=all_rows, selected_rows=selected_rows, best_per_gen=best_per_gen,
             all_time_best_score=all_time_best_score, all_time_best_seq=all_time_best_seq,
             all_time_best_id=all_time_best_id, all_time_best_gen=all_time_best_gen,
-            rng_state=rng.getstate()), output_dir)
+            rng_state=rng.getstate(), seed_patent_pid=seed_patent_pid,
+            seed_halflife=seed_halflife), output_dir)
 
         if gen == generations:
             break

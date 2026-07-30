@@ -1,0 +1,44 @@
+RNA structure comparison report
+============================================================
+
+Structure 1: a7s_model
+Structure 2: ind_0011_00053_model
+
+-- Secondary structure (x3dna-dssr) --
+a7s_model: 155 nt, 69 bp, 11 stems, 3 helices
+  seq: AGUUUAGUGUAAAAGUUAAGUUUAGUAAGCUUUGCCCUCAACCCUUAAGGUUGCUGUAGCUUGAUUAAGCGAACGAAAUGGGACAUACGAUCCAUCUUAGAGUGGGUCAGACCCUGGUCCGGGGCAAUGGGACCACUGUUUCGCGUUUAAUCCUC
+  dbn: ((..((...((((.......)))).))((((..((...(((((.....)))))..)))))).(((((((((..(((((((((......(((((((......)))))))...)))((((((.(.....).))))))..))))))))))))))))).
+ind_0011_00053_model: 76 nt, 36 bp, 4 stems, 1 helices, pseudoknot order 1
+  seq: UUUGCUUCACACAGGACAGACCAGUAGACUGGUCAGGCCCUCGCGCCGGGGUUAUAGGCGCGCUGUGUGAAGUAGU
+  dbn: .(((((((((((((....((((((....))))))..[[[[.((((((.]]]]....))))))))))))))))))).
+
+-- RMSD summary (Needleman-Wunsch global, Smith-Waterman 3D local) --
+(Ident% over equivalent residues; Modeled = residues with a usable representative atom)
+
+Method                 RMSD(A) Ident% EquivRes SeqLen1 SeqLen2 Modeled1 Modeled2
+--------------------------------------------------------------------------------
+Biopython RMSD          17.353   53.9       76     155      76      155       76
+Smith-Waterman 3D       18.905   60.0       65     155      76      155       76
+
+-- RMSD (PyMOL 'super', sequence-independent) --
+  RMSD            : 0.815 A
+  Aligned atoms   : 16
+
+-- pLDDT confidence (molecule_confidences.json) --
+  Bins: Very high (>90) blue | Confident (70-90) turquoise | Low (50-70) yellow | Very low (<50) red
+
+a7s_model: mean pLDDT = 36.4 (3296 atoms)
+    Very high (pLDDT > 90)            0  (  0.0%)
+    Confident (70 < pLDDT <= 90)      0  (  0.0%)
+    Low (50 < pLDDT <= 70)          634  ( 19.2%)
+    Very low (pLDDT <= 50)         2662  ( 80.8%)
+ind_0011_00053_model: mean pLDDT = 60.1 (1626 atoms)
+    Very high (pLDDT > 90)            0  (  0.0%)
+    Confident (70 < pLDDT <= 90)    503  ( 30.9%)
+    Low (50 < pLDDT <= 70)          652  ( 40.1%)
+    Very low (pLDDT <= 50)          471  ( 29.0%)
+
+  a7s_model confidence-colored render: optimization_a7/af3_optimization/results/a7s_model_plddt.png
+  a7s_model confidence-colored session (open this directly in PyMOL -- coloring is already baked in): optimization_a7/af3_optimization/results/plddt/a7s_model_plddt.pse
+  ind_0011_00053_model confidence-colored render: optimization_a7/af3_optimization/results/ind_0011_00053_model_plddt.png
+  ind_0011_00053_model confidence-colored session (open this directly in PyMOL -- coloring is already baked in): optimization_a7/af3_optimization/results/plddt/ind_0011_00053_model_plddt.pse
