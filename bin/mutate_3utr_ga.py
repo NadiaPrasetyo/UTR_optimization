@@ -317,6 +317,13 @@ def _build_af3_batch_script(job_name_paths: List[Tuple[str, Path]], jobs_dir: Pa
     fast with a distinguishable reason, instead of burning through every job
     in the slot with generic FAILED errors) and before each individual job
     (in case the GPU dies partway through a slot).
+
+    Because `nvidia-smi`/jax can both report a GPU as healthy right before
+    `af3` still fails to `cuInit()` (seen in practice as CUDA_ERROR_NO_DEVICE
+    despite a clean health check), each job's own af3 log is also inspected
+    after a failure. If it matches the GPU-init failure signature, the rest
+    of the slot is aborted immediately instead of retrying the same broken
+    GPU on every remaining individual.
     """
     jobs_tsv = jobs_dir / "jobs.tsv"
     with open(jobs_tsv, "w") as fh:
@@ -343,6 +350,29 @@ module load {af3_module}
 export AF3_DB={af3_db}
 export AF3_WD={gen_dir}
 export AF3_MODELS={af3_models}
+
+# --- Sanitize LD_PRELOAD -------------------------------------------------
+# Some module environments inject LD_PRELOAD entries (e.g. a distro
+# libstdc++.so.6 path) that don't exist on every node type in a
+# heterogeneous cluster. When that happens, ld.so silently ignores the
+# preload ("cannot be preloaded ... ignored"), but the broken/partial
+# preload can still corrupt symbol resolution for the CUDA driver
+# libraries and manifest downstream as jax/cuInit failures
+# (CUDA_ERROR_NO_DEVICE) that have nothing to do with the GPU itself.
+# Strip any entries that don't actually exist on this node before running
+# anything.
+if [ -n "$LD_PRELOAD" ]; then
+    _valid_preload=""
+    for _lib in $(echo "$LD_PRELOAD" | tr ':' ' '); do
+        if [ -f "$_lib" ]; then
+            _valid_preload="${{_valid_preload:+$_valid_preload:}}$_lib"
+        else
+            echo "WARNING: dropping missing LD_PRELOAD entry on $(hostname): $_lib"
+        fi
+    done
+    export LD_PRELOAD="$_valid_preload"
+fi
+# --------------------------------------------------------------------------
 
 PER_GPU={af3_per_gpu}
 SLOT_START=$((SLURM_ARRAY_TASK_ID * PER_GPU))
@@ -387,6 +417,18 @@ except Exception as e:
     return 0
 }}
 
+# Recognize the specific GPU-init failure signature in a completed job's
+# af3 log. This exists because we've observed gpu_healthy() pass
+# immediately before a job, and af3 still fail with CUDA_ERROR_NO_DEVICE —
+# i.e. the lightweight pre-check doesn't always catch it. Once a GPU is in
+# this state it tends to stay broken for the rest of the slot, so detecting
+# it from the actual failure lets us stop wasting time retrying every
+# remaining individual on the same dead GPU.
+is_gpu_init_failure() {{
+    local logfile="$1"
+    grep -qE 'CUDA_ERROR_NO_DEVICE|cuInit\\(0\\) failed|no platforms that are instances of gpu are present' "$logfile" 2>/dev/null
+}}
+
 mark_slot_gpu_unavailable() {{
     # Distinguish infra failures from real per-individual failures so
     # downstream GA logic doesn't penalize an individual's fitness for
@@ -411,33 +453,69 @@ run_one() {{
     mkdir -p "$out_dir"
     rm -f "$out_dir/.failed"
 
-    if ! gpu_healthy; then
-        echo "[$job_name] SKIPPED at $(date) — GPU went unhealthy mid-slot on node $(hostname)."
-        echo "gpu_unavailable" > "$out_dir/.failed"
-        return 1
-    fi
+    # Retry budget for THIS individual only. The GPU-init failure
+    # (CUDA_ERROR_NO_DEVICE / cuInit failing) has been observed to be
+    # transient/intermittent rather than a permanently dead GPU — other
+    # individuals in the same slot, before and after, can succeed just
+    # fine. So on this specific signature we retry the same job with
+    # backoff rather than giving up on the rest of the slot.
+    local max_attempts=3
+    local attempt=1
+    local task_log="{logs_dir}/af3_task_${{job_name}}.log"
 
-    echo "[$job_name] starting at $(date) on node $(hostname)"
-    af3 "$json_path" "$out_dir" --run_data_pipeline=true --run_inference=true \\
-        > "{logs_dir}/af3_task_${{job_name}}.log" 2>&1
-    local rc=$?
-    if [ $rc -ne 0 ]; then
-        echo "[$job_name] FAILED at $(date) (exit $rc) — see {logs_dir}/af3_task_${{job_name}}.log"
+    while [ $attempt -le $max_attempts ]; do
+        if ! gpu_healthy; then
+            echo "[$job_name] GPU unhealthy before attempt $attempt/$max_attempts at $(date) on node $(hostname)."
+            if [ $attempt -lt $max_attempts ]; then
+                sleep $((attempt * 10))
+                attempt=$((attempt + 1))
+                continue
+            fi
+            echo "gpu_unavailable" > "$out_dir/.failed"
+            echo "[$job_name] SKIPPED — GPU still unhealthy after $max_attempts attempts on node $(hostname)."
+            return 1
+        fi
+
+        echo "[$job_name] starting (attempt $attempt/$max_attempts) at $(date) on node $(hostname)"
+        af3 "$json_path" "$out_dir" --run_data_pipeline=true --run_inference=true \\
+            > "$task_log" 2>&1
+        local rc=$?
+
+        if [ $rc -eq 0 ]; then
+            local n_cifs
+            n_cifs=$(find "$out_dir" -path "$out_dir/{model_glob}" 2>/dev/null | wc -l)
+            if [ "$n_cifs" -gt 0 ]; then
+                echo "[$job_name] finished at $(date), $n_cifs structure file(s) confirmed."
+                return 0
+            fi
+            echo "[$job_name] exited 0 but no output matching '{model_glob}' found — treating as FAILED (likely OOM)."
+            echo "no_output_despite_exit_0" > "$out_dir/.failed"
+            return 1
+        fi
+
+        echo "[$job_name] FAILED at $(date) (exit $rc, attempt $attempt/$max_attempts) — see $task_log"
         # Capture GPU state at time of failure to help distinguish OOM vs
         # driver/infra faults after the fact.
         nvidia-smi --query-gpu=index,memory.used,memory.total,ecc.errors.uncorrected.volatile.total,pstate \\
-            --format=csv >> "{logs_dir}/af3_task_${{job_name}}.log" 2>&1
+            --format=csv >> "$task_log" 2>&1
+
+        if is_gpu_init_failure "$task_log"; then
+            if [ $attempt -lt $max_attempts ]; then
+                echo "[$job_name] transient GPU-init signature (CUDA_ERROR_NO_DEVICE) — retrying after backoff."
+                sleep $((attempt * 10))
+                attempt=$((attempt + 1))
+                continue
+            fi
+            echo "[$job_name] still hitting GPU-init failures after $max_attempts attempts — giving up on this individual, moving on to the next one."
+            echo "gpu_unavailable" > "$out_dir/.failed"
+            return 1
+        fi
+
+        # Non-GPU-init failure (e.g. real OOM, bad input) — don't retry,
+        # record the real exit code so downstream fitness logic can see it.
         echo "$rc" > "$out_dir/.failed"
         return $rc
-    fi
-    local n_cifs
-    n_cifs=$(find "$out_dir" -path "$out_dir/{model_glob}" 2>/dev/null | wc -l)
-    if [ "$n_cifs" -eq 0 ]; then
-        echo "[$job_name] exited 0 but no output matching '{model_glob}' found — treating as FAILED (likely OOM)."
-        echo "no_output_despite_exit_0" > "$out_dir/.failed"
-        return 1
-    fi
-    echo "[$job_name] finished at $(date), $n_cifs structure file(s) confirmed."
+    done
 }}
 
 slot_failed=0
@@ -446,7 +524,7 @@ while IFS=$'\\t' read -r idx job_name json_path out_dir; do
     run_one "$job_name" "$json_path" "$out_dir" || slot_failed=1
 done <<< "$LINES"
 
-echo "Slot $SLURM_ARRAY_TASK_ID: all assigned jobs finished at $(date)."
+echo "Slot $SLURM_ARRAY_TASK_ID: finished at $(date)."
 [ "$slot_failed" -ne 0 ] && exit 1
 exit 0
 """
@@ -454,7 +532,6 @@ exit 0
     script_path.write_text(script)
     script_path.chmod(0o755)
     return jobs_tsv, script_path
-
 
 def _find_cached_cif(job_out_dir: Path, model_glob: str) -> Optional[Path]:
     if not job_out_dir.exists():
@@ -1306,7 +1383,7 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         valid_cm = [v for v in cmscore_stage1.values() if v is not None]
         valid_hl = [v for v in halflife_map.values() if v is not None]
         valid_pid = [v for v in max_pids.values() if v is not None]
-        best_sid = max(scorable_candidates, key=lambda s: scores[s])
+        best_sid = max(scoreable_candidates, key=lambda s: scores[s])
 
         log.info(f"  Best score (of AF3-predicted): {scores[best_sid]:.1f} ({best_sid}) | "
                  f"mean {sum(score_list)/len(score_list):.2f} | worst {min(score_list):.1f}")
