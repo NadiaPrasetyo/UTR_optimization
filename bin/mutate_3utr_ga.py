@@ -301,7 +301,6 @@ def scale_patent_penalty(pid: float, threshold: float, base_penalty: float) -> f
 # ══════════════════════════════════════════════════════════════════════════
 # AlphaFold3 on SLURM — batched, blocking (sbatch --wait), thread-pooled
 # ══════════════════════════════════════════════════════════════════════════
-
 def _build_af3_batch_script(job_name_paths: List[Tuple[str, Path]], jobs_dir: Path,
                              logs_dir: Path, output_root: Path, af3_db: str, af3_models: str,
                              af3_module: str, partition: str, time_limit: str, mem: str,
@@ -313,6 +312,11 @@ def _build_af3_batch_script(job_name_paths: List[Tuple[str, Path]], jobs_dir: Pa
     individuals share one array task (one GPU allocation) and run one after
     another on it — sequentially, not concurrently, so they never contend
     for GPU memory.
+
+    Includes a GPU health check before the slot starts (so a dead GPU fails
+    fast with a distinguishable reason, instead of burning through every job
+    in the slot with generic FAILED errors) and before each individual job
+    (in case the GPU dies partway through a slot).
     """
     jobs_tsv = jobs_dir / "jobs.tsv"
     with open(jobs_tsv, "w") as fh:
@@ -346,17 +350,83 @@ SLOT_END=$((SLOT_START + PER_GPU - 1))
 LINES=$(awk -F'\\t' -v s="$SLOT_START" -v e="$SLOT_END" '$1 >= s && $1 <= e' "{jobs_tsv}")
 
 echo "Slot $SLURM_ARRAY_TASK_ID: $(echo "$LINES" | wc -l) job(s) running sequentially on this GPU."
+echo "Slot $SLURM_ARRAY_TASK_ID: running on node $(hostname), CUDA_VISIBLE_DEVICES=${{CUDA_VISIBLE_DEVICES:-unset}}"
+
+# --- GPU health check -------------------------------------------------
+# nvidia-smi confirms the driver/device is visible to this allocation.
+# It does NOT guarantee jax/CUDA can actually cuInit() (that can still
+# fail even when nvidia-smi succeeds), so we also do a lightweight
+# python probe using the same jax the af3 module provides.
+gpu_healthy() {{
+    if ! nvidia-smi --query-gpu=index,name,pstate,memory.used,memory.total \\
+            --format=csv,noheader > "{logs_dir}/nvidia_smi_${{SLURM_ARRAY_JOB_ID}}_${{SLURM_ARRAY_TASK_ID}}.log" 2>&1; then
+        echo "GPU health check: nvidia-smi failed — GPU not visible to this allocation."
+        return 1
+    fi
+    probe_out=$(python3 -c "
+import sys
+try:
+    import jax
+except ImportError as e:
+    print(f'SKIP: jax not importable here ({{e}}) — cannot confirm via jax, relying on nvidia-smi only', file=sys.stderr)
+    sys.exit(2)
+try:
+    d = jax.local_devices(backend='gpu')
+    sys.exit(0 if d else 1)
+except Exception as e:
+    print(f'jax GPU probe failed: {{e}}', file=sys.stderr)
+    sys.exit(1)
+" 2>&1)
+    rc=$?
+    echo "$probe_out" >> "{logs_dir}/nvidia_smi_${{SLURM_ARRAY_JOB_ID}}_${{SLURM_ARRAY_TASK_ID}}.log"
+    if [ $rc -eq 1 ]; then
+        echo "GPU health check: jax cannot see a GPU device (cuInit likely failing)."
+        return 1
+    fi
+    # rc==0 (jax confirms GPU) or rc==2 (jax unavailable, trust nvidia-smi) both pass.
+    return 0
+}}
+
+mark_slot_gpu_unavailable() {{
+    # Distinguish infra failures from real per-individual failures so
+    # downstream GA logic doesn't penalize an individual's fitness for
+    # a problem that wasn't caused by its input.
+    while IFS=$'\\t' read -r idx job_name json_path out_dir; do
+        [ -z "$job_name" ] && continue
+        mkdir -p "$out_dir"
+        echo "gpu_unavailable" > "$out_dir/.failed"
+        echo "[$job_name] SKIPPED — GPU unavailable on node $(hostname) for this slot."
+    done <<< "$LINES"
+}}
+
+if ! gpu_healthy; then
+    echo "Slot $SLURM_ARRAY_TASK_ID: GPU unhealthy at slot start on node $(hostname) — failing fast instead of burning $(echo "$LINES" | wc -l) doomed job(s)."
+    mark_slot_gpu_unavailable
+    exit 1
+fi
+# ------------------------------------------------------------------------
 
 run_one() {{
     local job_name="$1" json_path="$2" out_dir="$3"
     mkdir -p "$out_dir"
     rm -f "$out_dir/.failed"
-    echo "[$job_name] starting at $(date)"
+
+    if ! gpu_healthy; then
+        echo "[$job_name] SKIPPED at $(date) — GPU went unhealthy mid-slot on node $(hostname)."
+        echo "gpu_unavailable" > "$out_dir/.failed"
+        return 1
+    fi
+
+    echo "[$job_name] starting at $(date) on node $(hostname)"
     af3 "$json_path" "$out_dir" --run_data_pipeline=true --run_inference=true \\
         > "{logs_dir}/af3_task_${{job_name}}.log" 2>&1
     local rc=$?
     if [ $rc -ne 0 ]; then
         echo "[$job_name] FAILED at $(date) (exit $rc) — see {logs_dir}/af3_task_${{job_name}}.log"
+        # Capture GPU state at time of failure to help distinguish OOM vs
+        # driver/infra faults after the fact.
+        nvidia-smi --query-gpu=index,memory.used,memory.total,ecc.errors.uncorrected.volatile.total,pstate \\
+            --format=csv >> "{logs_dir}/af3_task_${{job_name}}.log" 2>&1
         echo "$rc" > "$out_dir/.failed"
         return $rc
     fi
@@ -567,7 +637,11 @@ def submit_af3_population(population: List[str], utr_ids: List[str], af3_work_di
             continue
         if cached is not None and not matches:
             log.warning(f"    Cached AF3 output for {sid} doesn't match current sequence; re-predicting.")
-            n_cached += 1
+            sidecar.write_text(cleaned)
+            af3_json = af3prep.build_af3_json(job_name, [{"id": "A", "sequence": cleaned, "type": "rna"}], model_seeds)
+            json_path = inputs_dir / f"{job_name}.json"
+            json_path.write_text(json.dumps(af3_json, indent=2))
+            job_name_paths.append((job_name, json_path))
             continue
         sidecar.write_text(cleaned)
         af3_json = af3prep.build_af3_json(job_name, [{"id": "A", "sequence": cleaned, "type": "rna"}], model_seeds)
@@ -1188,9 +1262,15 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         scores = compute_full_scores(af3_candidates, rmsd_stage2, seed_rmsd,
                                      cmscore_stage1, seed_cmscore, hit_flags, max_pids,
                                      patent_pid_threshold, no_hit_penalty, patent_pid_penalty)
-        score_list = [scores[sid] for sid in af3_candidates]
+
+        scoreable_candidates = [sid for sid in af3_candidates if rmsd_stage2.get(sid) is not None]
+        if not scoreable_candidates:
+            log.warning(f"  Generation {gen}: no candidates had usable AF3 structures — "
+                        f"falling back to full af3_candidates pool for selection.")
+            scoreable_candidates = af3_candidates
+        score_list = [scores[sid] for sid in scoreable_candidates]
         probabilities = scores_to_probabilities(score_list, temperature)
-        prob_by_id = dict(zip(af3_candidates, probabilities))
+        prob_by_id = dict(zip(scoreable_candidates, probabilities))
 
         # Store results for AF3-evaluated individuals
         for sid in af3_candidates:
@@ -1226,7 +1306,7 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         valid_cm = [v for v in cmscore_stage1.values() if v is not None]
         valid_hl = [v for v in halflife_map.values() if v is not None]
         valid_pid = [v for v in max_pids.values() if v is not None]
-        best_sid = max(af3_candidates, key=lambda s: scores[s])
+        best_sid = max(scorable_candidates, key=lambda s: scores[s])
 
         log.info(f"  Best score (of AF3-predicted): {scores[best_sid]:.1f} ({best_sid}) | "
                  f"mean {sum(score_list)/len(score_list):.2f} | worst {min(score_list):.1f}")
@@ -1251,7 +1331,7 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
             log.info(f"  ★ New all-time best score: {all_time_best_score:.1f}")
 
         # Select top n_select for breeding
-        selected_ids = rng.choices(af3_candidates, weights=probabilities, k=n_select)
+        selected_ids = rng.choices(scoreable_candidates, weights=probabilities, k=n_select)
         for rank, sid in enumerate(selected_ids):
             selected_rows.append({'generation': gen, 'rank': rank + 1, 'sample_id': sid,
                                    'score': scores[sid], 'probability': prob_by_id[sid],
