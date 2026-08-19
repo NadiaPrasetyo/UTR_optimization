@@ -298,6 +298,27 @@ def scale_patent_penalty(pid: float, threshold: float, base_penalty: float) -> f
     return base_penalty * scale
 
 
+def scale_patent_distance_bonus(pid: Optional[float], weight: float) -> float:
+    """
+    Continuous reward for staying away from every patented motif, on top of
+    (and independent from) the above-threshold `scale_patent_penalty`. Unlike
+    the penalty — which only fires once `pid` crosses `patent_pid_threshold`
+    — this term applies across the whole range of `pid`, so the GA gets a
+    gradient to climb *before* a candidate ever gets close to the threshold:
+    lower max-PID is always at least slightly better, all else equal.
+
+    `weight` is expected to be >= 0 (a bonus). Returned value is
+    `weight * (1 - pid/100)`, i.e. it equals `weight` at pid=0 (no
+    similarity to any patent motif) and 0 at pid=100 (exact match).
+    `weight <= 0` (the default) disables this term entirely, preserving
+    prior behavior.
+    """
+    if pid is None or weight <= 0:
+        return 0.0
+    frac_dissimilar = max(0.0, min(1.0, 1.0 - (pid / 100.0)))
+    return weight * frac_dissimilar
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # AlphaFold3 on SLURM — batched, blocking (sbatch --wait), thread-pooled
 # ══════════════════════════════════════════════════════════════════════════
@@ -985,7 +1006,8 @@ def evaluate_cmscores(cm_model: Path, utr_ids: List[str], population: List[str],
 def compute_prescores(utr_ids: List[str], cmscore_now: Dict[str, Optional[float]],
                       seed_cmscore: Optional[float], hit_flags: Dict[str, bool],
                       max_pids: Dict[str, Optional[float]], patent_pid_threshold: float,
-                      no_hit_penalty: float, patent_pid_penalty: float) -> Dict[str, float]:
+                      no_hit_penalty: float, patent_pid_penalty: float,
+                      patent_pid_weight: float = 0.0) -> Dict[str, float]:
     """
     Compute fast pre-scores based on CM score and patent PID only (no RMSD).
     Used to rank all individuals before AF3 filtering.
@@ -1012,6 +1034,11 @@ def compute_prescores(utr_ids: List[str], cmscore_now: Dict[str, Optional[float]
         pid = max_pids.get(sid)
         if pid is not None and pid > patent_pid_threshold:
             s += scale_patent_penalty(pid, patent_pid_threshold, patent_pid_penalty)
+
+        # Patent PID distance bonus: continuous reward for being farther
+        # from every patent motif (lower pid = better), independent of
+        # whether the threshold above was crossed.
+        s += scale_patent_distance_bonus(pid, patent_pid_weight)
         
         scores[sid] = s
     return scores
@@ -1023,7 +1050,7 @@ def compute_full_scores(utr_ids: List[str], rmsd_now: Dict[str, Optional[float]]
                         seed_cmscore: Optional[float],
                         hit_flags: Dict[str, bool], max_pids: Dict[str, Optional[float]],
                         patent_pid_threshold: float, no_hit_penalty: float,
-                        patent_pid_penalty: float) -> Dict[str, float]:
+                        patent_pid_penalty: float, patent_pid_weight: float = 0.0) -> Dict[str, float]:
     """
     Compute full scores including RMSD (scaled by difference from the fixed
     SEED baseline). Used after AF3 predictions on filtered population.
@@ -1041,6 +1068,10 @@ def compute_full_scores(utr_ids: List[str], rmsd_now: Dict[str, Optional[float]]
         r_now < seed_rmsd gives +points)
       - No hit: large penalty
       - Patent PID: penalty ramps up quadratically the closer PID is to 100%
+      - Patent PID distance bonus: continuous reward, scaled by
+        `patent_pid_weight`, for having a lower max-PID overall (not just
+        above the threshold) — less similarity to any patent motif is
+        always at least a little better.
     """
     scores = {}
     for sid in utr_ids:
@@ -1068,6 +1099,11 @@ def compute_full_scores(utr_ids: List[str], rmsd_now: Dict[str, Optional[float]]
         pid = max_pids.get(sid)
         if pid is not None and pid > patent_pid_threshold:
             s += scale_patent_penalty(pid, patent_pid_threshold, patent_pid_penalty)
+
+        # Patent PID distance bonus: continuous reward for being farther
+        # from every patent motif (lower pid = better), independent of
+        # whether the threshold above was crossed.
+        s += scale_patent_distance_bonus(pid, patent_pid_weight)
         
         scores[sid] = s
     return scores
@@ -1077,18 +1113,18 @@ def build_seed_gen0_row(seed_id: str, seed_seq: str, seed_rmsd: Optional[float],
                          seed_cmscore: Optional[float], seed_hit: bool,
                          seed_patent_pid: Optional[float], seed_halflife: Optional[float],
                          patent_pid_threshold: float, no_hit_penalty: float,
-                         patent_pid_penalty: float) -> dict:
+                         patent_pid_penalty: float, patent_pid_weight: float = 0.0) -> dict:
     """
     Build the generation-0 row (the original seed, before any mutation) for
     best_per_generation.tsv, using the exact same scoring formula as every
     other generation so it's directly comparable. Since the seed is compared
     against itself, the RMSD/cmscore terms are always 0 — only a patent-PID
-    penalty (if any) or no-hit penalty can make this non-zero.
+    penalty/bonus (if any) or no-hit penalty can make this non-zero.
     """
     seed_score = compute_full_scores(
         [seed_id], {seed_id: seed_rmsd}, seed_rmsd, {seed_id: seed_cmscore}, seed_cmscore,
         {seed_id: seed_hit}, {seed_id: seed_patent_pid}, patent_pid_threshold, no_hit_penalty,
-        patent_pid_penalty)[seed_id]
+        patent_pid_penalty, patent_pid_weight)[seed_id]
     return {
         'generation': 0, 'best_score': seed_score, 'mean_score': seed_score, 'worst_score': seed_score,
         'mean_rmsd': seed_rmsd, 'mean_cmscore': seed_cmscore, 'mean_halflife': seed_halflife,
@@ -1164,7 +1200,8 @@ def plot_scores_over_generations(best_per_gen: List[dict], out_path: Path) -> No
 def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: str, species: str,
            metrics_script: Path, predict_script: Path, ref_cifs: List[Path], cm_model: Path,
            cm_evalue_threshold: float, no_hit_penalty: float, patent_seqs: List[dict],
-           patent_pid_threshold: float, patent_pid_penalty: float, af3_work_dir: Path, af3_db: str,
+           patent_pid_threshold: float, patent_pid_penalty: float, patent_pid_weight: float,
+           af3_work_dir: Path, af3_db: str,
            af3_models: str, af3_module: str, af3_partition: str, af3_time: str, af3_mem: str,
            af3_cpus: int, af3_gres: str, af3_exclude: str, af3_model_seeds: List[int],
            af3_model_glob: str, af3_batch_size: int, af3_max_concurrent_batches: int,
@@ -1191,6 +1228,9 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
     log.info(f"  cmsearch E<= {cm_evalue_threshold} | no-hit penalty {no_hit_penalty}")
     log.info(f"  Patent motifs {len(patent_seqs)} | PID> {patent_pid_threshold}% -> scaled penalty "
              f"(25%-100% of {patent_pid_penalty} as PID climbs to 100%)")
+    if patent_pid_weight > 0:
+        log.info(f"  Patent PID distance bonus: weight {patent_pid_weight} "
+                 f"(0 at PID=100%, full weight at PID=0%) — lower PID is always rewarded")
     log.info(f"  AF3 filter: top {af3_filter_top_n} candidates (of {population_size}) sent to structure prediction")
     log.info(f"  AF3 batch size {af3_batch_size} | max concurrent {af3_max_concurrent_batches} | "
              f"{af3_per_gpu} individual(s)/GPU")
@@ -1230,7 +1270,8 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
             seed_hit = seed_cmscore is not None
             best_per_gen.insert(0, build_seed_gen0_row(
                 seed_id, seed_3utr_seq, seed_rmsd, seed_cmscore, seed_hit, seed_patent_pid,
-                seed_halflife, patent_pid_threshold, no_hit_penalty, patent_pid_penalty))
+                seed_halflife, patent_pid_threshold, no_hit_penalty, patent_pid_penalty,
+                patent_pid_weight))
 
         if start_generation <= generations:
             gen_selected = sorted((r for r in selected_rows if r['generation'] == ckpt.generation),
@@ -1277,7 +1318,8 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         all_rows, selected_rows = [], []
         best_per_gen = [build_seed_gen0_row(
             seed_id, seed_3utr_seq, seed_rmsd, seed_cmscore, seed_hit, seed_patent_pid,
-            seed_halflife, patent_pid_threshold, no_hit_penalty, patent_pid_penalty)]
+            seed_halflife, patent_pid_threshold, no_hit_penalty, patent_pid_penalty,
+            patent_pid_weight)]
         all_time_best_score = None
         all_time_best_seq, all_time_best_id, all_time_best_gen = seed_3utr_seq, seed_id, 0
 
@@ -1307,7 +1349,8 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
             max_pids[sid] = max(pids) if pids else None
 
         prescores = compute_prescores(utr_ids, cmscore_stage1, seed_cmscore, hit_flags,
-                                      max_pids, patent_pid_threshold, no_hit_penalty, patent_pid_penalty)
+                                      max_pids, patent_pid_threshold, no_hit_penalty, patent_pid_penalty,
+                                      patent_pid_weight)
         
         # Rank and select top N for AF3
         ranked = sorted(utr_ids, key=lambda sid: prescores[sid], reverse=True)
@@ -1338,7 +1381,8 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         # ──────────────────────────────────────────────────────────────────
         scores = compute_full_scores(af3_candidates, rmsd_stage2, seed_rmsd,
                                      cmscore_stage1, seed_cmscore, hit_flags, max_pids,
-                                     patent_pid_threshold, no_hit_penalty, patent_pid_penalty)
+                                     patent_pid_threshold, no_hit_penalty, patent_pid_penalty,
+                                     patent_pid_weight)
 
         scoreable_candidates = [sid for sid in af3_candidates if rmsd_stage2.get(sid) is not None]
         if not scoreable_candidates:
@@ -1473,6 +1517,8 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
         fh.write(f"cmsearch E<= {cm_evalue_threshold} | No-hit penalty: {no_hit_penalty}\n")
         fh.write(f"Patent motifs: {len(patent_seqs)} | PID> {patent_pid_threshold}% -> scaled penalty "
                  f"(25%-100% of {patent_pid_penalty} as PID -> 100%)\n")
+        fh.write(f"Patent PID distance bonus weight: {patent_pid_weight} "
+                 f"(0 disables; reward = weight * (1 - pid/100))\n")
         fh.write(f"AF3 filter: top {af3_filter_top_n}/{population_size} candidates to structure prediction\n\n")
         fh.write(f"Seed length: {len(seed_3utr_seq)} nt | Seed RMSD/cmscore: {seed_rmsd} / {seed_cmscore}\n")
         fh.write(f"Best length: {len(all_time_best_seq)} nt\n")
@@ -1556,6 +1602,12 @@ def main():
                     help="Penalty applied at 100%% patent identity; sequences just above "
                          "--patent-pid-threshold pay ~25%% of this, scaling up quadratically "
                          "to the full penalty as PID -> 100%%.")
+    p.add_argument('--patent-pid-weight', type=float, default=0.0, dest='patent_pid_weight',
+                    help="Optional continuous bonus (>= 0) rewarding LOWER max patent PID, applied "
+                         "across the whole PID range (not just above --patent-pid-threshold). Adds "
+                         "weight * (1 - pid/100) to the fitness score, so pid=0%% gets the full "
+                         "weight and pid=100%% gets none. Independent of, and stacks with, "
+                         "--patent-pid-penalty. Default 0.0 disables it (no change to prior behavior).")
     p.add_argument('--no-default-patents', action='store_true', dest='no_default_patents')
 
     p.add_argument('--af3-filter-top-n', type=int, default=100, dest='af3_filter_top_n',
@@ -1638,6 +1690,9 @@ def main():
     if args.af3_filter_top_n < args.n_select:
         log.error(f"--af3-filter-top-n ({args.af3_filter_top_n}) must be >= --n-select ({args.n_select}).")
         sys.exit(1)
+    if args.patent_pid_weight < 0:
+        log.error(f"--patent-pid-weight must be >= 0 (got {args.patent_pid_weight}).")
+        sys.exit(1)
     if shutil.which("sacct") is None:
         log.warning("'sacct' not found on PATH — AF3 SLURM memory usage will not be monitored "
                      "(scoring/selection unaffected).")
@@ -1671,6 +1726,7 @@ def main():
         cm_evalue_threshold=args.cm_evalue_threshold, no_hit_penalty=args.no_hit_penalty,
         patent_seqs=[] if args.no_default_patents else PATENT_SEQUENCES,
         patent_pid_threshold=args.patent_pid_threshold, patent_pid_penalty=args.patent_pid_penalty,
+        patent_pid_weight=args.patent_pid_weight,
         af3_work_dir=Path(args.af3_work_dir), af3_db=args.af3_db, af3_models=args.af3_models,
         af3_module=args.af3_module, af3_partition=args.af3_partition, af3_time=args.af3_time,
         af3_mem=args.af3_mem, af3_cpus=args.af3_cpus, af3_gres=args.af3_gres, af3_exclude=args.af3_exclude,
