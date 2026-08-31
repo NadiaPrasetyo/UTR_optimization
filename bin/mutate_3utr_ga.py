@@ -1441,7 +1441,10 @@ def run_ga(seed_3utr_seq: str, u5_id: str, u5_seq: str, cds_id: str, cds_seq: st
             'mean_cmscore': (sum(valid_cm) / len(valid_cm)) if valid_cm else None,
             'mean_halflife': (sum(valid_hl) / len(valid_hl)) if valid_hl else None,
             'mean_patent_pid': (sum(valid_pid) / len(valid_pid)) if valid_pid else None,
-            'best_patent_pid': max_pids.get(best_sid),
+            # "Best" patent PID = LOWEST PID (most dissimilar from every patent
+            # motif), not the PID of the top-scoring individual — we want
+            # sequences as different as possible from the patents.
+            'best_patent_pid': min(valid_pid) if valid_pid else None,
             'best_id': best_sid, 'best_sequence': seq_by_id[best_sid],
             'mutation_rate': current_mutation_rate,
         })

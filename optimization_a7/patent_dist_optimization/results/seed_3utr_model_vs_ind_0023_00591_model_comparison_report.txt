@@ -1,0 +1,44 @@
+RNA structure comparison report
+============================================================
+
+Structure 1: seed_3utr_model
+Structure 2: ind_0023_00591_model
+
+-- Secondary structure (x3dna-dssr) --
+seed_3utr_model: 76 nt, 36 bp, 4 stems, 2 helices, pseudoknot order 1
+  seq: UAUGCUUCACACAGGACAGACCAGGAGACUGGUCAGACCCUCGCGCCGGGGUAAUAGGCGCGCUGUGUGAAGUAGU
+  dbn: ..((((((((((((....((((((....))))))..[[[[[((((((]]]]]....))))))))))))))))))..
+ind_0023_00591_model: 76 nt, 32 bp, 4 stems, 2 helices
+  seq: UUUACUUCACACGGGACAGACCAGCUUACUGGUCAGGGCCUCGCGCCGGGGUAAUAGGCGCGCUGUGUGAAGUAGU
+  dbn: .((((((((((((((...((((((....))))))....)))((((((.........))))))..))))))))))).
+
+-- RMSD summary (Needleman-Wunsch global, Smith-Waterman 3D local) --
+(Ident% over equivalent residues; Modeled = residues with a usable representative atom)
+
+Method                 RMSD(A) Ident% EquivRes SeqLen1 SeqLen2 Modeled1 Modeled2
+--------------------------------------------------------------------------------
+Biopython RMSD          15.288   89.5       76      76      76       76       76
+Smith-Waterman 3D       15.288   89.5       76      76      76       76       76
+
+-- RMSD (PyMOL 'super', sequence-independent) --
+  RMSD            : 0.696 A
+  Aligned atoms   : 20
+
+-- pLDDT confidence (molecule_confidences.json) --
+  Bins: Very high (>90) blue | Confident (70-90) turquoise | Low (50-70) yellow | Very low (<50) red
+
+seed_3utr_model: mean pLDDT = 62.3 (1632 atoms)
+    Very high (pLDDT > 90)            0  (  0.0%)
+    Confident (70 < pLDDT <= 90)    541  ( 33.1%)
+    Low (50 < pLDDT <= 70)          772  ( 47.3%)
+    Very low (pLDDT <= 50)          319  ( 19.5%)
+ind_0023_00591_model: mean pLDDT = 52.6 (1626 atoms)
+    Very high (pLDDT > 90)            0  (  0.0%)
+    Confident (70 < pLDDT <= 90)    200  ( 12.3%)
+    Low (50 < pLDDT <= 70)          663  ( 40.8%)
+    Very low (pLDDT <= 50)          763  ( 46.9%)
+
+  seed_3utr_model confidence-colored render: optimization_a7/patent_dist_optimization/results/seed_3utr_model_plddt.png
+  seed_3utr_model confidence-colored session (open this directly in PyMOL -- coloring is already baked in): optimization_a7/patent_dist_optimization/results/plddt/seed_3utr_model_plddt.pse
+  ind_0023_00591_model confidence-colored render: optimization_a7/patent_dist_optimization/results/ind_0023_00591_model_plddt.png
+  ind_0023_00591_model confidence-colored session (open this directly in PyMOL -- coloring is already baked in): optimization_a7/patent_dist_optimization/results/plddt/ind_0023_00591_model_plddt.pse

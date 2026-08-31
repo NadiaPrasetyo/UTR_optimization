@@ -1032,10 +1032,10 @@ def main():
     ap.add_argument("--skip-plddt-coloring", action="store_true",
                      help="Don't load/apply pLDDT confidence coloring "
                           "even if a molecule_confidences.json is found")
-    ap.add_argument("--dssr-path", default="x3dna-dssr",
+    ap.add_argument("--dssr-path", default="/programs/x86_64-linux/system/sbgrid_bin/x3dna-dssr",
                      help="Path to the x3dna-dssr executable "
                           "(default: %(default)s, i.e. must be on PATH)")
-    ap.add_argument("--pymol-path", default="pymol",
+    ap.add_argument("--pymol-path", default="/programs/x86_64-linux/system/sbgrid_bin/pymol",
                      help="Path/name of the PyMOL executable "
                           "(default: %(default)s, i.e. must be on PATH -- "
                           "works with any command-line PyMOL install, "
