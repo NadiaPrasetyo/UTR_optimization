@@ -1,0 +1,72 @@
+3' UTR Genetic Algorithm — Evolution Summary (Scaled Scoring + Two-Stage AF3)
+================================================================================
+
+Generations: 50 | Population: 1000 | n-select: 10
+Mutation rate: 0.02 (gen 1) -> 0.001 (by gen 50) | Crossover rate: 0.0 | Temp: 1.0
+RNG seed: 42
+Ref CIFs: ['/projects/health_sciences/bms/biochemistry/gardner_group/nadia/UTR_optimization/optimization_a7/reference/af3_output/kc811837_1/kc811837_1/kc811837_1_model.cif', '/projects/health_sciences/bms/biochemistry/gardner_group/nadia/UTR_optimization/optimization_a7/reference/af3_output/mh125198_1/mh125198_1/mh125198_1_model.cif', '/projects/health_sciences/bms/biochemistry/gardner_group/nadia/UTR_optimization/optimization_a7/reference/af3_output/mk204417_1/mk204417_1/mk204417_1_model.cif']
+CM model: A7_analysis/a7s-like-seqs-non-redundant2-Kodimesavirinae-extended2.cm
+cmsearch E<= 0.01 | No-hit penalty: -1000.0
+Patent motifs: 7 | PID> 80.0% -> scaled penalty (25%-100% of -1000.0 as PID -> 100%)
+Patent PID distance bonus weight: 0.0 (0 disables; reward = weight * (1 - pid/100))
+AF3 filter: top 100/1000 candidates to structure prediction
+
+Seed length: 82 nt | Seed RMSD/cmscore: 29.268887490756406 / 77.0
+Best length: 82 nt
+All-time best score: 40.7 (id=ind_0024_00605, gen=24, max_patent_pid=76.66666666666667)
+
+  Gen   0 (mut_rate=0.0000): best  -250.4 (mean -250.45, worst  -250.4) | rmsd 29.268887490756406 | cmscore 77.0 | halflife -0.8411493570073928 | patent_pid best=80.48780487804879 mean=80.48780487804879
+  Gen   1 (mut_rate=0.0200): best    27.7 (mean 6.03, worst    -7.5) | rmsd 20.680448079519568 | cmscore 71.1055 | halflife -0.8503695147181944 | patent_pid best=73.17073170731707 mean=80.08943674027812
+  Gen   2 (mut_rate=0.0196): best    30.9 (mean 27.62, worst     8.1) | rmsd 3.2411314308980117 | cmscore 71.4549 | halflife -0.7641597335849635 | patent_pid best=72.72727272727273 mean=78.76817746071305
+  Gen   3 (mut_rate=0.0192): best    32.0 (mean 30.42, worst    19.6) | rmsd 2.6943588796425724 | cmscore 73.9086 | halflife -0.785014670994295 | patent_pid best=73.52941176470588 mean=79.58970058607842
+  Gen   4 (mut_rate=0.0188): best    33.3 (mean 29.95, worst     4.7) | rmsd 3.640256180996953 | cmscore 75.30489999999999 | halflife -0.7636906327040447 | patent_pid best=70.58823529411765 mean=79.61012330838729
+  Gen   5 (mut_rate=0.0184): best    33.7 (mean 31.66, worst    16.8) | rmsd 3.105311279330643 | cmscore 76.1763 | halflife -0.7856518001918152 | patent_pid best=70.73170731707317 mean=79.53838018055728
+  Gen   6 (mut_rate=0.0181): best    34.8 (mean 32.36, worst    23.7) | rmsd 2.792412059312001 | cmscore 77.2155 | halflife -0.798769726117868 | patent_pid best=72.97297297297297 mean=79.4455800321082
+  Gen   7 (mut_rate=0.0177): best    37.8 (mean 33.74, worst    17.3) | rmsd 2.6768647656978994 | cmscore 77.8193 | halflife -0.7900234694169163 | patent_pid best=70.58823529411765 mean=79.61303489141332
+  Gen   8 (mut_rate=0.0173): best    37.8 (mean 34.94, worst    20.3) | rmsd 2.8997098422846137 | cmscore 79.36439999999999 | halflife -0.7944499344606953 | patent_pid best=73.17073170731707 mean=79.55915504261272
+  Gen   9 (mut_rate=0.0169): best    38.2 (mean 37.26, worst    23.4) | rmsd 2.345345135985269 | cmscore 81.9327 | halflife -0.7796416634983107 | patent_pid best=72.97297297297297 mean=79.55723290526734
+  Gen  10 (mut_rate=0.0165): best    38.0 (mean 37.11, worst    23.4) | rmsd 2.4910325126239914 | cmscore 82.1288 | halflife -0.7805537494399057 | patent_pid best=70.58823529411765 mean=79.46790816765382
+  Gen  11 (mut_rate=0.0161): best    38.2 (mean 37.25, worst    26.4) | rmsd 2.627839082334157 | cmscore 82.4723 | halflife -0.7757625511957852 | patent_pid best=70.58823529411765 mean=79.62879892768852
+  Gen  12 (mut_rate=0.0157): best    38.3 (mean 36.76, worst    23.4) | rmsd 3.6086387257888948 | cmscore 82.43260000000001 | halflife -0.7783533875053014 | patent_pid best=73.52941176470588 mean=79.50789068553874
+  Gen  13 (mut_rate=0.0153): best    39.4 (mean 37.42, worst    29.8) | rmsd 3.6132706157784473 | cmscore 83.48710000000001 | halflife -0.7796970427764103 | patent_pid best=70.58823529411765 mean=79.57131477244819
+  Gen  14 (mut_rate=0.0150): best    39.4 (mean 37.71, worst    25.0) | rmsd 3.466690455918737 | cmscore 84.0668 | halflife -0.8022775527890963 | patent_pid best=70.27027027027027 mean=79.61727002468753
+  Gen  15 (mut_rate=0.0146): best    39.4 (mean 38.54, worst    36.1) | rmsd 2.866026260540735 | cmscore 84.48010000000001 | halflife -0.7871085087271753 | patent_pid best=70.58823529411765 mean=79.69604593804588
+  Gen  16 (mut_rate=0.0142): best    39.7 (mean 38.65, worst    31.0) | rmsd 3.307379658788751 | cmscore 84.7123 | halflife -0.8041961767182844 | patent_pid best=73.52941176470588 mean=79.58043471670445
+  Gen  17 (mut_rate=0.0138): best    39.6 (mean 38.68, worst    31.2) | rmsd 3.6115292590475843 | cmscore 85.3191 | halflife -0.8100527642256249 | patent_pid best=73.52941176470588 mean=79.74840530066317
+  Gen  18 (mut_rate=0.0134): best    39.6 (mean 38.68, worst    31.1) | rmsd 3.7104451805934775 | cmscore 85.66369999999999 | halflife -0.797315440021523 | patent_pid best=70.58823529411765 mean=79.61899819866821
+  Gen  19 (mut_rate=0.0130): best    39.5 (mean 39.16, worst    31.0) | rmsd 3.3190914147340522 | cmscore 85.9035 | halflife -0.779366383597629 | patent_pid best=73.52941176470588 mean=79.7071845303586
+  Gen  20 (mut_rate=0.0126): best    39.9 (mean 39.17, worst    31.1) | rmsd 3.3121310606556933 | cmscore 86.2423 | halflife -0.7816200391806372 | patent_pid best=72.97297297297297 mean=79.74042235968699
+  Gen  21 (mut_rate=0.0122): best    39.9 (mean 39.08, worst    31.0) | rmsd 3.399522159141455 | cmscore 86.3605 | halflife -0.7841601933508445 | patent_pid best=73.52941176470588 mean=79.76539769716241
+  Gen  22 (mut_rate=0.0119): best    40.2 (mean 39.09, worst    30.9) | rmsd 3.3969847479901834 | cmscore 86.8702 | halflife -0.7834461503586263 | patent_pid best=73.52941176470588 mean=79.87062267562986
+  Gen  23 (mut_rate=0.0115): best    40.2 (mean 39.51, worst    33.5) | rmsd 3.1608713638818915 | cmscore 86.5411 | halflife -0.7773513544338823 | patent_pid best=70.58823529411765 mean=79.38649987015842
+  Gen  24 (mut_rate=0.0111): best    40.7 (mean 39.33, worst    33.5) | rmsd 3.370774636432918 | cmscore 86.67490000000001 | halflife -0.779968618053371 | patent_pid best=70.58823529411765 mean=79.45417047590448
+  Gen  25 (mut_rate=0.0107): best    40.3 (mean 39.38, worst    33.5) | rmsd 3.3087528692749903 | cmscore 86.9869 | halflife -0.7786408013488553 | patent_pid best=73.52941176470588 mean=79.74735377613594
+  Gen  26 (mut_rate=0.0103): best    40.3 (mean 39.21, worst    33.4) | rmsd 3.493321815084931 | cmscore 86.9791 | halflife -0.7795115767634241 | patent_pid best=73.52941176470588 mean=79.74287611849522
+  Gen  27 (mut_rate=0.0099): best    40.2 (mean 39.44, worst    35.9) | rmsd 3.233283009879111 | cmscore 87.1503 | halflife -0.7782054136415709 | patent_pid best=73.52941176470588 mean=79.71485902711687
+  Gen  28 (mut_rate=0.0095): best    40.2 (mean 39.52, worst    36.9) | rmsd 3.153628115402415 | cmscore 87.3992 | halflife -0.7777700259342866 | patent_pid best=70.58823529411765 mean=79.74194789415736
+  Gen  29 (mut_rate=0.0091): best    40.2 (mean 39.49, worst    33.5) | rmsd 3.1938341411457207 | cmscore 87.6166 | halflife -0.7773680706407624 | patent_pid best=73.52941176470588 mean=79.72512716510481
+  Gen  30 (mut_rate=0.0088): best    40.2 (mean 39.49, worst    33.6) | rmsd 3.1958372031149502 | cmscore 87.55260000000001 | halflife -0.7777700259342866 | patent_pid best=73.52941176470588 mean=79.68766896370012
+  Gen  31 (mut_rate=0.0084): best    40.5 (mean 39.46, worst    33.5) | rmsd 3.238802739751851 | cmscore 87.69930000000001 | halflife -0.7781014126353033 | patent_pid best=73.52941176470588 mean=79.89454407592642
+  Gen  32 (mut_rate=0.0080): best    40.3 (mean 39.35, worst    33.5) | rmsd 3.3484419209510135 | cmscore 87.8813 | halflife -0.7795115767634241 | patent_pid best=73.52941176470588 mean=79.77998563148309
+  Gen  33 (mut_rate=0.0076): best    40.3 (mean 39.59, worst    37.0) | rmsd 3.0816515552534094 | cmscore 88.1191 | halflife -0.7773346382270023 | patent_pid best=73.52941176470588 mean=79.83342919504142
+  Gen  34 (mut_rate=0.0072): best    40.3 (mean 39.56, worst    33.5) | rmsd 3.11931773087229 | cmscore 88.0392 | halflife -0.7773513544338823 | patent_pid best=73.52941176470588 mean=79.86329147304858
+  Gen  35 (mut_rate=0.0068): best    40.2 (mean 39.52, worst    33.5) | rmsd 3.154010548135035 | cmscore 88.16590000000001 | halflife -0.7786575175557354 | patent_pid best=73.52941176470588 mean=79.73151284844255
+  Gen  36 (mut_rate=0.0064): best    40.3 (mean 39.57, worst    37.0) | rmsd 3.0960302776113355 | cmscore 88.38260000000001 | halflife -0.7773346382270023 | patent_pid best=73.52941176470588 mean=79.91215051289957
+  Gen  37 (mut_rate=0.0060): best    40.3 (mean 39.47, worst    33.5) | rmsd 3.212922864977191 | cmscore 88.6203 | halflife -0.7786408013488553 | patent_pid best=73.52941176470588 mean=79.94281442358516
+  Gen  38 (mut_rate=0.0057): best    40.2 (mean 39.50, worst    33.5) | rmsd 3.183498686364416 | cmscore 88.4415 | halflife -0.7773346382270023 | patent_pid best=73.52941176470588 mean=79.91347540706221
+  Gen  39 (mut_rate=0.0053): best    40.2 (mean 39.56, worst    39.5) | rmsd 3.1121738712222924 | cmscore 88.758 | halflife -0.7764638628124335 | patent_pid best=73.52941176470588 mean=79.9563978651927
+  Gen  40 (mut_rate=0.0049): best    40.3 (mean 39.55, worst    37.0) | rmsd 3.1163221602200704 | cmscore 88.7711 | halflife -0.7768992505197179 | patent_pid best=70.58823529411765 mean=79.95468991277974
+  Gen  41 (mut_rate=0.0045): best    40.3 (mean 39.59, worst    37.0) | rmsd 3.0846869256496716 | cmscore 88.9777 | halflife -0.7768992505197179 | patent_pid best=73.52941176470588 mean=79.85466188568688
+  Gen  42 (mut_rate=0.0041): best    40.2 (mean 39.53, worst    37.0) | rmsd 3.1403938709705983 | cmscore 89.06360000000001 | halflife -0.7768992505197179 | patent_pid best=76.66666666666667 mean=79.92274364099329
+  Gen  43 (mut_rate=0.0037): best    40.3 (mean 39.55, worst    37.0) | rmsd 3.123959866728736 | cmscore 89.13340000000001 | halflife -0.776915966726598 | patent_pid best=76.66666666666667 mean=79.92583268412537
+  Gen  44 (mut_rate=0.0033): best    40.3 (mean 39.60, worst    37.0) | rmsd 3.072226626952932 | cmscore 89.27320000000002 | halflife -0.7768992505197179 | patent_pid best=73.52941176470588 mean=79.89938144875016
+  Gen  45 (mut_rate=0.0029): best    40.3 (mean 39.50, worst    36.9) | rmsd 3.174893052811577 | cmscore 89.50040000000001 | halflife -0.7777700259342866 | patent_pid best=76.66666666666667 mean=79.89381532177802
+  Gen  46 (mut_rate=0.0026): best    40.2 (mean 39.49, worst    33.5) | rmsd 3.190300085659996 | cmscore 89.54090000000001 | halflife -0.7777700259342866 | patent_pid best=73.52941176470588 mean=79.95513227979511
+  Gen  47 (mut_rate=0.0022): best    40.3 (mean 39.63, worst    39.5) | rmsd 3.0372954089152007 | cmscore 89.78120000000001 | halflife -0.7764638628124335 | patent_pid best=73.52941176470588 mean=79.9728746106221
+  Gen  48 (mut_rate=0.0018): best    40.3 (mean 39.61, worst    37.0) | rmsd 3.0636634121425423 | cmscore 89.8216 | halflife -0.7768992505197179 | patent_pid best=73.52941176470588 mean=79.92920586296482
+  Gen  49 (mut_rate=0.0014): best    40.3 (mean 39.62, worst    39.5) | rmsd 3.0442484398606853 | cmscore 90.0066 | halflife -0.7764638628124335 | patent_pid best=76.66666666666667 mean=79.97862241007148
+  Gen  50 (mut_rate=0.0010): best    40.3 (mean 39.59, worst    39.5) | rmsd 3.074039029956382 | cmscore 90.10560000000001 | halflife -0.7764638628124335 | patent_pid best=76.66666666666667 mean=79.98661997069458
+
+Best evolved 3' UTR sequence:
+GGTGATGAAGCAAACAGGACAAAGCCTGCCTTAGAGCAGGCAGACCTTCCACCGGGGCAA
+TAGGTGGACTGTTTGCATCAGT
