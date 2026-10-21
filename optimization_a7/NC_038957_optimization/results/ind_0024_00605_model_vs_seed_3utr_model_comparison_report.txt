@@ -1,0 +1,44 @@
+RNA structure comparison report
+============================================================
+
+Structure 1: ind_0024_00605_model
+Structure 2: seed_3utr_model
+
+-- Secondary structure (x3dna-dssr) --
+ind_0024_00605_model: 82 nt, 42 bp, 5 stems, 1 helices, pseudoknot order 1
+  seq: GGUGAUGAAGCAAACAGGACAAAGCCUGCCUUAGAGCAGGCAGACCUUCCACCGGGGCAAUAGGUGGACUGUUUGCAUCAGU
+  dbn: .....(((.((((((((......((((((......)))))).[.[[.((((((.]].]....)))))))))))))).)))..
+seed_3utr_model: 82 nt, 33 bp, 5 stems, 1 helices, pseudoknot order 1
+  seq: GAGUGUGAAGCAAGCAGGGCAAAGCCUGCCGGAGUGCGGGCAGACCCUCCACCGGGGCAAUAGGUGGACUGUUUGCAUUAGG
+  dbn: [.............((((......))))((..(((((((((((.][[((((((]].......))))))))))))))))).))
+
+-- RMSD summary (Needleman-Wunsch global, Smith-Waterman 3D local) --
+(Ident% over equivalent residues; Modeled = residues with a usable representative atom)
+
+Method                 RMSD(A) Ident% EquivRes SeqLen1 SeqLen2 Modeled1 Modeled2
+--------------------------------------------------------------------------------
+Biopython RMSD          33.720   84.1       82      82      82       82       82
+Smith-Waterman 3D       33.371   89.5       76      82      82       82       82
+
+-- RMSD (PyMOL 'super', sequence-independent) --
+  RMSD            : 0.257 A
+  Aligned atoms   : 21
+
+-- pLDDT confidence (molecule_confidences.json) --
+  Bins: Very high (>90) blue | Confident (70-90) turquoise | Low (50-70) yellow | Very low (<50) red
+
+ind_0024_00605_model: mean pLDDT = 52.6 (1762 atoms)
+    Very high (pLDDT > 90)            0  (  0.0%)
+    Confident (70 < pLDDT <= 90)      0  (  0.0%)
+    Low (50 < pLDDT <= 70)         1006  ( 57.1%)
+    Very low (pLDDT <= 50)          756  ( 42.9%)
+seed_3utr_model: mean pLDDT = 47.6 (1772 atoms)
+    Very high (pLDDT > 90)            0  (  0.0%)
+    Confident (70 < pLDDT <= 90)      0  (  0.0%)
+    Low (50 < pLDDT <= 70)          936  ( 52.8%)
+    Very low (pLDDT <= 50)          836  ( 47.2%)
+
+  ind_0024_00605_model confidence-colored render: /projects/health_sciences/bms/biochemistry/gardner_group/nadia/UTR_optimization/optimization_a7/NC_038957_optimization/results/ind_0024_00605_model_plddt.png
+  ind_0024_00605_model confidence-colored session (open this directly in PyMOL -- coloring is already baked in): /projects/health_sciences/bms/biochemistry/gardner_group/nadia/UTR_optimization/optimization_a7/NC_038957_optimization/results/plddt/ind_0024_00605_model_plddt.pse
+  seed_3utr_model confidence-colored render: /projects/health_sciences/bms/biochemistry/gardner_group/nadia/UTR_optimization/optimization_a7/NC_038957_optimization/results/seed_3utr_model_plddt.png
+  seed_3utr_model confidence-colored session (open this directly in PyMOL -- coloring is already baked in): /projects/health_sciences/bms/biochemistry/gardner_group/nadia/UTR_optimization/optimization_a7/NC_038957_optimization/results/plddt/seed_3utr_model_plddt.pse
